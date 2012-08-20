@@ -24,7 +24,9 @@ import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.explain.ExplainResponse;
+import org.elasticsearch.action.explain.ExplainSourceBuilder;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -32,15 +34,12 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestXContentBuilder;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.rest.RestStatus.PRECONDITION_FAILED;
 import static org.elasticsearch.rest.action.support.RestXContentBuilder.restContentBuilder;
 
 /**
@@ -63,9 +62,9 @@ public class RestExplainAction extends BaseRestHandler {
         String sourceString = request.param("source");
         String queryString = request.param("q");
         if (request.hasContent()) {
-            explainRequest.query(request.content(), request.contentUnsafe());
+            explainRequest.source(request.content(), request.contentUnsafe());
         } else if (sourceString != null) {
-            explainRequest.query(request.param("source"));
+            explainRequest.source(new BytesArray(request.param("source")), false);
         } else if (queryString != null) {
             QueryStringQueryBuilder queryStringBuilder = QueryBuilders.queryString(queryString);
             queryStringBuilder.defaultField(request.param("df"));
@@ -83,7 +82,10 @@ public class RestExplainAction extends BaseRestHandler {
                     throw new ElasticSearchIllegalArgumentException("Unsupported defaultOperator [" + defaultOperator + "], can either be [OR] or [AND]");
                 }
             }
-            explainRequest.query(queryStringBuilder);
+
+            ExplainSourceBuilder explainSourceBuilder = new ExplainSourceBuilder();
+            explainSourceBuilder.query(queryStringBuilder);
+            explainRequest.source(explainSourceBuilder);
         }
 
         client.explain(explainRequest, new ActionListener<ExplainResponse>() {

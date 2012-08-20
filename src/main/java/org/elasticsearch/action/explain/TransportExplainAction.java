@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.explain;
 
+import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.elasticsearch.ElasticSearchException;
@@ -28,18 +29,30 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchParseElement;
+import org.elasticsearch.search.internal.InternalSearchRequest;
+import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.query.QueryParseElement;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * Explain transport action. Computes the explain on the targeted shard.
@@ -49,11 +62,15 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
 
     private final IndicesService indicesService;
 
+    private final ScriptService scriptService;
+
     @Inject
     public TransportExplainAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                  TransportService transportService, IndicesService indicesService) {
+                                  TransportService transportService, IndicesService indicesService,
+                                  ScriptService scriptService) {
         super(settings, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
+        this.scriptService = scriptService;
     }
 
     protected String transportAction() {
@@ -64,33 +81,65 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
         return ThreadPool.Names.GET; // Or use Names.SEARCH?
     }
 
-    protected ExplainResponse shardOperation(ExplainRequest request, int shardId) throws ElasticSearchException {
-        Engine.Searcher searcher = null;
-        try {
-            IndexService indexService = indicesService.indexService(request.index());
-            IndexShard indexShard = indexService.shardSafe(shardId);
-            Term uidTerm = UidFieldMapper.TERM_FACTORY.createTerm(Uid.createUid(request.type(), request.id()));
-            Engine.GetResult result = indexShard.get(new Engine.Get(false, uidTerm));
-            if (!result.exists()) {
-                return new ExplainResponse(false);
-            }
+    @Override
+    protected void resolveRequest(ClusterState state, ExplainRequest request) {
+        String concreteIndex = state.metaData().concreteIndex(request.index());
+        request.filteringAlias(state.metaData().filteringAliases(concreteIndex, request.index()));
+        request.index(state.metaData().concreteIndex(request.index()));
+    }
 
-            searcher = result.searcher();
-            Query explainQuery = indexService.queryParserService().parse(request.query()).query();
-            Filter searchFilter = indexService.mapperService().searchFilter(request.type());
-            if (searchFilter != null) {
-                explainQuery = new FilteredQuery(explainQuery, indexService.cache().filter().cache(searchFilter));
-            }
-            int docId = result.docIdAndVersion().docId;
-            Explanation explanation = searcher.searcher().explain(explainQuery, docId);
+    protected ExplainResponse shardOperation(ExplainRequest request, int shardId) throws ElasticSearchException {
+        IndexService indexService = indicesService.indexService(request.index());
+        IndexShard indexShard = indexService.shardSafe(shardId);
+        Term uidTerm = UidFieldMapper.TERM_FACTORY.createTerm(Uid.createUid(request.type(), request.id()));
+        Engine.GetResult result = indexShard.get(new Engine.Get(false, uidTerm));
+        if (!result.exists()) {
+            return new ExplainResponse(false);
+        }
+
+        SearchContext context = new SearchContext(
+                0,
+                new InternalSearchRequest().types(new String[]{request.type()})
+                        .filteringAliases(request.filteringAlias()),
+                null, indexShard.searcher(), indexService, indexShard,
+                scriptService
+        );
+        SearchContext.setCurrent(context);
+        context.parsedQuery(retrieveParsedQuery(request, indexService));
+        context.preProcess();
+        int topLevelDocId = result.docIdAndVersion().docId + result.docIdAndVersion().docStart;
+
+        try {
+            Explanation explanation = context.searcher().explain(context.query(), topLevelDocId);
             return new ExplainResponse(true, explanation);
         } catch (IOException e) {
             throw new ElasticSearchException("Could not explain", e);
         } finally {
-            if (searcher != null) {
-                searcher.release();
-            }
+            context.release();
+            SearchContext.removeCurrent();
         }
+    }
+
+    private ParsedQuery retrieveParsedQuery(ExplainRequest request, IndexService indexService) {
+        try {
+            XContentParser parser = XContentHelper.createParser(request.source());
+            for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    String fieldName = parser.currentName();
+                    if ("query".equals(fieldName)) {
+                        return indexService.queryParserService().parse(parser);
+                    } else if ("query_binary".equals(fieldName)) {
+                        byte[] querySource = parser.binaryValue();
+                        XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource);
+                        return indexService.queryParserService().parse(qSourceParser);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            throw new ElasticSearchException("Couldn't parse query from source.", e);
+        }
+
+        throw new ElasticSearchException("No query specified");
     }
 
     protected ExplainRequest newRequest() {

@@ -24,15 +24,17 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequest;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
 import java.util.Map;
@@ -48,8 +50,10 @@ public class ExplainRequest extends SingleShardOperationRequest {
     private String id;
     private String routing;
     private String preference;
-    private BytesReference querySource;
-    private boolean querySourceUnsafe;
+    private BytesReference source;
+    private boolean sourceUnsafe;
+
+    private String[] filteringAlias = Strings.EMPTY_ARRAY;
 
     ExplainRequest(){
     }
@@ -109,58 +113,36 @@ public class ExplainRequest extends SingleShardOperationRequest {
         return this;
     }
 
-    public BytesReference query() {
-        return querySource;
+    public BytesReference source() {
+        return source;
     }
 
-    public boolean querySourceUnsafe() {
-        return querySourceUnsafe;
+    public boolean sourceUnsafe() {
+        return sourceUnsafe;
     }
 
-    public ExplainRequest query(QueryBuilder queryBuilder) {
-        if (queryBuilder == null) {
-            return this;
-        }
-
-        this.querySource = queryBuilder.buildAsBytes();
-        this.querySourceUnsafe = false;
+    public ExplainRequest source(ExplainSourceBuilder sourceBuilder) {
+        this.source = sourceBuilder.buildAsBytes(contentType);
+        this.sourceUnsafe = false;
         return this;
     }
 
-    public ExplainRequest query(Map querySource) {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
-            builder.map(querySource);
-            return query(builder);
-        } catch (IOException e) {
-            throw new ElasticSearchGenerationException("Failed to generate [" + querySource + "]", e);
-        }
-    }
-
-    public ExplainRequest query(XContentBuilder builder) {
-        if (builder == null) {
-            return this;
-        }
-
-        this.querySource = builder.bytes();
-        this.querySourceUnsafe = false;
+    public ExplainRequest source(BytesReference querySource, boolean unsafe) {
+        this.source = querySource;
+        this.sourceUnsafe = unsafe;
         return this;
     }
 
-    public ExplainRequest query(String queryString) {
-        if (queryString == null) {
-            return this;
-        }
-
-        this.querySource = new BytesArray(queryString);
-        this.querySourceUnsafe = false;
-        return this;
+    public String[] filteringAlias() {
+        return filteringAlias;
     }
 
-    public ExplainRequest query(BytesReference querySource, boolean unsafe) {
-        this.querySource = querySource;
-        this.querySourceUnsafe = unsafe;
-        return this;
+    public void filteringAlias(String[] filteringAlias) {
+        if (filteringAlias == null) {
+            return;
+        }
+
+        this.filteringAlias = filteringAlias;
     }
 
     @Override
@@ -177,9 +159,9 @@ public class ExplainRequest extends SingleShardOperationRequest {
 
     @Override
     protected void beforeLocalFork() {
-        if (querySourceUnsafe) {
-            querySource = querySource.copyBytesArray();
-            querySourceUnsafe = false;
+        if (sourceUnsafe) {
+            source = source.copyBytesArray();
+            sourceUnsafe = false;
         }
     }
 
@@ -192,8 +174,8 @@ public class ExplainRequest extends SingleShardOperationRequest {
         if (id == null) {
             validationException = ValidateActions.addValidationError("id is missing", validationException);
         }
-        if (querySource == null) {
-            validationException = ValidateActions.addValidationError("query is missing", validationException);
+        if (source == null) {
+            validationException = ValidateActions.addValidationError("source is missing", validationException);
         }
         return validationException;
     }
@@ -205,8 +187,9 @@ public class ExplainRequest extends SingleShardOperationRequest {
         id = in.readString();
         routing = in.readOptionalString();
         preference = in.readOptionalString();
-        querySource = in.readBytesReference();
-        querySourceUnsafe = false;
+        source = in.readBytesReference();
+        sourceUnsafe = false;
+        filteringAlias = in.readStringArray();
     }
 
     @Override
@@ -216,6 +199,7 @@ public class ExplainRequest extends SingleShardOperationRequest {
         out.writeString(id);
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);
-        out.writeBytesReference(querySource);
+        out.writeBytesReference(source);
+        out.writeStringArray(filteringAlias);
     }
 }

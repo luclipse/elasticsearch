@@ -33,6 +33,7 @@ import java.util.Map;
  */
 public class ExplainRequestBuilder extends BaseRequestBuilder<ExplainRequest, ExplainResponse> {
 
+    private ExplainSourceBuilder sourceBuilder;
 
     ExplainRequestBuilder(Client client) {
         super(client, new ExplainRequest());
@@ -97,27 +98,12 @@ public class ExplainRequestBuilder extends BaseRequestBuilder<ExplainRequest, Ex
      * Sets the query to get a score explanation for.
      */
     public ExplainRequestBuilder setQuery(QueryBuilder queryBuilder) {
-        request().query(queryBuilder);
+        sourceBuilder().query(queryBuilder);
         return this;
     }
 
-    public ExplainRequestBuilder setQuery(Map querySource) {
-        request().query(querySource);
-        return this;
-    }
-
-    public ExplainRequestBuilder setQuery(XContentBuilder builder) {
-        request().query(builder);
-        return this;
-    }
-
-    public ExplainRequestBuilder setQuery(String querySource) {
-        request().query(querySource);
-        return this;
-    }
-
-    public ExplainRequestBuilder setQuery(BytesReference querySource, boolean unsafe) {
-        request().query(querySource, unsafe);
+    public ExplainRequestBuilder setSource(BytesReference querySource, boolean unsafe) {
+        request().source(querySource, unsafe);
         return this;
     }
 
@@ -130,6 +116,18 @@ public class ExplainRequestBuilder extends BaseRequestBuilder<ExplainRequest, Ex
     }
 
     protected void doExecute(ActionListener<ExplainResponse> listener) {
+        if (sourceBuilder != null) {
+            request.source(sourceBuilder);
+        }
+
         client.explain(request, listener);
     }
+
+    private ExplainSourceBuilder sourceBuilder() {
+        if (sourceBuilder == null) {
+            sourceBuilder = new ExplainSourceBuilder();
+        }
+        return sourceBuilder;
+    }
+
 }

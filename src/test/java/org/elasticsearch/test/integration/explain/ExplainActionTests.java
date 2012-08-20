@@ -22,6 +22,7 @@ package org.elasticsearch.test.integration.explain;
 import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
@@ -110,6 +111,25 @@ public class ExplainActionTests extends AbstractNodesTests {
                 .execute().actionGet();
         assertNotNull(response);
         assertFalse(response.exists());
+        assertFalse(response.match());
+    }
+
+    @Test
+    public void testExplainWithAlias() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+        client.admin().indices().prepareCreate("test")
+                .execute().actionGet();
+
+        client.admin().indices().prepareAliases().addAlias("test", "alias1", FilterBuilders.termFilter("field2", "value2"))
+                .execute().actionGet();
+        client.prepareIndex("test", "test", "1").setSource("field1", "value1", "field2", "value1").execute().actionGet();
+        client.admin().indices().prepareRefresh("test").execute().actionGet();
+
+        ExplainResponse response = client.prepareExplain("alias1", "test", "1")
+                .setQuery(QueryBuilders.matchAllQuery())
+                .execute().actionGet();
+        assertNotNull(response);
+        assertTrue(response.exists());
         assertFalse(response.match());
     }
 
