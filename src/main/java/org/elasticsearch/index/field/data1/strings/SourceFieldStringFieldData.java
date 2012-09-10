@@ -8,16 +8,17 @@ import org.elasticsearch.index.mapper.internal.SourceFieldSelector;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  *
  */
-public class StoredSourceStringFieldData implements StringFieldData {
+public class SourceFieldStringFieldData implements StringFieldData {
 
     private final IndexReader indexReader;
     private final String fieldName;
 
-    public StoredSourceStringFieldData(String fieldName, IndexReader indexReader) {
+    public SourceFieldStringFieldData(String fieldName, IndexReader indexReader) {
         this.fieldName = fieldName;
         this.indexReader = indexReader;
     }
@@ -34,7 +35,15 @@ public class StoredSourceStringFieldData implements StringFieldData {
     }
 
     public String[] values(int docId) {
-        throw new UnsupportedOperationException();
+        try {
+            Document doc = indexReader.document(docId, SourceFieldSelector.INSTANCE);
+            Fieldable sourceField = doc.getFieldable(SourceFieldMapper.NAME);
+            List<String> values = (List<String>) SourceLookup.sourceAsMap(sourceField.getBinaryValue(), sourceField.getBinaryOffset(),
+                    sourceField.getBinaryLength()).get(fieldName);
+            return values.toArray(new String[values.size()]);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     public String fieldName() {
@@ -42,15 +51,20 @@ public class StoredSourceStringFieldData implements StringFieldData {
     }
 
     public boolean hasValue(int docId) {
-        throw new UnsupportedOperationException();
+        try {
+            Document doc = indexReader.document(docId, SourceFieldSelector.INSTANCE);
+            return doc.getFieldable(SourceFieldMapper.NAME) != null;
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     public long computeSizeInBytes() {
-        throw new UnsupportedOperationException();
+        return 0L;
     }
 
-    public StoredSourceStringFieldData load(IndexReader reader, String fieldName) {
-        return new StoredSourceStringFieldData(fieldName, reader);
+    public SourceFieldStringFieldData load(IndexReader reader, String fieldName) {
+        return new SourceFieldStringFieldData(fieldName, reader);
     }
 
 }
