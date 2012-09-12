@@ -25,6 +25,7 @@ import org.apache.lucene.search.SortField;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.field.data.FieldDataType;
+import org.elasticsearch.index.field.data1.FieldData;
 
 import java.io.IOException;
 
@@ -54,5 +55,9 @@ public class StringFieldDataType implements FieldDataType<StringFieldData> {
     @Override
     public StringFieldData load(IndexReader reader, String fieldName) throws IOException {
         return StringFieldData.load(reader, fieldName);
+    }
+
+    public FieldData load1(IndexReader reader, String fieldName) throws IOException {
+        return null;
     }
 }

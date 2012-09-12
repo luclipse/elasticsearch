@@ -19,15 +19,14 @@
 
 package org.elasticsearch.index.field.data1.strings;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.field.data1.FieldData;
 
 /**
  *
  */
-public interface StringOrdinalFieldData extends StringFieldData {
+public interface SingleValuedStringFieldData extends FieldData {
 
-    int ord(int doc);
-
-    int[] ords(int doc);
+    BytesRef value(int docId);
 
 }

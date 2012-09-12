@@ -52,6 +52,8 @@ public interface FieldDataType<T extends FieldData> {
 
     T load(IndexReader reader, String fieldName) throws IOException;
 
+//    org.elasticsearch.index.field.data1.FieldData load1(IndexReader reader, String fieldName) throws IOException;
+
     // we need this extended source we we have custom comparators to reuse our field data
     // in this case, we need to reduce type that will be used when search results are reduced
     // on another node (we don't have the custom source them...)
