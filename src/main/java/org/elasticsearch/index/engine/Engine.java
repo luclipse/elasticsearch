@@ -707,16 +707,18 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         private final String[] filteringAliases;
         private final Filter aliasFilter;
         private final String[] types;
+        private final Filter nestedFilter;
 
         private long startTime;
         private long endTime;
 
-        public DeleteByQuery(Query query, BytesReference source, @Nullable String[] filteringAliases, @Nullable Filter aliasFilter, String... types) {
+        public DeleteByQuery(Query query, BytesReference source, @Nullable String[] filteringAliases, @Nullable Filter aliasFilter, Filter nestedFilter, String... types) {
             this.query = query;
             this.source = source;
             this.types = types;
             this.filteringAliases = filteringAliases;
             this.aliasFilter = aliasFilter;
+            this.nestedFilter = nestedFilter;
         }
 
         public Query query() {
@@ -737,6 +739,14 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
         public Filter aliasFilter() {
             return aliasFilter;
+        }
+
+        public boolean nested() {
+            return nestedFilter != null;
+        }
+
+        public Filter nestedFilter() {
+            return nestedFilter;
         }
 
         public DeleteByQuery startTime(long startTime) {

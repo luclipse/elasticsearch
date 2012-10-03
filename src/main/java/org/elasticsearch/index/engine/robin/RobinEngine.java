@@ -51,6 +51,7 @@ import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.merge.policy.EnableMergePolicy;
 import org.elasticsearch.index.merge.policy.MergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
+import org.elasticsearch.index.search.nested.IncludeAllNestedDocsQuery;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
@@ -715,12 +716,18 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             if (writer == null) {
                 throw new EngineClosedException(shardId);
             }
+
             Query query;
-            if (delete.aliasFilter() == null) {
-                query = delete.query();
-            } else {
+            if (delete.nested() && delete.aliasFilter() != null) {
+                query = new IncludeAllNestedDocsQuery(delete.query(), delete.nestedFilter(), delete.aliasFilter());
+            } else if (delete.nested()) {
+                query = new IncludeAllNestedDocsQuery(delete.query(), delete.nestedFilter());
+            } else if (delete.aliasFilter() != null) {
                 query = new FilteredQuery(delete.query(), delete.aliasFilter());
+            } else {
+                query = delete.query();
             }
+
             writer.deleteDocuments(query);
             translog.add(new Translog.DeleteByQuery(delete));
             dirty = true;
