@@ -92,11 +92,11 @@ public class AndDocIdSet extends DocIdSet {
         );
     }
 
-    static class AndBits implements Bits {
+    public static class AndBits implements Bits {
 
         private final Bits[] bits;
 
-        AndBits(Bits[] bits) {
+        public AndBits(Bits[] bits) {
             this.bits = bits;
         }
 

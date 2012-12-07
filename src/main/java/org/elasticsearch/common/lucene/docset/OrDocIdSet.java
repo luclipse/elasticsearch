@@ -63,10 +63,10 @@ public class OrDocIdSet extends DocIdSet {
         return new IteratorBasedIterator(sets);
     }
 
-    static class OrBits implements Bits {
+    public static class OrBits implements Bits {
         private final Bits[] bits;
 
-        OrBits(Bits[] bits) {
+        public OrBits(Bits[] bits) {
             this.bits = bits;
         }
 
