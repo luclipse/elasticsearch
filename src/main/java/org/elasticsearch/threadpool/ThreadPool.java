@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.common.util.concurrent.MoreExecutors;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -38,6 +39,7 @@ import org.elasticsearch.common.util.concurrent.*;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.node.settings.NodeSettingsService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -76,12 +78,67 @@ public class ThreadPool extends AbstractComponent {
 
     private final EstimatedTimeThread estimatedTimeThread;
 
+    static {
+        MetaData.addDynamicSettings(
+                "threadpool.*"
+        );
+    }
+
+    class ApplySettings implements NodeSettingsService.Listener {
+
+        @Override
+        public void onRefreshSettings(Settings settings) {
+
+            // TODO: implement updating settings per node, like this:
+//            Settings nodeSettings = settings.getByPrefix("threadpool." + nodeName());
+            // TODO: and for `all` nodes (node settings should override `all` settings)
+//            Settings allSettings = settings.getByPrefix("threadpool.all");
+
+            Map<String, Settings> threadPools = settings.getGroups("threadpool");
+            for (Map.Entry<String, Settings> entry : threadPools.entrySet()) {
+                String threadPoolName = entry.getKey();
+                Settings newSettings = entry.getValue();
+
+                ExecutorHolder holder = executors.get(threadPoolName);
+                if ("fixed".equals(holder.info.type()) || "scaling".equals(holder.info.type()) || "blocking".equals(holder.info.type())) {
+                    EsThreadPoolExecutor executor = (EsThreadPoolExecutor) holder.executor;
+                    Integer size = newSettings.getAsInt("size", null);
+                    if (size != null && !size.equals(executor.getCorePoolSize())) {
+                        logger.info("updating [threadpool.{}] from [{}] to [{}]", threadPoolName, executor.getCorePoolSize(), size);
+                        executor.setCorePoolSize(size);
+                        executor.setMaximumPoolSize(size);
+                    }
+                    String rejectSetting = settings.get("reject_policy");
+                    if (rejectSetting != null) {
+                        RejectedExecutionHandler rejectedExecutionHandler;
+                        if ("abort".equals(rejectSetting)) {
+                            rejectedExecutionHandler = new EsAbortPolicy();
+                        } else if ("caller".equals(rejectSetting)) {
+                            rejectedExecutionHandler = new ThreadPoolExecutor.CallerRunsPolicy();
+                        } else {
+                            logger.warn("reject_policy [{}] not valid for [{}] thread pool", rejectSetting, threadPoolName);
+                            continue;
+                        }
+                        if (!rejectedExecutionHandler.equals(executor.getRejectedExecutionHandler())) {
+                            executor.setRejectedExecutionHandler(rejectedExecutionHandler);
+                        }
+                    }
+                } else {
+                    logger.warn("Can't update threadpool.{} of type: {}", threadPoolName, holder.info.type());
+                }
+            }
+        }
+
+
+    }
+
+    // Only used in tests / benchmarks
     public ThreadPool() {
-        this(ImmutableSettings.Builder.EMPTY_SETTINGS);
+        this(ImmutableSettings.Builder.EMPTY_SETTINGS, new NodeSettingsService(ImmutableSettings.Builder.EMPTY_SETTINGS));
     }
 
     @Inject
-    public ThreadPool(Settings settings) {
+    public ThreadPool(Settings settings, NodeSettingsService nodeSettingsService) {
         super(settings);
 
         Map<String, Settings> groupSettings = settings.getGroups("threadpool");
@@ -108,6 +165,8 @@ public class ThreadPool extends AbstractComponent {
         TimeValue estimatedTimeInterval = componentSettings.getAsTime("estimated_time_interval", TimeValue.timeValueMillis(200));
         this.estimatedTimeThread = new EstimatedTimeThread(EsExecutors.threadName(settings, "[timer]"), estimatedTimeInterval.millis());
         this.estimatedTimeThread.start();
+
+        nodeSettingsService.addListener(new ApplySettings());
     }
 
     public long estimatedTimeInMillis() {
