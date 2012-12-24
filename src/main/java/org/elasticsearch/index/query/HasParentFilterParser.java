@@ -19,17 +19,22 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.search.child.HasParentFilter;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  *
@@ -106,12 +111,38 @@ public class HasParentFilterParser implements FilterParser {
             throw new QueryParsingException(parseContext.index(), "[parent] filter configured 'parent_type' [" + parentType + "] is not a valid type");
         }
 
+        List<String> childTypes = new ArrayList<String>(2);
+        for (DocumentMapper documentMapper : parseContext.mapperService()) {
+            ParentFieldMapper parentFieldMapper = documentMapper.parentFieldMapper();
+            if (parentFieldMapper == null) {
+                continue;
+            }
+
+            if (parentDocMapper.type().equals(parentFieldMapper.type())) {
+                childTypes.add(documentMapper.type());
+            }
+        }
+
+        Filter childFilter;
+        if (childTypes.size() == 1) {
+            DocumentMapper documentMapper = parseContext.mapperService().documentMapper(childTypes.get(0));
+            childFilter = parseContext.cacheFilter(documentMapper.typeFilter(), null);
+        } else {
+            XBooleanFilter childrenFilter = new XBooleanFilter();
+            for (String childType : childTypes) {
+                DocumentMapper documentMapper = parseContext.mapperService().documentMapper(childType);
+                Filter filter = parseContext.cacheFilter(documentMapper.typeFilter(), null);
+                childrenFilter.add(filter, BooleanClause.Occur.SHOULD);
+            }
+            childFilter = childrenFilter;
+        }
+
         // wrap the query with type query
         query = new XFilteredQuery(query, parseContext.cacheFilter(parentDocMapper.typeFilter(), null));
 
         SearchContext searchContext = SearchContext.current();
 
-        HasParentFilter parentFilter = HasParentFilter.create(executionType, query, scope, parentType, searchContext);
+        HasParentFilter parentFilter = HasParentFilter.create(executionType, query, childFilter, scope, parentType, searchContext);
         searchContext.addScopePhase(parentFilter);
 
         if (filterName != null) {

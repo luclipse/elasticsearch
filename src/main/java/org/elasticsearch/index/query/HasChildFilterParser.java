@@ -115,7 +115,9 @@ public class HasChildFilterParser implements FilterParser {
 
         SearchContext searchContext = SearchContext.current();
 
-        HasChildFilter childFilter = HasChildFilter.create(query, scope, parentType, childType, searchContext, executionType);
+        DocumentMapper parentDocMapper = parseContext.mapperService().documentMapper(parentType);
+        Filter parentFilter = parseContext.cacheFilter(parentDocMapper.typeFilter(), null);
+        HasChildFilter childFilter = HasChildFilter.create(query, parentFilter, scope, parentType, childType, searchContext, executionType);
         searchContext.addScopePhase(childFilter);
 
         if (filterName != null) {

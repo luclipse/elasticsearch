@@ -154,7 +154,7 @@ public class HasParentQueryParser implements QueryParser {
             searchContext.addScopePhase(parentQuery);
             query = parentQuery;
         } else {
-            HasParentFilter hasParentFilter = HasParentFilter.create(executionType, innerQuery, scope, parentType, searchContext);
+            HasParentFilter hasParentFilter = HasParentFilter.create(executionType, innerQuery, childFilter, scope, parentType, searchContext);
             searchContext.addScopePhase(hasParentFilter);
             query = new ConstantScoreQuery(hasParentFilter);
         }

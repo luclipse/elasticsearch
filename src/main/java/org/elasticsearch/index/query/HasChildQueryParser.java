@@ -119,17 +119,17 @@ public class HasChildQueryParser implements QueryParser {
         }
         String parentType = childDocMapper.parentFieldMapper().type();
         DocumentMapper parentDocMapper = parseContext.mapperService().documentMapper(parentType);
+        Filter parentFilter = parseContext.cacheFilter(parentDocMapper.typeFilter(), null);
 
         // wrap the query with type query
         SearchContext searchContext = SearchContext.current();
         Query query;
         if (scoreType != null) {
-            Filter parentFilter = parseContext.cacheFilter(parentDocMapper.typeFilter(), null);
             ChildrenQuery childrenQuery = new ChildrenQuery(searchContext, parentType, childType, parentFilter, scope, innerQuery, scoreType);
             searchContext.addScopePhase(childrenQuery);
             query = childrenQuery;
         } else {
-            HasChildFilter hasChildFilter = HasChildFilter.create(innerQuery, scope, parentType, childType, searchContext, executionType);
+            HasChildFilter hasChildFilter = HasChildFilter.create(innerQuery, parentFilter, scope, parentType, childType, searchContext, executionType);
             searchContext.addScopePhase(hasChildFilter);
             query = new ConstantScoreQuery(hasChildFilter);
         }

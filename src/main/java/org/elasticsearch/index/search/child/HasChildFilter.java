@@ -21,18 +21,12 @@ package org.elasticsearch.index.search.child;
 
 import gnu.trove.set.hash.THashSet;
 import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.DocIdSet;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.Query;
+import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.CacheRecycler;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.HashedBytesArray;
-import org.elasticsearch.common.lucene.docset.MatchDocIdSet;
 import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
 import org.elasticsearch.search.internal.ScopePhase;
@@ -75,12 +69,12 @@ public abstract class HasChildFilter extends Filter implements ScopePhase.Collec
         return sb.toString();
     }
 
-    public static HasChildFilter create(Query childQuery, String scope, String parentType, String childType, SearchContext searchContext, String executionType) {
+    public static HasChildFilter create(Query childQuery, Filter parentFilter, String scope, String parentType, String childType, SearchContext searchContext, String executionType) {
         // This mechanism is experimental and will most likely be removed.
         if ("bitset".equals(executionType)) {
             return new Bitset(childQuery, scope, parentType, childType, searchContext);
         } else if ("uid".endsWith(executionType)) {
-            return new Uid(childQuery, scope, parentType, childType, searchContext);
+            return new Uid(childQuery, parentFilter, scope, parentType, childType, searchContext);
         }
         throw new ElasticSearchIllegalStateException("Illegal has_child execution type: " + executionType);
     }
@@ -125,9 +119,11 @@ public abstract class HasChildFilter extends Filter implements ScopePhase.Collec
     static class Uid extends HasChildFilter {
 
         THashSet<HashedBytesArray> collectedUids;
+        final Filter parentFilter;
 
-        Uid(Query childQuery, String scope, String parentType, String childType, SearchContext searchContext) {
+        Uid(Query childQuery, Filter parentFilter, String scope, String parentType, String childType, SearchContext searchContext) {
             super(childQuery, scope, parentType, childType, searchContext);
+            this.parentFilter = parentFilter;
         }
 
         public boolean requiresProcessing() {
@@ -149,11 +145,14 @@ public abstract class HasChildFilter extends Filter implements ScopePhase.Collec
             }
 
             IdReaderTypeCache idReaderTypeCache = searchContext.idCache().reader(context.reader()).type(parentType);
-            if (idReaderTypeCache != null) {
-                return new ParentDocSet(context.reader(), acceptDocs, collectedUids, idReaderTypeCache);
-            } else {
+            if (idReaderTypeCache == null) {
                 return null;
             }
+            DocIdSet parentSet = parentFilter.getDocIdSet(context, acceptDocs);
+            if (parentSet == null) {
+                return null;
+            }
+            return new ParentDocSet(parentSet, collectedUids, idReaderTypeCache);
         }
 
         public void clear() {
@@ -163,21 +162,19 @@ public abstract class HasChildFilter extends Filter implements ScopePhase.Collec
             collectedUids = null;
         }
 
-        static class ParentDocSet extends MatchDocIdSet {
+        static class ParentDocSet extends FilteredDocIdSet {
 
-            final IndexReader reader;
             final THashSet<HashedBytesArray> parents;
             final IdReaderTypeCache typeCache;
 
-            ParentDocSet(IndexReader reader, @Nullable Bits acceptDocs, THashSet<HashedBytesArray> parents, IdReaderTypeCache typeCache) {
-                super(reader.maxDoc(), acceptDocs);
-                this.reader = reader;
+            ParentDocSet(DocIdSet parentSet, THashSet<HashedBytesArray> parents, IdReaderTypeCache typeCache) {
+                super(parentSet);
                 this.parents = parents;
                 this.typeCache = typeCache;
             }
 
             @Override
-            protected boolean matchDoc(int doc) {
+            protected boolean match(int doc) {
                 return parents.contains(typeCache.idByDoc(doc));
             }
         }

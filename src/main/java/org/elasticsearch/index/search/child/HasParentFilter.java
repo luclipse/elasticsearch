@@ -23,10 +23,7 @@ import gnu.trove.set.hash.THashSet;
 import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.DocIdSet;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.Query;
+import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.ElasticSearchIllegalStateException;
@@ -77,22 +74,24 @@ public abstract class HasParentFilter extends Filter implements ScopePhase.Colle
         return sb.toString();
     }
 
-    public static HasParentFilter create(String executionType, Query query, String scope, String parentType, SearchContext context) {
+    public static HasParentFilter create(String executionType, Query query, Filter childFilter, String scope, String parentType, SearchContext context) {
         // This mechanism is experimental and will most likely be removed.
         if ("bitset".equals(executionType)) {
             return new Bitset(query, scope, parentType, context);
         } else if ("uid".equals(executionType)) {
-            return new Uid(query, scope, parentType, context);
+            return new Uid(query, childFilter, scope, parentType, context);
         }
         throw new ElasticSearchIllegalStateException("Illegal has_parent execution type: " + executionType);
     }
 
     static class Uid extends HasParentFilter {
 
+        final Filter childFilter;
         THashSet<HashedBytesArray> parents;
 
-        Uid(Query query, String scope, String parentType, SearchContext context) {
+        Uid(Query query, Filter childFilter, String scope, String parentType, SearchContext context) {
             super(query, scope, parentType, context);
+            this.childFilter = childFilter;
         }
 
         public boolean requiresProcessing() {
@@ -115,7 +114,9 @@ public abstract class HasParentFilter extends Filter implements ScopePhase.Colle
 
             IdReaderTypeCache idReaderTypeCache = context.idCache().reader(readerContext.reader()).type(parentType);
             if (idReaderTypeCache != null) {
-                return new ChildrenDocSet(readerContext.reader(), acceptDocs, parents, idReaderTypeCache);
+                DocIdSet childDocSet = childFilter.getDocIdSet(readerContext, acceptDocs);
+                return new ChildrenDocSet1(childDocSet, parents, idReaderTypeCache);
+//                return new ChildrenDocSet(readerContext.reader(), acceptDocs, parents, idReaderTypeCache);
             } else {
                 return null;
             }
@@ -143,6 +144,24 @@ public abstract class HasParentFilter extends Filter implements ScopePhase.Colle
 
             @Override
             protected boolean matchDoc(int doc) {
+                return parents.contains(idReaderTypeCache.parentIdByDoc(doc));
+            }
+
+        }
+
+        static class ChildrenDocSet1 extends FilteredDocIdSet {
+
+            final THashSet<HashedBytesArray> parents;
+            final IdReaderTypeCache idReaderTypeCache;
+
+            ChildrenDocSet1(DocIdSet childDocs, THashSet<HashedBytesArray> parents, IdReaderTypeCache idReaderTypeCache) {
+                super(childDocs);
+                this.parents = parents;
+                this.idReaderTypeCache = idReaderTypeCache;
+            }
+
+            @Override
+            protected boolean match(int doc) {
                 return parents.contains(idReaderTypeCache.parentIdByDoc(doc));
             }
 
