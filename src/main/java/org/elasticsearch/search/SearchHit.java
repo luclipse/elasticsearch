@@ -24,6 +24,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.search.fetch.nested.NestedSearchHits;
 import org.elasticsearch.search.highlight.HighlightField;
 
 import java.util.Map;
@@ -182,6 +183,10 @@ public interface SearchHit extends Streamable, ToXContent, Iterable<SearchHitFie
      * The set of query and filter names the query matched with. Mainly makes sense for compound filters and queries.
      */
     String[] getMatchedQueries();
+
+    Map<String, NestedSearchHits> getNestedHits();
+
+    Map<String, NestedSearchHits> nestedHits();
 
     /**
      * The shard of the search hit.

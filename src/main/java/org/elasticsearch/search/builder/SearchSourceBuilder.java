@@ -103,6 +103,7 @@ public class SearchSourceBuilder implements ToXContent {
     private List<ScriptField> scriptFields;
     private List<PartialField> partialFields;
     private FetchSourceContext fetchSourceContext;
+    private List<NestedHit> nestedHits;
 
     private List<FacetBuilder> facets;
     private BytesReference facetsBinary;
@@ -675,6 +676,14 @@ public class SearchSourceBuilder implements ToXContent {
         return this;
     }
 
+    public SearchSourceBuilder nestedHit(String name, String path, QueryBuilder childQuery, Integer offset, Integer size, SortBuilder sort, String... fields) {
+        if (nestedHits == null) {
+            nestedHits = Lists.newArrayList();
+        }
+        nestedHits.add(new NestedHit(name, path, childQuery, offset, size, sort, fields));
+        return this;
+    }
+
     /**
      * Sets the boost a specific index will receive when the query is executeed against it.
      *
@@ -847,6 +856,31 @@ public class SearchSourceBuilder implements ToXContent {
             builder.endObject();
         }
 
+        if (nestedHits != null) {
+            builder.startObject("nested_hits");
+            for (NestedHit nestedHit : nestedHits) {
+                builder.startObject(nestedHit.name());
+                builder.field("path", nestedHit.path());
+                if (nestedHit.childQuery() != null) {
+                    builder.field("query", nestedHit.childQuery(), params);
+                }
+                if (nestedHit.offset() != null) {
+                    builder.field("offset", nestedHit.offset());
+                }
+                if (nestedHit.size() != null) {
+                    builder.field("size", nestedHit.size());
+                }
+                if (nestedHit.sort() != null) {
+                    builder.field("sort", nestedHit.sort());
+                }
+                if (nestedHit.fields() != null && nestedHit.fields().length > 0) {
+                    builder.field("fields", nestedHit.fields());
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+        }
+
         if (sorts != null) {
             builder.startArray("sort");
             for (SortBuilder sort : sorts) {
@@ -958,6 +992,55 @@ public class SearchSourceBuilder implements ToXContent {
 
         builder.endObject();
         return builder;
+    }
+
+    private static class NestedHit {
+
+        private final String name;
+        private final String path;
+        private final QueryBuilder childQuery;
+        private final Integer offset;
+        private final Integer size;
+        private final SortBuilder sort;
+        private final String[] fields;
+
+        private NestedHit(String name, String path, QueryBuilder childQuery, Integer offset, Integer size, SortBuilder sort, String[] fields) {
+            this.name = name;
+            this.path = path;
+            this.childQuery = childQuery;
+            this.offset = offset;
+            this.size = size;
+            this.sort = sort;
+            this.fields = fields;
+        }
+
+        public String name() {
+            return name;
+        }
+
+        public String path() {
+            return path;
+        }
+
+        public QueryBuilder childQuery() {
+            return childQuery;
+        }
+
+        private Integer offset() {
+            return offset;
+        }
+
+        private Integer size() {
+            return size;
+        }
+
+        private SortBuilder sort() {
+            return sort;
+        }
+
+        private String[] fields() {
+            return fields;
+        }
     }
 
     private static class ScriptField {

@@ -34,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
@@ -143,6 +144,9 @@ public class NestedQueryParser implements QueryParser {
             usAsParentFilter.filter = childFilter;
             // wrap the child query to only work on the nested path type
             query = new XFilteredQuery(query, childFilter);
+
+            SearchContext searchContext = SearchContext.current();
+            searchContext.addNestedQuery(new SearchContext.NestedQueryInfo(path, query));
 
             Filter parentFilter = currentParentFilterContext;
             if (parentFilter == null) {

@@ -53,6 +53,7 @@ import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.facet.SearchContextFacets;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
+import org.elasticsearch.search.fetch.nested.NestedHitsSearchContext;
 import org.elasticsearch.search.fetch.partial.PartialFieldsContext;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
@@ -85,6 +86,25 @@ public abstract class SearchContext implements Releasable {
 
     public static SearchContext current() {
         return current.get();
+    }
+
+    public static class NestedQueryInfo {
+
+        private final String path;
+        private final Query childQuery;
+
+        public NestedQueryInfo(String path, Query childQuery) {
+            this.path = path;
+            this.childQuery = childQuery;
+        }
+
+        public String path() {
+            return path;
+        }
+
+        public Query getChildQuery() {
+            return childQuery;
+        }
     }
 
     private Multimap<Lifetime, Releasable> clearables = null;
@@ -359,4 +379,12 @@ public abstract class SearchContext implements Releasable {
          */
         CONTEXT;
     }
+    public abstract void addNestedQuery(NestedQueryInfo info);
+
+    public abstract NestedQueryInfo nestedQueries(String path);
+
+    public abstract NestedHitsSearchContext nestedHits();
+
+    public abstract void nestedHits(NestedHitsSearchContext nestedHits);
+    
 }

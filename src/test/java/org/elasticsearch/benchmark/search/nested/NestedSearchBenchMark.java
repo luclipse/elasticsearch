@@ -32,6 +32,7 @@ import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 
@@ -39,6 +40,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 
 /**
@@ -64,7 +66,7 @@ public class NestedSearchBenchMark {
         int batch = 100;
         int queryWarmup = 5;
         int queryCount = 500;
-        String indexName = "test";
+        String indexName = "nested-benchmark";
         ClusterHealthResponse clusterHealthResponse = client.admin().cluster().prepareHealth()
                 .setWaitForGreenStatus().execute().actionGet();
         if (clusterHealthResponse.isTimedOut()) {
@@ -156,6 +158,7 @@ public class NestedSearchBenchMark {
                                     .sortMode("avg")
                                     .order(SortOrder.ASC)
                     )
+                    .addNestedHit("field2", "field2", matchQuery("field2.field3", nestedCount % queryWarmup))
                     .execute().actionGet();
             if (j == 0) {
                 System.out.println("--> Warmup took: " + searchResponse.getTook());
@@ -183,6 +186,30 @@ public class NestedSearchBenchMark {
             totalQueryTime += searchResponse.getTookInMillis();
         }
         System.out.println("--> Sorting by nested fields took: " + (totalQueryTime / queryCount) + "ms");
+
+        for (int j = 0; j < queryCount; j++) {
+            SearchResponse searchResponse = client.prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addSort(
+                            SortBuilders.fieldSort("field2.field3")
+                                    .setNestedPath("field2")
+                                    .sortMode("avg")
+                                    .order(j % 2 == 0 ? SortOrder.ASC : SortOrder.DESC)
+                    )
+                    .addNestedHit("field2", "field2", matchQuery("field2.field3", nestedCount % queryWarmup))
+                    .execute().actionGet();
+
+            if (searchResponse.getHits().totalHits() != rootDocs) {
+                System.err.println("--> mismatch on hits");
+            }
+            for (SearchHit hit : searchResponse.getHits()) {
+                if (hit.nestedHits().get("field2").getTotalHits() != 1) {
+                    System.err.println("--> mismatch on hits");
+                }
+            }
+            totalQueryTime += searchResponse.getTookInMillis();
+        }
+        System.out.println("--> Sorting by nested fields and getting nested objects took: " + (totalQueryTime / queryCount) + "ms");
 
         statsResponse = client.admin().cluster().prepareNodesStats()
                 .setJvm(true).execute().actionGet();

@@ -33,6 +33,7 @@ import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
@@ -150,6 +151,9 @@ public class NestedFilterParser implements FilterParser {
                 //}
                 parentFilter = parseContext.cacheFilter(parentFilter, null);
             }
+
+            SearchContext searchContext = SearchContext.current();
+            searchContext.addNestedQuery(new SearchContext.NestedQueryInfo(path, query));
 
             Filter nestedFilter;
             if (join) {

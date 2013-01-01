@@ -59,6 +59,7 @@ import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.facet.SearchContextFacets;
 import org.elasticsearch.search.fetch.FetchSearchResult;
+import org.elasticsearch.search.fetch.nested.NestedHitsSearchContext;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
 import org.elasticsearch.search.fetch.partial.PartialFieldsContext;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
@@ -72,7 +73,9 @@ import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -177,6 +180,11 @@ public class DefaultSearchContext extends SearchContext {
     private volatile long lastAccessTime = -1;
 
     private volatile boolean useSlowScroll;
+    
+    private Map<String, NestedQueryInfo> nestedQueries;
+
+    private NestedHitsSearchContext nestedHits;
+
 
     public DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget,
                          Engine.Searcher engineSearcher, IndexService indexService, IndexShard indexShard,
@@ -700,4 +708,24 @@ public class DefaultSearchContext extends SearchContext {
         this.useSlowScroll = useSlowScroll;
         return this;
     }
+
+    public void addNestedQuery(NestedQueryInfo info) {
+        if (nestedQueries == null) {
+            nestedQueries = new HashMap<String, NestedQueryInfo>();
+        }
+        nestedQueries.put(info.path(), info);
+    }
+
+    public NestedQueryInfo nestedQueries(String path) {
+        return nestedQueries.get(path);
+    }
+
+    public NestedHitsSearchContext nestedHits() {
+        return nestedHits;
+    }
+
+    public void nestedHits(NestedHitsSearchContext nestedHits) {
+        this.nestedHits = nestedHits;
+    }
+
 }

@@ -501,6 +501,26 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         return this;
     }
 
+    public SearchRequestBuilder addNestedHit(String name, String path) {
+        sourceBuilder().nestedHit(name, path, null, null, null, null);
+        return this;
+    }
+
+    public SearchRequestBuilder addNestedHit(String name, String path, String... fields) {
+        sourceBuilder().nestedHit(name, path, null, null, null, null, fields);
+        return this;
+    }
+
+    public SearchRequestBuilder addNestedHit(String name, String path, QueryBuilder childQuery) {
+        sourceBuilder().nestedHit(name, path, childQuery, null, null, null);
+        return this;
+    }
+
+    public SearchRequestBuilder addNestedHit(String name, String path, QueryBuilder childQuery, int offset, int size, SortBuilder sort, String... fields) {
+        sourceBuilder().nestedHit(name, path, childQuery, offset, size, sort, fields);
+        return this;
+    }
+
     /**
      * Adds a sort against the given field name and the sort ordering.
      *
