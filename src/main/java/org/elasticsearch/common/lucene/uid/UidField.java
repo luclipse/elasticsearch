@@ -24,9 +24,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.PayloadAttribute;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.index.DocsAndPositionsEnum;
-import org.apache.lucene.index.Term;
+import org.apache.lucene.index.*;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Numbers;
@@ -92,8 +90,12 @@ public class UidField extends Field {
     // LUCENE 4 UPGRADE: We can get rid of the do while loop, since there is only one _uid value (live docs are taken into account)
     public static long loadVersion(AtomicReaderContext context, Term term) {
         try {
-            DocsAndPositionsEnum uid = context.reader().termPositionsEnum(term);
-            if (uid == null || uid.nextDoc() == DocIdSetIterator.NO_MORE_DOCS) {
+            TermsEnum terms = context.reader().terms(term.field()).iterator(null);
+            if (!terms.seekExact(term.bytes(), false)) {
+                return -1;
+            }
+            DocsAndPositionsEnum uid = terms.docsAndPositions(null, null, DocsAndPositionsEnum.FLAG_PAYLOADS);
+            if (uid == null) {
                 return -1;
             }
             // Note, only master docs uid have version payload, so we can use that info to not
