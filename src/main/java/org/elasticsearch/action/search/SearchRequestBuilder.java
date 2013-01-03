@@ -37,6 +37,7 @@ import org.elasticsearch.search.facet.AbstractFacetBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.spellcheck.SpellCheckBuilder;
 
 import java.util.Map;
 
@@ -651,6 +652,11 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      */
     public SearchRequestBuilder setHighlighterType(String type) {
         highlightBuilder().highlighterType(type);
+        return this;
+    }
+
+    public SearchRequestBuilder setSpellchecker(SpellCheckBuilder spellCheckBuilder) {
+        sourceBuilder().spellchecker(spellCheckBuilder);
         return this;
     }
 

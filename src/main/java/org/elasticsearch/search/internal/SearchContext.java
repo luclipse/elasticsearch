@@ -60,6 +60,7 @@ import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.scan.ScanContext;
+import org.elasticsearch.search.spellcheck.SearchContextSpellCheck;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -159,6 +160,8 @@ public class SearchContext implements Releasable {
     private SearchContextFacets facets;
 
     private SearchContextHighlight highlight;
+
+    private SearchContextSpellCheck spellcheck;
 
     private SearchLookup searchLookup;
 
@@ -299,6 +302,14 @@ public class SearchContext implements Releasable {
 
     public void highlight(SearchContextHighlight highlight) {
         this.highlight = highlight;
+    }
+
+    public SearchContextSpellCheck spellcheck() {
+        return spellcheck;
+    }
+
+    public void spellcheck(SearchContextSpellCheck spellcheck) {
+        this.spellcheck = spellcheck;
     }
 
     public boolean hasScriptFields() {

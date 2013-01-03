@@ -41,6 +41,7 @@ import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.spellcheck.SpellCheckBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -102,6 +103,8 @@ public class SearchSourceBuilder implements ToXContent {
     private BytesReference facetsBinary;
 
     private HighlightBuilder highlightBuilder;
+
+    private SpellCheckBuilder spellCheckBuilder;
 
     private TObjectFloatHashMap<String> indexBoost = null;
 
@@ -397,6 +400,21 @@ public class SearchSourceBuilder implements ToXContent {
      */
     public SearchSourceBuilder highlight(HighlightBuilder highlightBuilder) {
         this.highlightBuilder = highlightBuilder;
+        return this;
+    }
+
+    public SpellCheckBuilder spellchecker() {
+        if (spellCheckBuilder == null) {
+            spellCheckBuilder = new SpellCheckBuilder();
+        }
+        return spellCheckBuilder;
+    }
+
+    /**
+     * Adds spellchecker to perform as part of the search.
+     */
+    public SearchSourceBuilder spellchecker(SpellCheckBuilder spellCheckBuilder) {
+        this.spellCheckBuilder = spellCheckBuilder;
         return this;
     }
 
@@ -707,6 +725,10 @@ public class SearchSourceBuilder implements ToXContent {
 
         if (highlightBuilder != null) {
             highlightBuilder.toXContent(builder, params);
+        }
+
+        if (spellCheckBuilder != null) {
+            spellCheckBuilder.toXContent(builder, params);
         }
 
         if (stats != null) {

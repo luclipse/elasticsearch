@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.facet.Facets;
 import org.elasticsearch.search.facet.InternalFacets;
+import org.elasticsearch.search.spellcheck.InternalSpellCheckResult;
 
 import java.io.IOException;
 
@@ -41,16 +42,19 @@ public class InternalSearchResponse implements Streamable, ToXContent {
 
     private InternalFacets facets;
 
+    private InternalSpellCheckResult spellCheck;
+
     private boolean timedOut;
 
-    public static final InternalSearchResponse EMPTY = new InternalSearchResponse(new InternalSearchHits(new InternalSearchHit[0], 0, 0), null, false);
+    public static final InternalSearchResponse EMPTY = new InternalSearchResponse(new InternalSearchHits(new InternalSearchHit[0], 0, 0), null, null, false);
 
     private InternalSearchResponse() {
     }
 
-    public InternalSearchResponse(InternalSearchHits hits, InternalFacets facets, boolean timedOut) {
+    public InternalSearchResponse(InternalSearchHits hits, InternalFacets facets, InternalSpellCheckResult spellcheck, boolean timedOut) {
         this.hits = hits;
         this.facets = facets;
+        this.spellCheck = spellcheck;
         this.timedOut = timedOut;
     }
 
@@ -64,6 +68,10 @@ public class InternalSearchResponse implements Streamable, ToXContent {
 
     public Facets facets() {
         return facets;
+    }
+
+    public InternalSpellCheckResult spellCheck() {
+        return spellCheck;
     }
 
     @Override
@@ -87,6 +95,9 @@ public class InternalSearchResponse implements Streamable, ToXContent {
         if (in.readBoolean()) {
             facets = InternalFacets.readFacets(in);
         }
+        if (in.readBoolean()) {
+            spellCheck = InternalSpellCheckResult.readSpellCheck(in);
+        }
         timedOut = in.readBoolean();
     }
 
@@ -98,6 +109,12 @@ public class InternalSearchResponse implements Streamable, ToXContent {
         } else {
             out.writeBoolean(true);
             facets.writeTo(out);
+        }
+        if (spellCheck == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            spellCheck.writeTo(out);
         }
         out.writeBoolean(timedOut);
     }

@@ -27,6 +27,7 @@ import gnu.trove.impl.Constants;
 import gnu.trove.map.TMap;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
+import org.apache.lucene.search.spell.SuggestWord;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -48,6 +49,7 @@ import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
+import org.elasticsearch.search.spellcheck.InternalSpellCheckResult;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -373,7 +375,34 @@ public class SearchPhaseController extends AbstractComponent {
             }
         }
 
+        // merge spellcheck results
+        InternalSpellCheckResult spellcheck = null;
+        if (!queryResults.isEmpty()) {
+            Map<String, List<SuggestWord>> suggestedWords = null;
+            for (QuerySearchResultProvider resultProvider : queryResults.values()) {
+                InternalSpellCheckResult  spellcheckShardResult = resultProvider.queryResult().spellCheck();
+                if (spellcheckShardResult != null) {
+                    if (suggestedWords == null) {
+                        suggestedWords = spellcheckShardResult.suggestedWords();
+                    } else {
+                        for (Map.Entry<String, List<SuggestWord>> entry : spellcheckShardResult.suggestedWords().entrySet()) {
+                            List<SuggestWord> existingSuggestions = suggestedWords.get(entry.getKey());
+                            if (existingSuggestions == null) {
+                                suggestedWords.put(entry.getKey(), entry.getValue());
+                            } else {
+                                // TODO: sort and remove tail elements
+                                existingSuggestions.addAll(entry.getValue());
+                            }
+                        }
+                    }
+                }
+            }
+            if (suggestedWords != null) {
+                spellcheck = new InternalSpellCheckResult(suggestedWords);
+            }
+        }
+
         InternalSearchHits searchHits = new InternalSearchHits(hits.toArray(new InternalSearchHit[hits.size()]), totalHits, maxScore);
-        return new InternalSearchResponse(searchHits, facets, timedOut);
+        return new InternalSearchResponse(searchHits, facets, spellcheck, timedOut);
     }
 }
