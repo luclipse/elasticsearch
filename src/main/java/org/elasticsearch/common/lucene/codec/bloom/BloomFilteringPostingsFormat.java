@@ -13,12 +13,15 @@ import org.elasticsearch.common.trove.ExtTHashMap;
 
 import java.io.IOException;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 
 /**
  */
 public class BloomFilteringPostingsFormat extends PostingsFormat {
+
+    public static Map<String, Map<String, BloomFilter>> testje = new HashMap<String, Map<String, BloomFilter>>();
 
     private final PostingsFormat delegatePostingsFormat;
 
@@ -276,6 +279,7 @@ public class BloomFilteringPostingsFormat extends PostingsFormat {
                 BloomFilter bloomFilters = ObsBloomFilter.deSerialize(bloomIn);
                 this.bloomFilters.put(fieldInfo.name, bloomFilters);
             }
+            testje.put(state.segmentInfo.name, bloomFilters);
             IOUtils.close(bloomIn);
         }
 

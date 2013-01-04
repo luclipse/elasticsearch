@@ -35,6 +35,8 @@ import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.codec.bloom.BloomFilter;
+import org.elasticsearch.common.lucene.codec.bloom.BloomFilteringPostingsFormat;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.lucene.uid.UidField;
 import org.elasticsearch.common.settings.Settings;
@@ -1307,8 +1309,14 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         Searcher searcher = searcher();
         try {
             List<AtomicReaderContext> readers = searcher.reader().leaves();
+            Map<String, Map<String, BloomFilter>> testje = BloomFilteringPostingsFormat.testje;
             for (int i = 0; i < readers.size(); i++) {
                 AtomicReaderContext readerContext = readers.get(i);
+                BloomFilter bloomFilter = testje.get(((SegmentReader)readerContext.reader()).getSegmentName()).get(uid.field());
+                if (!bloomFilter.isPresent(uid.bytes())) {
+                    continue;
+                }
+
                 long version = UidField.loadVersion(readerContext, uid);
                 // either -2 (its there, but no version associated), or an actual version
                 if (version != -1) {
