@@ -597,14 +597,6 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Adds a spellcheck command.
-     */
-    public SearchRequestBuilder addSpellcheckCommand(String name, SpellcheckBuilder.Command command) {
-        spellcheckBuilder().addCommand(name, command);
-        return this;
-    }
-
-    /**
      * Set a tag scheme that encapsulates a built in pre and post tags. The allows schemes
      * are <tt>styled</tt> and <tt>default</tt>.
      *
@@ -660,6 +652,94 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      */
     public SearchRequestBuilder setHighlighterType(String type) {
         highlightBuilder().highlighterType(type);
+        return this;
+    }
+
+    public SearchRequestBuilder setGlobalSpellcheckType(String globalType) {
+        spellcheckBuilder().setGlobalType(globalType);
+        return this;
+    }
+
+    public SearchRequestBuilder setGlobalSpellcheckField(String globalField) {
+        spellcheckBuilder().setGlobalSpellCheckField(globalField);
+        return this;
+    }
+
+    public SearchRequestBuilder setGlobalSpellcheckText(String globalText) {
+        spellcheckBuilder().setGlobalSpellCheckText(globalText);
+        return this;
+    }
+
+    public SearchRequestBuilder setGlobalSpellcheckAccuracy(float globalAccuracy) {
+        spellcheckBuilder().setGlobalAccuracy(globalAccuracy);
+        return this;
+    }
+
+    public SearchRequestBuilder setGlobalSpellcheckNumSuggest(int globalNumSuggest) {
+        spellcheckBuilder().setGlobalNumSuggest(globalNumSuggest);
+        return this;
+    }
+
+    public SearchRequestBuilder setGlobalSpellcheckAnalyzer(String globalAnalyzer) {
+        spellcheckBuilder().setGlobalSpellCheckAnalyzer(globalAnalyzer);
+        return this;
+    }
+
+    public SearchRequestBuilder setGlobalSuggestMode(String globalSuggestMode) {
+        spellcheckBuilder().setGlobalSuggestMode(globalSuggestMode);
+        return this;
+    }
+
+    public SearchRequestBuilder setSpellcheckGlobalComparator(String globalComparator) {
+        spellcheckBuilder().setGlobalComparator(globalComparator);
+        return this;
+    }
+
+    public SearchRequestBuilder setSpellcheckGlobalStringDistance(String globalStringDistance) {
+        spellcheckBuilder().setGlobalSpellCheckText(globalStringDistance);
+        return this;
+    }
+
+    public SearchRequestBuilder setSpellcheckGlobalLowerCaseTerms(boolean globalLowerCaseTerms) {
+        spellcheckBuilder().setGlobalLowerCaseTerms(globalLowerCaseTerms);
+        return this;
+    }
+
+    public SearchRequestBuilder setSpellcheckGlobalMaxEdits(int globalMaxEdits) {
+        spellcheckBuilder().setGlobalMaxEdits(globalMaxEdits);
+        return this;
+    }
+
+    public SearchRequestBuilder setGlobalMaxInspections(int globalMaxInspections) {
+        spellcheckBuilder().setGlobalMaxInspections(globalMaxInspections);
+        return this;
+    }
+
+    public SearchRequestBuilder setGlobalMaxQueryFrequency(float globalMaxQueryFrequency) {
+        spellcheckBuilder().setGlobalMaxQueryFrequency(globalMaxQueryFrequency);
+        return this;
+    }
+
+    public SearchRequestBuilder setGlobalMinPrefix(int globalMinPrefix) {
+        spellcheckBuilder().setGlobalMinPrefix(globalMinPrefix);
+        return this;
+    }
+
+    public SearchRequestBuilder setGlobalMinQueryLength(int globalMinQueryLength) {
+        spellcheckBuilder().setGlobalMinQueryLength(globalMinQueryLength);
+        return this;
+    }
+
+    public SearchRequestBuilder setGlobalThresholdFrequency(float globalThresholdFrequency) {
+        spellcheckBuilder().setGlobalThresholdFrequency(globalThresholdFrequency);
+        return this;
+    }
+
+    /**
+     * Adds a spellcheck command.
+     */
+    public SearchRequestBuilder addSpellcheckCommand(String name, SpellcheckBuilder.Command command) {
+        spellcheckBuilder().addCommand(name, command);
         return this;
     }
 

@@ -20,12 +20,14 @@
 package org.elasticsearch.search.spellcheck;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.search.spell.SpellChecker;
-import org.apache.lucene.search.spell.SuggestMode;
+import org.apache.lucene.search.spell.*;
+import org.apache.lucene.util.automaton.LevenshteinAutomata;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.SearchContext;
+
+import java.util.Comparator;
 
 /**
  *
@@ -36,12 +38,22 @@ public class SpellCheckParseElement implements SearchParseElement {
     public void parse(XContentParser parser, SearchContext context) throws Exception {
         SearchContextSpellcheck searchContextSpellcheck = new SearchContextSpellcheck();
 
+        String globalType = "direct";
         Analyzer globalAnalyzer = context.mapperService().searchAnalyzer();
         String globalText = null;
         String globalField = null;
         float globalAccuracy = SpellChecker.DEFAULT_ACCURACY;
         int globalNumSuggest = 5;
         SuggestMode globalSuggestMode = SuggestMode.SUGGEST_WHEN_NOT_IN_INDEX;
+        Comparator<SuggestWord> globalComparator = SuggestWordQueue.DEFAULT_COMPARATOR;
+        StringDistance globalStringDistance = DirectSpellChecker.INTERNAL_LEVENSHTEIN;
+        boolean globalLowerCaseTerms = true;
+        int globalMaxEdits = LevenshteinAutomata.MAXIMUM_SUPPORTED_DISTANCE;
+        int globalMaxInspections = 5;
+        float globalMaxQueryFrequency = 0.01f;
+        int globalMinPrefix = 1;
+        int globalMinQueryLength = 4;
+        float globalThresholdFrequency = 0f;
 
         String fieldName = null;
         XContentParser.Token token;
@@ -49,7 +61,9 @@ public class SpellCheckParseElement implements SearchParseElement {
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();
             } else if (token.isValue()) {
-                if ("analyzer".equals(fieldName)) {
+                if ("type".equals(fieldName)) {
+                    globalType = parser.text();
+                } else if ("analyzer".equals(fieldName)) {
                     String analyzerName = parser.text();
                     globalAnalyzer = context.mapperService().analysisService().analyzer(analyzerName);
                     if (globalAnalyzer == null) {
@@ -64,16 +78,25 @@ public class SpellCheckParseElement implements SearchParseElement {
                 } else if ("num_suggest".equals(fieldName)) {
                     globalNumSuggest = parser.intValue();
                 } else if ("suggest_mode".equals(fieldName)) {
-                    String suggestModeVal = parser.text();
-                    if ("when_not_in_index".equals(suggestModeVal)) {
-                        globalSuggestMode = SuggestMode.SUGGEST_WHEN_NOT_IN_INDEX;
-                    } else if ("more_popular".equals(suggestModeVal)) {
-                        globalSuggestMode = SuggestMode.SUGGEST_MORE_POPULAR;
-                    } else if ("always".equals(suggestModeVal)) {
-                        globalSuggestMode = SuggestMode.SUGGEST_ALWAYS;
-                    } else {
-                        throw new ElasticSearchIllegalArgumentException("Illegal suggest mode " + suggestModeVal);
-                    }
+                    globalSuggestMode = resolveSuggestMode(parser.text());
+                } else if ("comparator".equals(fieldName)) {
+                    globalComparator = resolveComparator(parser.text());
+                } else if ("string_distance".equals(fieldName)) {
+                    globalStringDistance = resolveDistance(parser.text());
+                } else if ("lower_case_terms".equals(fieldName)) {
+                    globalLowerCaseTerms = parser.booleanValue();
+                } else if ("max_edits".equals(fieldName)) {
+                    globalMaxEdits = parser.intValue();
+                } else if ("max_inspections".equals(fieldName)) {
+                    globalMaxInspections = parser.intValue();
+                } else if ("max_query_frequency".equals(fieldName)) {
+                    globalMaxQueryFrequency = parser.floatValue();
+                } else if ("minPrefix".equals(fieldName)) {
+                    globalMinPrefix = parser.intValue();
+                } else if ("minQueryLength".equals(fieldName)) {
+                    globalMinQueryLength = parser.intValue();
+                } else if ("thresholdFrequency".equals(fieldName)) {
+                    globalThresholdFrequency = parser.floatValue();
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 SearchContextSpellcheck.Command command = new SearchContextSpellcheck.Command();
@@ -83,7 +106,9 @@ public class SpellCheckParseElement implements SearchParseElement {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         fieldName = parser.currentName();
                     } else if (token.isValue()) {
-                        if ("analyzer".equals(fieldName)) {
+                        if ("type".equals(fieldName)) {
+                            command.type(parser.text());
+                        } else if ("analyzer".equals(fieldName)) {
                             String analyzerName = parser.text();
                             Analyzer analyzer = context.mapperService().analysisService().analyzer(analyzerName);
                             if (analyzer == null) {
@@ -99,16 +124,25 @@ public class SpellCheckParseElement implements SearchParseElement {
                         } else if ("num_suggest".equals(fieldName)) {
                             command.numSuggest(parser.intValue());
                         } else if ("suggest_mode".equals(fieldName)) {
-                            String suggestModeVal = parser.text();
-                            if ("when_not_in_index".equals(suggestModeVal)) {
-                                command.suggestMode(SuggestMode.SUGGEST_WHEN_NOT_IN_INDEX);
-                            } else if ("more_popular".equals(suggestModeVal)) {
-                                command.suggestMode(SuggestMode.SUGGEST_MORE_POPULAR);
-                            } else if ("always".equals(suggestModeVal)) {
-                                command.suggestMode(SuggestMode.SUGGEST_ALWAYS);
-                            } else {
-                                throw new ElasticSearchIllegalArgumentException("Illegal suggest mode " + suggestModeVal);
-                            }
+                            command.suggestMode(resolveSuggestMode(parser.text()));
+                        } else if ("comparator".equals(fieldName)) {
+                            command.comparator(resolveComparator(parser.text()));
+                        } else if ("string_distance".equals(fieldName)) {
+                            command.stringDistance(resolveDistance(parser.text()));
+                        } else if ("lower_case_terms".equals(fieldName)) {
+                            command.lowerCaseTerms(parser.booleanValue());
+                        } else if ("max_edits".equals(fieldName)) {
+                            command.maxEdits(parser.intValue());
+                        } else if ("max_inspections".equals(fieldName)) {
+                            command.maxInspections(parser.intValue());
+                        } else if ("max_query_frequency".equals(fieldName)) {
+                            command.maxQueryFrequency(parser.floatValue());
+                        } else if ("minPrefix".equals(fieldName)) {
+                            command.minPrefix(parser.intValue());
+                        } else if ("minQueryLength".equals(fieldName)) {
+                            command.minQueryLength(parser.intValue());
+                        } else if ("thresholdFrequency".equals(fieldName)) {
+                            command.thresholdFrequency(parser.floatValue());
                         }
                     }
                 }
@@ -116,6 +150,10 @@ public class SpellCheckParseElement implements SearchParseElement {
         }
 
         for (SearchContextSpellcheck.Command command : searchContextSpellcheck.commands().values()) {
+            if (command.type() == null) {
+                command.type(globalType);
+            }
+
             if (command.spellCheckAnalyzer() == null) {
                 command.spellCheckAnalyzer(globalAnalyzer);
             }
@@ -134,7 +172,73 @@ public class SpellCheckParseElement implements SearchParseElement {
             if (command.suggestMode() == null) {
                 command.suggestMode(globalSuggestMode);
             }
+            if (command.comparator() == null) {
+                command.comparator(globalComparator);
+            }
+            if (command.stringDistance() == null) {
+                command.stringDistance(globalStringDistance);
+            }
+            if (command.lowerCaseTerms() == null) {
+                command.lowerCaseTerms(globalLowerCaseTerms);
+            }
+            if (command.maxEdits() == null) {
+                command.maxEdits(globalMaxEdits);
+            }
+            if (command.maxInspections() == null) {
+                command.maxInspections(globalMaxInspections);
+            }
+            if (command.maxQueryFrequency() == null) {
+                command.maxQueryFrequency(globalMaxQueryFrequency);
+            }
+            if (command.minPrefix() == null) {
+                command.minPrefix(globalMinPrefix);
+            }
+            if (command.minQueryLength() == null) {
+                command.minQueryLength(globalMinQueryLength);
+            }
+            if (command.thresholdFrequency() == null) {
+                command.thresholdFrequency(globalThresholdFrequency);
+            }
         }
         context.spellcheck(searchContextSpellcheck);
     }
+
+    private SuggestMode resolveSuggestMode(String suggestModeVal) {
+        if ("when_not_in_index".equals(suggestModeVal)) {
+            return SuggestMode.SUGGEST_WHEN_NOT_IN_INDEX;
+        } else if ("more_popular".equals(suggestModeVal)) {
+            return SuggestMode.SUGGEST_MORE_POPULAR;
+        } else if ("always".equals(suggestModeVal)) {
+            return SuggestMode.SUGGEST_ALWAYS;
+        } else {
+            throw new ElasticSearchIllegalArgumentException("Illegal suggest mode " + suggestModeVal);
+        }
+    }
+
+    private Comparator<SuggestWord> resolveComparator(String comparatorVal) {
+        if ("score_first".equals(comparatorVal)) {
+            return SuggestWordQueue.DEFAULT_COMPARATOR;
+        } else if ("frequency_first".equals(comparatorVal)) {
+            return new SuggestWordFrequencyComparator();
+        } else {
+            throw new ElasticSearchIllegalArgumentException("Illegal comparator option " + comparatorVal);
+        }
+    }
+
+    private StringDistance resolveDistance(String distanceVal) {
+        if ("internal".equals(distanceVal)) {
+            return DirectSpellChecker.INTERNAL_LEVENSHTEIN;
+        } else if ("damerau_levenshtein".equals(distanceVal)) {
+            return new LuceneLevenshteinDistance();
+        } else if ("levenstein".equals(distanceVal)) {
+            return new LevensteinDistance();
+        } else if ("jarowinkler".equals(distanceVal)) {
+            return new JaroWinklerDistance();
+        } else if ("ngram".equals(distanceVal)) {
+            return new NGramDistance();
+        } else {
+            throw new ElasticSearchIllegalArgumentException("Illegal distance option " + distanceVal);
+        }
+    }
+
 }

@@ -3,7 +3,6 @@ package org.elasticsearch.test.integration.search.spellcheck;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.search.spellcheck.SpellcheckBuilder;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -12,6 +11,7 @@ import org.testng.annotations.Test;
 import java.util.Arrays;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.search.spellcheck.SpellcheckBuilder.createCommand;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -60,12 +60,13 @@ public class SpellcheckSearchTests extends AbstractNodesTests {
 
         SearchResponse search = client.prepareSearch()
                 .setQuery(matchQuery("text", "spellcecker"))
-                .addSpellcheckCommand("test", new SpellcheckBuilder.Command().setSpellCheckText("spellcecker").setSpellCheckField("text"))
+                .addSpellcheckCommand("test", createCommand().setSpellCheckText("spellcecker").setSpellCheckField("text"))
                 .execute().actionGet();
 
         assertThat(Arrays.toString(search.shardFailures()), search.failedShards(), equalTo(0));
         assertThat(search.spellcheck(), notNullValue());
         assertThat(search.spellcheck().commands().size(), equalTo(1));
+        assertThat(search.spellcheck().commands().get(0).getName(), equalTo("test"));
         assertThat(search.spellcheck().commands().get(0).getSuggestedWords().size(), equalTo(1));
         assertThat(search.spellcheck().commands().get(0).getSuggestedWords().get("spellcecker").size(), equalTo(1));
         assertThat(search.spellcheck().commands().get(0).getSuggestedWords().get("spellcecker").get(0).getSuggestion(), equalTo("spellchecker"));
