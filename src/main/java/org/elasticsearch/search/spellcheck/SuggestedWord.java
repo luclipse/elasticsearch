@@ -79,4 +79,19 @@ public class SuggestedWord implements Streamable, ToXContent {
         builder.endObject();
         return builder;
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        SuggestedWord that = (SuggestedWord) o;
+        return suggestion.equals(that.suggestion);
+
+    }
+
+    @Override
+    public int hashCode() {
+        return suggestion.hashCode();
+    }
 }

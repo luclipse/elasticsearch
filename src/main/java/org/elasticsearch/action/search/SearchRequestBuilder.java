@@ -690,13 +690,13 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         return this;
     }
 
-    public SearchRequestBuilder setSpellcheckGlobalComparator(String globalComparator) {
-        spellcheckBuilder().setGlobalComparator(globalComparator);
+    public SearchRequestBuilder setSpellcheckGlobalSort(String globalSort) {
+        spellcheckBuilder().setGlobalSort(globalSort);
         return this;
     }
 
     public SearchRequestBuilder setSpellcheckGlobalStringDistance(String globalStringDistance) {
-        spellcheckBuilder().setGlobalSpellCheckText(globalStringDistance);
+        spellcheckBuilder().setGlobalStringDistance(globalStringDistance);
         return this;
     }
 

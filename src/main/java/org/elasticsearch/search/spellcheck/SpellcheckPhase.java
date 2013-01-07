@@ -8,6 +8,8 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.spell.DirectSpellChecker;
 import org.apache.lucene.search.spell.SuggestWord;
+import org.apache.lucene.search.spell.SuggestWordFrequencyComparator;
+import org.apache.lucene.search.spell.SuggestWordQueue;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -24,6 +26,7 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
@@ -61,7 +64,18 @@ public class SpellcheckPhase extends AbstractComponent implements SearchPhase {
                 if ("direct".equals(command.type())) {
                     DirectSpellChecker directSpellChecker = new DirectSpellChecker();
                     directSpellChecker.setAccuracy(command.accuracy());
-                    directSpellChecker.setComparator(command.comparator());
+                    Comparator<SuggestWord> comparator;
+                    switch (command.sort()) {
+                        case SCORE_FIRST:
+                            comparator = SuggestWordQueue.DEFAULT_COMPARATOR;
+                            break;
+                        case FREQUENCY_FIRST:
+                            comparator = new SuggestWordFrequencyComparator();
+                            break;
+                        default:
+                            throw new ElasticSearchIllegalArgumentException("Illegal spellcheck sort" + command.sort());
+                    }
+                    directSpellChecker.setComparator(comparator);
                     directSpellChecker.setDistance(command.stringDistance());
                     directSpellChecker.setLowerCaseTerms(command.lowerCaseTerms());
                     directSpellChecker.setMaxEdits(command.maxEdits());
@@ -71,7 +85,9 @@ public class SpellcheckPhase extends AbstractComponent implements SearchPhase {
                     directSpellChecker.setMinQueryLength(command.minQueryLength());
                     directSpellChecker.setThresholdFrequency(command.thresholdFrequency());
 
-                    SpellCheckResult.CommandResult commandResult = new SpellCheckResult.CommandResult(new StringText(entry.getKey()));
+                    SpellCheckResult.CommandResult commandResult = new SpellCheckResult.CommandResult(
+                            new StringText(entry.getKey()), command.numSuggest(), command.sort()
+                    );
                     List<Token> tokens = queryTerms(command, context);
                     for (Token token : tokens) {
                         Term term = new Term(command.spellCheckField(), new String(token.buffer(), 0, token.length()));
@@ -81,6 +97,7 @@ public class SpellcheckPhase extends AbstractComponent implements SearchPhase {
                         );
                         Text key = new BytesText(new BytesArray(term.bytes()));
                         for (SuggestWord suggestWord : suggestWords) {
+                            System.out.println("SuggestedWord: " + suggestWord.string);
                             SuggestedWord suggestedWord = new SuggestedWord(
                                     new StringText(suggestWord.string), suggestWord.freq, suggestWord.score
                             );

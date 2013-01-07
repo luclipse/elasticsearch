@@ -27,8 +27,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.SearchContext;
 
-import java.util.Comparator;
-
 /**
  *
  */
@@ -45,7 +43,7 @@ public class SpellCheckParseElement implements SearchParseElement {
         float globalAccuracy = SpellChecker.DEFAULT_ACCURACY;
         int globalNumSuggest = 5;
         SuggestMode globalSuggestMode = SuggestMode.SUGGEST_WHEN_NOT_IN_INDEX;
-        Comparator<SuggestWord> globalComparator = SuggestWordQueue.DEFAULT_COMPARATOR;
+        SpellcheckSort globalSort = SpellcheckSort.SCORE_FIRST;
         StringDistance globalStringDistance = DirectSpellChecker.INTERNAL_LEVENSHTEIN;
         boolean globalLowerCaseTerms = true;
         int globalMaxEdits = LevenshteinAutomata.MAXIMUM_SUPPORTED_DISTANCE;
@@ -79,8 +77,8 @@ public class SpellCheckParseElement implements SearchParseElement {
                     globalNumSuggest = parser.intValue();
                 } else if ("suggest_mode".equals(fieldName)) {
                     globalSuggestMode = resolveSuggestMode(parser.text());
-                } else if ("comparator".equals(fieldName)) {
-                    globalComparator = resolveComparator(parser.text());
+                } else if ("sort".equals(fieldName)) {
+                    globalSort = resolveSort(parser.text());
                 } else if ("string_distance".equals(fieldName)) {
                     globalStringDistance = resolveDistance(parser.text());
                 } else if ("lower_case_terms".equals(fieldName)) {
@@ -125,8 +123,8 @@ public class SpellCheckParseElement implements SearchParseElement {
                             command.numSuggest(parser.intValue());
                         } else if ("suggest_mode".equals(fieldName)) {
                             command.suggestMode(resolveSuggestMode(parser.text()));
-                        } else if ("comparator".equals(fieldName)) {
-                            command.comparator(resolveComparator(parser.text()));
+                        } else if ("sort".equals(fieldName)) {
+                            command.sort(resolveSort(parser.text()));
                         } else if ("string_distance".equals(fieldName)) {
                             command.stringDistance(resolveDistance(parser.text()));
                         } else if ("lower_case_terms".equals(fieldName)) {
@@ -172,8 +170,8 @@ public class SpellCheckParseElement implements SearchParseElement {
             if (command.suggestMode() == null) {
                 command.suggestMode(globalSuggestMode);
             }
-            if (command.comparator() == null) {
-                command.comparator(globalComparator);
+            if (command.sort() == null) {
+                command.sort(globalSort);
             }
             if (command.stringDistance() == null) {
                 command.stringDistance(globalStringDistance);
@@ -203,23 +201,23 @@ public class SpellCheckParseElement implements SearchParseElement {
         context.spellcheck(searchContextSpellcheck);
     }
 
-    private SuggestMode resolveSuggestMode(String suggestModeVal) {
-        if ("when_not_in_index".equals(suggestModeVal)) {
+    private SuggestMode resolveSuggestMode(String sortVal) {
+        if ("when_not_in_index".equals(sortVal)) {
             return SuggestMode.SUGGEST_WHEN_NOT_IN_INDEX;
-        } else if ("more_popular".equals(suggestModeVal)) {
+        } else if ("more_popular".equals(sortVal)) {
             return SuggestMode.SUGGEST_MORE_POPULAR;
-        } else if ("always".equals(suggestModeVal)) {
+        } else if ("always".equals(sortVal)) {
             return SuggestMode.SUGGEST_ALWAYS;
         } else {
-            throw new ElasticSearchIllegalArgumentException("Illegal suggest mode " + suggestModeVal);
+            throw new ElasticSearchIllegalArgumentException("Illegal spellcheck sort " + sortVal);
         }
     }
 
-    private Comparator<SuggestWord> resolveComparator(String comparatorVal) {
+    private SpellcheckSort resolveSort(String comparatorVal) {
         if ("score_first".equals(comparatorVal)) {
-            return SuggestWordQueue.DEFAULT_COMPARATOR;
+            return SpellcheckSort.SCORE_FIRST;
         } else if ("frequency_first".equals(comparatorVal)) {
-            return new SuggestWordFrequencyComparator();
+            return SpellcheckSort.FREQUENCY_FIRST;
         } else {
             throw new ElasticSearchIllegalArgumentException("Illegal comparator option " + comparatorVal);
         }

@@ -3,9 +3,7 @@ package org.elasticsearch.search.spellcheck;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.spell.StringDistance;
 import org.apache.lucene.search.spell.SuggestMode;
-import org.apache.lucene.search.spell.SuggestWord;
 
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -32,7 +30,7 @@ public class SearchContextSpellcheck {
         private SuggestMode suggestMode;
         private Float accuracy;
         private Integer numSuggest;
-        private Comparator<SuggestWord> comparator;
+        private SpellcheckSort sort;
         private StringDistance stringDistance;
         private Boolean lowerCaseTerms;
         private Integer maxEdits;
@@ -98,12 +96,12 @@ public class SearchContextSpellcheck {
             this.numSuggest = numSuggest;
         }
 
-        public Comparator<SuggestWord> comparator() {
-            return comparator;
+        public SpellcheckSort sort() {
+            return sort;
         }
 
-        public void comparator(Comparator<SuggestWord> comparator) {
-            this.comparator = comparator;
+        public void sort(SpellcheckSort sort) {
+            this.sort = sort;
         }
 
         public StringDistance stringDistance() {

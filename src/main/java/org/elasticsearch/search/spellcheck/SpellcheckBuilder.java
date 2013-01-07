@@ -18,7 +18,7 @@ public class SpellcheckBuilder implements ToXContent {
     private String globalSuggestMode;
     private Float globalAccuracy;
     private Integer globalNumSuggest;
-    private String globalComparator;
+    private String globalSort;
     private String globalStringDistance;
     private Boolean globalLowerCaseTerms;
     private Integer globalMaxEdits;
@@ -65,8 +65,8 @@ public class SpellcheckBuilder implements ToXContent {
         return this;
     }
 
-    public SpellcheckBuilder setGlobalComparator(String globalComparator) {
-        this.globalComparator = globalComparator;
+    public SpellcheckBuilder setGlobalSort(String globalSort) {
+        this.globalSort = globalSort;
         return this;
     }
 
@@ -143,8 +143,8 @@ public class SpellcheckBuilder implements ToXContent {
         if (globalNumSuggest != null) {
             builder.field("num_suggest", globalNumSuggest);
         }
-        if (globalComparator != null) {
-            builder.field("comparator", globalComparator);
+        if (globalSort != null) {
+            builder.field("sort", globalSort);
         }
         if (globalStringDistance != null) {
             builder.field("string_distance", globalStringDistance);
@@ -195,8 +195,8 @@ public class SpellcheckBuilder implements ToXContent {
             if (command.numSuggest != null) {
                 builder.field("num_suggest", command.numSuggest);
             }
-            if (command.comparator != null) {
-                builder.field("comparator", command.comparator);
+            if (command.sort != null) {
+                builder.field("sort", command.sort);
             }
             if (command.stringDistance != null) {
                 builder.field("string_distance", command.stringDistance);
@@ -242,7 +242,7 @@ public class SpellcheckBuilder implements ToXContent {
         private String suggestMode;
         private Float accuracy;
         private Integer numSuggest;
-        private String comparator;
+        private String sort;
         private String stringDistance;
         private Boolean lowerCaseTerms;
         private Integer maxEdits;
@@ -287,8 +287,8 @@ public class SpellcheckBuilder implements ToXContent {
             return this;
         }
 
-        public Command setComparator(String comparator) {
-            this.comparator = comparator;
+        public Command setSort(String sort) {
+            this.sort = sort;
             return this;
         }
 

@@ -1,5 +1,6 @@
 package org.elasticsearch.search.spellcheck;
 
+import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -8,10 +9,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static com.google.common.collect.Maps.newHashMap;
 
@@ -82,17 +80,19 @@ public class SpellCheckResult implements Streamable, ToXContent {
     public static class CommandResult implements Streamable, ToXContent {
 
         private Text name;
-        private Map<Text, List<SuggestedWord>> suggestedWords;
+        private int numSuggest;
+        private SpellcheckSort sort;
+        private Map<Text, List<SuggestedWord>> suggestedWords = newHashMap();
 
         private Map<String, List<SuggestedWord>> suggestedWordsAsString;
 
         CommandResult() {
-            this.suggestedWords = newHashMap();
         }
 
-        CommandResult(Text name) {
+        CommandResult(Text name, int numSuggest, SpellcheckSort sort) {
             this.name = name;
-            this.suggestedWords = newHashMap();
+            this.numSuggest = numSuggest;
+            this.sort = sort;
         }
 
         void addSuggestedWord(Text term, SuggestedWord suggestWord) {
@@ -133,9 +133,80 @@ public class SpellCheckResult implements Streamable, ToXContent {
             return suggestedWordsAsString;
         }
 
+        public void aggregate(CommandResult other) {
+            assert name().equals(other.name());
+            for (Map.Entry<Text, List<SuggestedWord>> entry : other.suggestedWords().entrySet()) {
+                List<SuggestedWord> thisSuggestedWords = suggestedWords.get(entry.getKey());
+                if (thisSuggestedWords == null) {
+                    suggestedWords.put(entry.getKey(), entry.getValue());
+                    continue;
+                }
+
+                Comparator<SuggestedWord> comparator;
+                switch (sort) {
+                    case SCORE_FIRST:
+                        comparator = new Comparator<SuggestedWord>() {
+                            @Override
+                            public int compare(SuggestedWord first, SuggestedWord second) {
+                                // first criteria: the distance
+                                int cmp = Float.compare(first.score(), second.score());
+                                if (cmp != 0) {
+                                    return cmp;
+                                }
+
+                                // second criteria (if first criteria is equal): the popularity
+                                cmp = first.frequency() - second.frequency();
+                                if (cmp != 0) {
+                                    return cmp;
+                                }
+                                // third criteria: term text
+                                return second.suggestion().compareTo(first.suggestion());
+                            }
+                        };
+                        break;
+                    case FREQUENCY_FIRST:
+                        comparator = new Comparator<SuggestedWord>() {
+                            @Override
+                            public int compare(SuggestedWord first, SuggestedWord second) {
+                                // first criteria: the popularity
+                                int cmp = first.frequency() - second.frequency();
+                                if (cmp != 0) {
+                                    return cmp;
+                                }
+
+                                // second criteria (if first criteria is equal): the distance
+                                cmp = Float.compare(first.score(), second.score());
+                                if (cmp != 0) {
+                                    return cmp;
+                                }
+
+                                // third criteria: term text
+                                return second.suggestion().compareTo(first.suggestion());
+                            }
+                        };
+                        break;
+                    default:
+                        throw new ElasticSearchException("Could not resolve comparator in reduce phase.");
+
+                }
+
+                NavigableSet<SuggestedWord> mergedSuggestedWords = new TreeSet<SuggestedWord>(comparator);
+                mergedSuggestedWords.addAll(thisSuggestedWords);
+                mergedSuggestedWords.addAll(entry.getValue());
+
+                int suggestionsToRemove = Math.max(0, mergedSuggestedWords.size() - numSuggest);
+                for (int i = 0; i < suggestionsToRemove; i++) {
+                    mergedSuggestedWords.pollLast();
+                }
+                suggestedWords.put(entry.getKey(), new ArrayList<SuggestedWord>(mergedSuggestedWords));
+            }
+        }
+
         @Override
         public void readFrom(StreamInput in) throws IOException {
             name = in.readText();
+            numSuggest = in.readVInt();
+            sort = SpellcheckSort.fromId(in.readByte());
             int size = in.readVInt();
             for (int i = 0; i < size; i++) {
                 Text term = in.readText();
@@ -151,6 +222,8 @@ public class SpellCheckResult implements Streamable, ToXContent {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeText(name);
+            out.writeVInt(numSuggest);
+            out.writeByte(sort.id());
             out.writeVInt(suggestedWords.size());
             for (Map.Entry<Text, List<SuggestedWord>> entry : suggestedWords.entrySet()) {
                 out.writeText(entry.getKey());

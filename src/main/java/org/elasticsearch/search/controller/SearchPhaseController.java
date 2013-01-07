@@ -33,7 +33,6 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.ShardFieldDocSortedHitQueue;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.trove.ExtTHashMap;
 import org.elasticsearch.common.trove.ExtTIntArrayList;
 import org.elasticsearch.search.SearchShardTarget;
@@ -50,7 +49,6 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.search.spellcheck.SpellCheckResult;
-import org.elasticsearch.search.spellcheck.SuggestedWord;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -377,7 +375,7 @@ public class SearchPhaseController extends AbstractComponent {
         }
 
         // merge spellcheck results
-        SpellCheckResult spellcheck = null;
+        SpellCheckResult spellcheckResult = null;
         if (!queryResults.isEmpty()) {
             List<SpellCheckResult.CommandResult> mergedSpellcheckCommands = null;
             for (QuerySearchResultProvider resultProvider : queryResults.values()) {
@@ -392,33 +390,19 @@ public class SearchPhaseController extends AbstractComponent {
                 }
 
                 for (SpellCheckResult.CommandResult shardCommand : shardResult.commands()) {
-                    SpellCheckResult.CommandResult existing = null;
                     for (SpellCheckResult.CommandResult mergedSpellcheckCommand : mergedSpellcheckCommands) {
                         if (mergedSpellcheckCommand.name().equals(shardCommand.name())) {
-                            existing = mergedSpellcheckCommand;
-                            break;
+                            mergedSpellcheckCommand.aggregate(shardCommand);
                         }
-                    }
-                    if (existing == null) {
-                        continue; // Shouldn't happen
-                    }
-
-                    for (Map.Entry<Text, List<SuggestedWord>> entry : shardCommand.suggestedWords().entrySet()) {
-                        List<SuggestedWord> existingSuggestedWords = existing.suggestedWords().get(entry.getKey());
-                        if (existingSuggestedWords == null || existingSuggestedWords.isEmpty()) {
-                            existingSuggestedWords = new ArrayList<SuggestedWord>(4);
-                            existing.suggestedWords().put(entry.getKey(), existingSuggestedWords);
-                        }
-                        existingSuggestedWords.addAll(entry.getValue());
                     }
                 }
             }
             if (mergedSpellcheckCommands != null) {
-                spellcheck = new SpellCheckResult(mergedSpellcheckCommands);
+                spellcheckResult = new SpellCheckResult(mergedSpellcheckCommands);
             }
         }
 
         InternalSearchHits searchHits = new InternalSearchHits(hits.toArray(new InternalSearchHit[hits.size()]), totalHits, maxScore);
-        return new InternalSearchResponse(searchHits, facets, spellcheck, timedOut);
+        return new InternalSearchResponse(searchHits, facets, spellcheckResult, timedOut);
     }
 }

@@ -51,7 +51,28 @@ public class SpellcheckSearchTests extends AbstractNodesTests {
         client.prepareIndex("test", "type1")
                 .setSource(XContentFactory.jsonBuilder()
                         .startObject()
-                        .field("text", "Testing Elasticsearch's spellchecker functionality")
+                        .field("text", "abcd")
+                        .endObject()
+                )
+                .execute().actionGet();
+        client.prepareIndex("test", "type1")
+                .setSource(XContentFactory.jsonBuilder()
+                        .startObject()
+                        .field("text", "aacd")
+                        .endObject()
+                )
+                .execute().actionGet();
+        client.prepareIndex("test", "type1")
+                .setSource(XContentFactory.jsonBuilder()
+                        .startObject()
+                        .field("text", "abbd")
+                        .endObject()
+                )
+                .execute().actionGet();
+        client.prepareIndex("test", "type1")
+                .setSource(XContentFactory.jsonBuilder()
+                        .startObject()
+                        .field("text", "abcc")
                         .endObject()
                 )
                 .execute().actionGet();
@@ -60,7 +81,10 @@ public class SpellcheckSearchTests extends AbstractNodesTests {
 
         SearchResponse search = client.prepareSearch()
                 .setQuery(matchQuery("text", "spellcecker"))
-                .addSpellcheckCommand("test", createCommand().setSpellCheckText("spellcecker").setSpellCheckField("text"))
+                .addSpellcheckCommand("test",
+                        createCommand().setSuggestMode("always") // Always, otherwise the results can vary between requests.
+                                .setSpellCheckText("abcd")
+                                .setSpellCheckField("text"))
                 .execute().actionGet();
 
         assertThat(Arrays.toString(search.shardFailures()), search.failedShards(), equalTo(0));
@@ -68,8 +92,10 @@ public class SpellcheckSearchTests extends AbstractNodesTests {
         assertThat(search.spellcheck().commands().size(), equalTo(1));
         assertThat(search.spellcheck().commands().get(0).getName(), equalTo("test"));
         assertThat(search.spellcheck().commands().get(0).getSuggestedWords().size(), equalTo(1));
-        assertThat(search.spellcheck().commands().get(0).getSuggestedWords().get("spellcecker").size(), equalTo(1));
-        assertThat(search.spellcheck().commands().get(0).getSuggestedWords().get("spellcecker").get(0).getSuggestion(), equalTo("spellchecker"));
+        assertThat(search.spellcheck().commands().get(0).getSuggestedWords().get("abcd").size(), equalTo(3));
+        assertThat(search.spellcheck().commands().get(0).getSuggestedWords().get("abcd").get(0).getSuggestion(), equalTo("abcc"));
+        assertThat(search.spellcheck().commands().get(0).getSuggestedWords().get("abcd").get(1).getSuggestion(), equalTo("abbd"));
+        assertThat(search.spellcheck().commands().get(0).getSuggestedWords().get("abcd").get(2).getSuggestion(), equalTo("aacd"));
     }
 
 }
