@@ -917,6 +917,10 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     private SpellcheckBuilder spellcheckBuilder() {
+        if (sourceBuilder == null) {
+            sourceBuilder = new SearchSourceBuilder();
+        }
+
         return sourceBuilder.spellchecker();
     }
 

@@ -91,9 +91,9 @@ public class SpellCheckParseElement implements SearchParseElement {
                     globalMaxQueryFrequency = parser.floatValue();
                 } else if ("minPrefix".equals(fieldName)) {
                     globalMinPrefix = parser.intValue();
-                } else if ("minQueryLength".equals(fieldName)) {
+                } else if ("min_query_length".equals(fieldName)) {
                     globalMinQueryLength = parser.intValue();
-                } else if ("thresholdFrequency".equals(fieldName)) {
+                } else if ("threshold_frequency".equals(fieldName)) {
                     globalThresholdFrequency = parser.floatValue();
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
@@ -137,9 +137,9 @@ public class SpellCheckParseElement implements SearchParseElement {
                             command.maxQueryFrequency(parser.floatValue());
                         } else if ("minPrefix".equals(fieldName)) {
                             command.minPrefix(parser.intValue());
-                        } else if ("minQueryLength".equals(fieldName)) {
+                        } else if ("min_query_length".equals(fieldName)) {
                             command.minQueryLength(parser.intValue());
-                        } else if ("thresholdFrequency".equals(fieldName)) {
+                        } else if ("threshold_frequency".equals(fieldName)) {
                             command.thresholdFrequency(parser.floatValue());
                         }
                     }

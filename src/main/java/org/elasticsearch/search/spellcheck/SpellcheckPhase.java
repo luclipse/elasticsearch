@@ -97,7 +97,6 @@ public class SpellcheckPhase extends AbstractComponent implements SearchPhase {
                         );
                         Text key = new BytesText(new BytesArray(term.bytes()));
                         for (SuggestWord suggestWord : suggestWords) {
-                            System.out.println("SuggestedWord: " + suggestWord.string);
                             SuggestedWord suggestedWord = new SuggestedWord(
                                     new StringText(suggestWord.string), suggestWord.freq, suggestWord.score
                             );
