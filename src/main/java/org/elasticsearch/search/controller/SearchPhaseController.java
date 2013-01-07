@@ -379,38 +379,42 @@ public class SearchPhaseController extends AbstractComponent {
         // merge spellcheck results
         SpellCheckResult spellcheck = null;
         if (!queryResults.isEmpty()) {
-            List<SpellCheckResult.CommandResult> suggestedWords = null;
+            List<SpellCheckResult.CommandResult> mergedSpellcheckCommands = null;
             for (QuerySearchResultProvider resultProvider : queryResults.values()) {
-                SpellCheckResult spellcheckShardResult = resultProvider.queryResult().spellCheck();
-                if (spellcheckShardResult != null) {
-                    if (suggestedWords == null) {
-                        suggestedWords = spellcheckShardResult.commands();
-                    } else {
-                        for (SpellCheckResult.CommandResult commandResult : spellcheckShardResult.commands()) {
-                            SpellCheckResult.CommandResult existing = null;
-                            for (SpellCheckResult.CommandResult existingCommandResult : suggestedWords) {
-                                if (existingCommandResult.name().equals(commandResult.name())) {
-                                    existing = existingCommandResult;
-                                    break;
-                                }
-                            }
-                            if (existing == null) {
-                                continue; // Shouldn't happen
-                            }
+                SpellCheckResult shardResult = resultProvider.queryResult().spellCheck();
+                if (shardResult == null) {
+                    continue;
+                }
 
-                            for (Map.Entry<Text, List<SuggestedWord>> entry : commandResult.suggestedWords().entrySet()) {
-                                List<SuggestedWord> existingSuggestedWords = existing.suggestedWords().get(entry.getKey());
-                                if (existingSuggestedWords == null || existingSuggestedWords.isEmpty()) {
-                                    continue;
-                                }
-                                existingSuggestedWords.addAll(entry.getValue());
-                            }
+                if (mergedSpellcheckCommands == null) {
+                    mergedSpellcheckCommands = shardResult.commands();
+                    continue;
+                }
+
+                for (SpellCheckResult.CommandResult shardCommand : shardResult.commands()) {
+                    SpellCheckResult.CommandResult existing = null;
+                    for (SpellCheckResult.CommandResult mergedSpellcheckCommand : mergedSpellcheckCommands) {
+                        if (mergedSpellcheckCommand.name().equals(shardCommand.name())) {
+                            existing = mergedSpellcheckCommand;
+                            break;
                         }
+                    }
+                    if (existing == null) {
+                        continue; // Shouldn't happen
+                    }
+
+                    for (Map.Entry<Text, List<SuggestedWord>> entry : shardCommand.suggestedWords().entrySet()) {
+                        List<SuggestedWord> existingSuggestedWords = existing.suggestedWords().get(entry.getKey());
+                        if (existingSuggestedWords == null || existingSuggestedWords.isEmpty()) {
+                            existingSuggestedWords = new ArrayList<SuggestedWord>(4);
+                            existing.suggestedWords().put(entry.getKey(), existingSuggestedWords);
+                        }
+                        existingSuggestedWords.addAll(entry.getValue());
                     }
                 }
             }
-            if (suggestedWords != null) {
-                spellcheck = new SpellCheckResult(suggestedWords);
+            if (mergedSpellcheckCommands != null) {
+                spellcheck = new SpellCheckResult(mergedSpellcheckCommands);
             }
         }
 
