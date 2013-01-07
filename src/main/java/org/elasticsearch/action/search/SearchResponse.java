@@ -31,7 +31,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.facet.Facets;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.search.spellcheck.InternalSpellCheckResult;
+import org.elasticsearch.search.spellcheck.SpellCheckResult;
 
 import java.io.IOException;
 
@@ -106,7 +106,7 @@ public class SearchResponse extends ActionResponse implements ToXContent {
         return internalResponse.facets();
     }
 
-    public InternalSpellCheckResult spellcheck() {
+    public SpellCheckResult spellcheck() {
         return internalResponse.spellCheck();
     }
 

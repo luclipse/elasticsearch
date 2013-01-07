@@ -37,7 +37,7 @@ import org.elasticsearch.search.facet.AbstractFacetBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.search.spellcheck.SpellCheckBuilder;
+import org.elasticsearch.search.spellcheck.SpellcheckBuilder;
 
 import java.util.Map;
 
@@ -597,6 +597,14 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
+     * Adds a spellcheck command.
+     */
+    public SearchRequestBuilder addSpellcheckCommand(String name, SpellcheckBuilder.Command command) {
+        spellcheckBuilder().addCommand(name, command);
+        return this;
+    }
+
+    /**
      * Set a tag scheme that encapsulates a built in pre and post tags. The allows schemes
      * are <tt>styled</tt> and <tt>default</tt>.
      *
@@ -652,11 +660,6 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      */
     public SearchRequestBuilder setHighlighterType(String type) {
         highlightBuilder().highlighterType(type);
-        return this;
-    }
-
-    public SearchRequestBuilder setSpellchecker(SpellCheckBuilder spellCheckBuilder) {
-        sourceBuilder().spellchecker(spellCheckBuilder);
         return this;
     }
 
@@ -832,4 +835,9 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     private HighlightBuilder highlightBuilder() {
         return sourceBuilder().highlighter();
     }
+
+    private SpellcheckBuilder spellcheckBuilder() {
+        return sourceBuilder.spellchecker();
+    }
+
 }

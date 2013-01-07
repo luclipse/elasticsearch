@@ -4,70 +4,150 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  */
-public class SpellCheckBuilder implements ToXContent {
+public class SpellcheckBuilder implements ToXContent {
 
-    private String spellCheckText;
-    private String spellCheckField;
-    private String spellCheckAnalyzer;
-    private String suggestMode;
-    private Float accuracy;
-    private Integer numSuggest;
+    private String globalSpellCheckText;
+    private String globalSpellCheckField;
+    private String globalSpellCheckAnalyzer;
+    private String globalSuggestMode;
+    private Float globalAccuracy;
+    private Integer globalNumSuggest;
 
-    public SpellCheckBuilder setSpellCheckText(String spellCheckText) {
-        this.spellCheckText = spellCheckText;
+    private final Map<String, Command> commands = new HashMap<String, Command>();
+
+    public SpellcheckBuilder setGlobalSpellCheckText(String globalSpellCheckText) {
+        this.globalSpellCheckText = globalSpellCheckText;
         return this;
     }
 
-    public SpellCheckBuilder setSpellCheckField(String spellCheckField) {
-        this.spellCheckField = spellCheckField;
+    public SpellcheckBuilder setGlobalSpellCheckField(String globalSpellCheckField) {
+        this.globalSpellCheckField = globalSpellCheckField;
         return this;
     }
 
-    public SpellCheckBuilder setSpellCheckAnalyzer(String spellCheckAnalyzer) {
-        this.spellCheckAnalyzer = spellCheckAnalyzer;
+    public SpellcheckBuilder setGlobalSpellCheckAnalyzer(String globalSpellCheckAnalyzer) {
+        this.globalSpellCheckAnalyzer = globalSpellCheckAnalyzer;
         return this;
     }
 
-    public SpellCheckBuilder setSuggestMode(String suggestMode) {
-        this.suggestMode = suggestMode;
+    public SpellcheckBuilder setGlobalSuggestMode(String globalSuggestMode) {
+        this.globalSuggestMode = globalSuggestMode;
         return this;
     }
 
-    public SpellCheckBuilder setAccuracy(float accuracy) {
-        this.accuracy = accuracy;
+    public SpellcheckBuilder setGlobalAccuracy(float globalAccuracy) {
+        this.globalAccuracy = globalAccuracy;
         return this;
     }
 
-    public SpellCheckBuilder setNumSuggest(int numSuggest) {
-        this.numSuggest = numSuggest;
+    public SpellcheckBuilder setGlobalNumSuggest(int globalNumSuggest) {
+        this.globalNumSuggest = globalNumSuggest;
         return this;
+    }
+
+    public SpellcheckBuilder addCommand(String name, Command command) {
+        commands.put(name, command);
+        return this;
+    }
+
+    public Map<String, Command> getCommands() {
+        return commands;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("spellcheck");
-        if (spellCheckAnalyzer != null) {
-            builder.field("analyzer", spellCheckAnalyzer);
+        if (globalSpellCheckAnalyzer != null) {
+            builder.field("analyzer", globalSpellCheckAnalyzer);
         }
-        if (spellCheckText != null) {
-            builder.field("text", spellCheckText);
+        if (globalSpellCheckText != null) {
+            builder.field("text", globalSpellCheckText);
         }
-        if (spellCheckField != null) {
-            builder.field("field", spellCheckField);
+        if (globalSpellCheckField != null) {
+            builder.field("field", globalSpellCheckField);
         }
-        if (suggestMode != null) {
-            builder.field("suggest_mode", suggestMode);
+        if (globalSuggestMode != null) {
+            builder.field("suggest_mode", globalSuggestMode);
         }
-        if (accuracy != null) {
-            builder.field("accuracy", accuracy);
+        if (globalAccuracy != null) {
+            builder.field("accuracy", globalAccuracy);
         }
-        if (numSuggest != null) {
-            builder.field("num_suggest", numSuggest);
+        if (globalNumSuggest != null) {
+            builder.field("num_suggest", globalNumSuggest);
         }
+
+        for (Map.Entry<String, Command> entry : commands.entrySet()) {
+            builder.startObject(entry.getKey());
+            Command command = entry.getValue();
+            if (command.spellCheckAnalyzer != null) {
+                builder.field("analyzer", command.spellCheckAnalyzer);
+            }
+            if (command.spellCheckText != null) {
+                builder.field("text", command.spellCheckText);
+            }
+            if (command.spellCheckField != null) {
+                builder.field("field", command.spellCheckField);
+            }
+            if (command.suggestMode != null) {
+                builder.field("suggest_mode", command.suggestMode);
+            }
+            if (command.accuracy != null) {
+                builder.field("accuracy", command.accuracy);
+            }
+            if (command.numSuggest != null) {
+                builder.field("num_suggest", command.numSuggest);
+            }
+            builder.endObject();
+        }
+
         builder.endObject();
         return builder;
     }
+
+    public static class Command {
+
+        private String spellCheckText;
+        private String spellCheckField;
+        private String spellCheckAnalyzer;
+        private String suggestMode;
+        private Float accuracy;
+        private Integer numSuggest;
+
+        public Command setSpellCheckText(String spellCheckText) {
+            this.spellCheckText = spellCheckText;
+            return this;
+        }
+
+        public Command setSpellCheckField(String spellCheckField) {
+            this.spellCheckField = spellCheckField;
+            return this;
+        }
+
+        public Command setSpellCheckAnalyzer(String spellCheckAnalyzer) {
+            this.spellCheckAnalyzer = spellCheckAnalyzer;
+            return this;
+        }
+
+        public Command setSuggestMode(String suggestMode) {
+            this.suggestMode = suggestMode;
+            return this;
+        }
+
+        public Command setAccuracy(float accuracy) {
+            this.accuracy = accuracy;
+            return this;
+        }
+
+        public Command setNumSuggest(int numSuggest) {
+            this.numSuggest = numSuggest;
+            return this;
+        }
+
+    }
+
 }

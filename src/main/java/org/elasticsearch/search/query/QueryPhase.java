@@ -35,7 +35,7 @@ import org.elasticsearch.search.internal.ScopePhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortParseElement;
 import org.elasticsearch.search.sort.TrackScoresParseElement;
-import org.elasticsearch.search.spellcheck.SpellCheckPhase;
+import org.elasticsearch.search.spellcheck.SpellcheckPhase;
 
 import java.util.Map;
 
@@ -45,12 +45,12 @@ import java.util.Map;
 public class QueryPhase implements SearchPhase {
 
     private final FacetPhase facetPhase;
-    private final SpellCheckPhase spellCheckPhase;
+    private final SpellcheckPhase spellcheckPhase;
 
     @Inject
-    public QueryPhase(FacetPhase facetPhase, SpellCheckPhase spellCheckPhase) {
+    public QueryPhase(FacetPhase facetPhase, SpellcheckPhase spellcheckPhase) {
         this.facetPhase = facetPhase;
-        this.spellCheckPhase = spellCheckPhase;
+        this.spellcheckPhase = spellcheckPhase;
     }
 
     @Override
@@ -72,7 +72,7 @@ public class QueryPhase implements SearchPhase {
                 .put("minScore", new MinScoreParseElement())
                 .put("timeout", new TimeoutParseElement())
                 .putAll(facetPhase.parseElements())
-                .putAll(spellCheckPhase.parseElements());
+                .putAll(spellcheckPhase.parseElements());
         return parseElements.build();
     }
 
@@ -189,7 +189,7 @@ public class QueryPhase implements SearchPhase {
             searchContext.searcher().processedScope();
         }
 
-        spellCheckPhase.execute(searchContext);
+        spellcheckPhase.execute(searchContext);
         facetPhase.execute(searchContext);
     }
 }

@@ -41,7 +41,7 @@ import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.search.spellcheck.SpellCheckBuilder;
+import org.elasticsearch.search.spellcheck.SpellcheckBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -104,7 +104,7 @@ public class SearchSourceBuilder implements ToXContent {
 
     private HighlightBuilder highlightBuilder;
 
-    private SpellCheckBuilder spellCheckBuilder;
+    private SpellcheckBuilder spellcheckBuilder;
 
     private TObjectFloatHashMap<String> indexBoost = null;
 
@@ -403,18 +403,18 @@ public class SearchSourceBuilder implements ToXContent {
         return this;
     }
 
-    public SpellCheckBuilder spellchecker() {
-        if (spellCheckBuilder == null) {
-            spellCheckBuilder = new SpellCheckBuilder();
+    public SpellcheckBuilder spellchecker() {
+        if (spellcheckBuilder == null) {
+            spellcheckBuilder = new SpellcheckBuilder();
         }
-        return spellCheckBuilder;
+        return spellcheckBuilder;
     }
 
     /**
      * Adds spellchecker to perform as part of the search.
      */
-    public SearchSourceBuilder spellchecker(SpellCheckBuilder spellCheckBuilder) {
-        this.spellCheckBuilder = spellCheckBuilder;
+    public SearchSourceBuilder spellchecker(SpellcheckBuilder spellcheckBuilder) {
+        this.spellcheckBuilder = spellcheckBuilder;
         return this;
     }
 
@@ -727,8 +727,8 @@ public class SearchSourceBuilder implements ToXContent {
             highlightBuilder.toXContent(builder, params);
         }
 
-        if (spellCheckBuilder != null) {
-            spellCheckBuilder.toXContent(builder, params);
+        if (spellcheckBuilder != null) {
+            spellcheckBuilder.toXContent(builder, params);
         }
 
         if (stats != null) {

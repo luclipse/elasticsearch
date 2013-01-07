@@ -27,7 +27,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.facet.Facets;
 import org.elasticsearch.search.facet.InternalFacets;
-import org.elasticsearch.search.spellcheck.InternalSpellCheckResult;
+import org.elasticsearch.search.spellcheck.SpellCheckResult;
 
 import java.io.IOException;
 
@@ -42,7 +42,7 @@ public class InternalSearchResponse implements Streamable, ToXContent {
 
     private InternalFacets facets;
 
-    private InternalSpellCheckResult spellCheck;
+    private SpellCheckResult spellCheck;
 
     private boolean timedOut;
 
@@ -51,7 +51,7 @@ public class InternalSearchResponse implements Streamable, ToXContent {
     private InternalSearchResponse() {
     }
 
-    public InternalSearchResponse(InternalSearchHits hits, InternalFacets facets, InternalSpellCheckResult spellcheck, boolean timedOut) {
+    public InternalSearchResponse(InternalSearchHits hits, InternalFacets facets, SpellCheckResult spellcheck, boolean timedOut) {
         this.hits = hits;
         this.facets = facets;
         this.spellCheck = spellcheck;
@@ -70,7 +70,7 @@ public class InternalSearchResponse implements Streamable, ToXContent {
         return facets;
     }
 
-    public InternalSpellCheckResult spellCheck() {
+    public SpellCheckResult spellCheck() {
         return spellCheck;
     }
 
@@ -96,7 +96,7 @@ public class InternalSearchResponse implements Streamable, ToXContent {
             facets = InternalFacets.readFacets(in);
         }
         if (in.readBoolean()) {
-            spellCheck = InternalSpellCheckResult.readSpellCheck(in);
+            spellCheck = SpellCheckResult.readSpellCheck(in);
         }
         timedOut = in.readBoolean();
     }

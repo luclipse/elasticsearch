@@ -25,7 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.facet.Facets;
 import org.elasticsearch.search.facet.InternalFacets;
-import org.elasticsearch.search.spellcheck.InternalSpellCheckResult;
+import org.elasticsearch.search.spellcheck.SpellCheckResult;
 import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
@@ -44,7 +44,7 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
     private int size;
     private TopDocs topDocs;
     private InternalFacets facets;
-    private InternalSpellCheckResult spellCheck;
+    private SpellCheckResult spellCheck;
     private boolean searchTimedOut;
 
     public QuerySearchResult() {
@@ -103,11 +103,11 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
         this.facets = facets;
     }
 
-    public InternalSpellCheckResult spellCheck() {
+    public SpellCheckResult spellCheck() {
         return spellCheck;
     }
 
-    public void spellCheck(InternalSpellCheckResult spellCheck) {
+    public void spellCheck(SpellCheckResult spellCheck) {
         this.spellCheck = spellCheck;
     }
 
@@ -147,7 +147,7 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
             facets = InternalFacets.readFacets(in);
         }
         if (in.readBoolean()) {
-            spellCheck = InternalSpellCheckResult.readSpellCheck(in);
+            spellCheck = SpellCheckResult.readSpellCheck(in);
         }
         searchTimedOut = in.readBoolean();
     }

@@ -9,9 +9,13 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.spell.DirectSpellChecker;
 import org.apache.lucene.search.spell.SuggestWord;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.text.BytesText;
+import org.elasticsearch.common.text.StringText;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.internal.SearchContext;
@@ -24,10 +28,10 @@ import java.util.Map;
 
 /**
  */
-public class SpellCheckPhase extends AbstractComponent implements SearchPhase {
+public class SpellcheckPhase extends AbstractComponent implements SearchPhase {
 
     @Inject
-    public SpellCheckPhase(Settings settings) {
+    public SpellcheckPhase(Settings settings) {
         super(settings);
     }
 
@@ -44,22 +48,36 @@ public class SpellCheckPhase extends AbstractComponent implements SearchPhase {
 
     @Override
     public void execute(SearchContext context) throws ElasticSearchException {
-        SearchContextSpellCheck spellCheck = context.spellcheck();
+        SearchContextSpellcheck spellCheck = context.spellcheck();
         if (spellCheck == null) {
             return;
         }
-        DirectSpellChecker directSpellChecker = new DirectSpellChecker();
-        directSpellChecker.setAccuracy(spellCheck.accuracy());
 
         try {
-            InternalSpellCheckResult result = new InternalSpellCheckResult();
-            List<Token> tokens = queryTerms(spellCheck, context);
-            for (Token token : tokens) {
-                Term term = new Term(spellCheck.spellCheckField(), new String(token.buffer(), 0, token.length()));
-                SuggestWord[] suggestWords = directSpellChecker.suggestSimilar(
-                        term, spellCheck.numSuggest(), context.searcher().getIndexReader(), spellCheck.suggestMode()
-                );
-                result.addSuggestedWord(term.text(), suggestWords);
+            DirectSpellChecker directSpellChecker = new DirectSpellChecker();
+            SpellCheckResult result = new SpellCheckResult();
+            for (Map.Entry<String, SearchContextSpellcheck.Command> entry : spellCheck.commands().entrySet()) {
+                SearchContextSpellcheck.Command command = entry.getValue();
+                directSpellChecker.setAccuracy(command.accuracy());
+
+                SpellCheckResult.CommandResult commandResult = new SpellCheckResult.CommandResult(new StringText(entry.getKey()));
+                List<Token> tokens = queryTerms(command, context);
+                for (Token token : tokens) {
+                    Term term = new Term(command.spellCheckField(), new String(token.buffer(), 0, token.length()));
+                    // TODO: tweak DirectSpellChecker to allow us to get words as BR instead of String
+                    // actually remove the SuggestWord usage
+                    SuggestWord[] suggestWords = directSpellChecker.suggestSimilar(
+                            term, command.numSuggest(), context.searcher().getIndexReader(), command.suggestMode()
+                    );
+                    Text key = new BytesText(new BytesArray(term.bytes()));
+                    for (SuggestWord suggestWord : suggestWords) {
+                        SuggestedWord suggestedWord = new SuggestedWord(
+                                new StringText(suggestWord.string), suggestWord.freq, suggestWord.score
+                        );
+                        commandResult.addSuggestedWord(key, suggestedWord);
+                    }
+                }
+                result.addCommand(commandResult);
             }
             context.queryResult().spellCheck(result);
         } catch (IOException e) {
@@ -67,15 +85,9 @@ public class SpellCheckPhase extends AbstractComponent implements SearchPhase {
         }
     }
 
-    private List<Token> queryTerms(SearchContextSpellCheck spellCheck, SearchContext context) throws IOException {
-        Analyzer analyzer = spellCheck.spellCheckAnalyzer();
-        if (analyzer == null) {
-            analyzer = context.mapperService().searchAnalyzer();
-        }
-
-        String text = context.spellcheck().spellCheckText();
-
-        TokenStream ts = analyzer.tokenStream("", new StringReader(text));
+    private List<Token> queryTerms(SearchContextSpellcheck.Command command, SearchContext context) throws IOException {
+        Analyzer analyzer = command.spellCheckAnalyzer();
+        TokenStream ts = analyzer.tokenStream(command.spellCheckField(), new StringReader(command.spellCheckText()));
         ts.reset();
         CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
 
