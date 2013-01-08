@@ -23,7 +23,7 @@ import java.util.*;
  * This spellchecker works on an atomic reader instead of a top level reader, in order to support spellcheck
  * filter efficiently. Performance slowdown of this impl compared to direct spellchecker seems around 12%
  */
-class AtomicDirectSpellChecker {
+public class AtomicDirectSpellChecker {
 
     /**
      * The default StringDistance, Damerau-Levenshtein distance implemented internally
@@ -83,7 +83,7 @@ class AtomicDirectSpellChecker {
     /**
      * Creates a DirectSpellChecker with default configuration values
      */
-    AtomicDirectSpellChecker() {
+    public AtomicDirectSpellChecker() {
     }
 
     /**
@@ -284,14 +284,21 @@ class AtomicDirectSpellChecker {
             terms = moreTerms;
         }
 
-        // create the suggestword response, sort it, and trim it to size.
-
-        List<SuggestedWord> suggestions = new ArrayList<SuggestedWord>();
+        List<SuggestedWord> corrections = new ArrayList<SuggestedWord>(terms.size());
         for (ScoreTerm s : terms) {
-            suggestions.add(new SuggestedWord(new BytesText(new BytesArray(s.term)), s.docfreq, s.score));
+            if (s.docfreq < docfreq) {
+                // TODO: Hits that have docFreq lower than required docFreq are just removed now. If because of removal the
+                // number of hits is lower than numSug we should re-execute...
+                continue;
+            }
+            corrections.add((new SuggestedWord(new BytesText(new BytesArray(s.term)), s.docfreq, s.score)));
         }
-        Collections.sort(suggestions, comparator);
-        return suggestions;
+        Collections.sort(corrections, comparator);
+        if (corrections.size() > numSug) {
+            return corrections.subList(0, numSug);
+        } else {
+            return corrections;
+        }
     }
 
     private Collection<ScoreTerm> suggestSimilar(Term term, int numSug, List<AtomicReaderContext> readerContexts,
@@ -307,22 +314,20 @@ class AtomicDirectSpellChecker {
                 }
             }
 
-            PriorityQueue<ScoreTerm> segmentResult;
-            segmentStQueue.put(readerContext.reader().getCoreCacheKey(), segmentResult = new PriorityQueue<ScoreTerm>());
-            AttributeSource atts = new AttributeSource();
-            MaxNonCompetitiveBoostAttribute maxBoostAtt =
-                    atts.addAttribute(MaxNonCompetitiveBoostAttribute.class);
-
+            PriorityQueue<ScoreTerm> segmentResult = new PriorityQueue<ScoreTerm>();
+            segmentStQueue.put(readerContext.reader().getCoreCacheKey(), segmentResult);
             Terms terms = readerContext.reader().terms(term.field());
             if (terms == null) {
                 return Collections.emptyList();
             }
+            AttributeSource atts = new AttributeSource();
+            MaxNonCompetitiveBoostAttribute maxBoostAtt = atts.addAttribute(MaxNonCompetitiveBoostAttribute.class);
             FuzzyTermsEnum e = new FuzzyTermsEnum(terms, atts, term, editDistance, Math.max(minPrefix, editDistance - 1), true);
+            BoostAttribute boostAtt = e.attributes().addAttribute(BoostAttribute.class);
 
             BytesRef queryTerm = new BytesRef(term.text());
             BytesRef candidateTerm;
             ScoreTerm st = new ScoreTerm();
-            BoostAttribute boostAtt = e.attributes().addAttribute(BoostAttribute.class);
             DocsEnum docsEnum = null;
             outer:
             while ((candidateTerm = e.next()) != null) {
@@ -389,10 +394,10 @@ class AtomicDirectSpellChecker {
             return Collections.emptyList();
         }
 
-        NavigableMap<BytesRef, ScoreTerm> stQueue = null;
+        Map<BytesRef, ScoreTerm> stQueue = null;
         for (Map.Entry<Object, PriorityQueue<ScoreTerm>> entry : segmentStQueue.entrySet()) {
             if (stQueue == null) {
-                stQueue = new TreeMap<BytesRef, ScoreTerm>();
+                stQueue = new HashMap<BytesRef, ScoreTerm>();
                 for (ScoreTerm scoreTerm : entry.getValue()) {
                     stQueue.put(scoreTerm.term, scoreTerm);
                 }
@@ -408,23 +413,13 @@ class AtomicDirectSpellChecker {
             }
         }
 
-        List<ScoreTerm> endResult = new ArrayList<ScoreTerm>(numSug);
-        int addedSuggestions = 0;
-        for (ScoreTerm scoreTerm : stQueue.values()) {
-            if (addedSuggestions == numSug) {
-                return endResult;
-            }
+        // TODO filter out corrections with df lower then docFreq.
 
-            if (scoreTerm.docfreq < docfreq) {
-                // TODO: Hits that have docFreq lower than required docFreq are just removed now. If because of removal the
-                // number of hits is lower than numSug we should re-execute...
-                continue;
-            }
-            endResult.add(scoreTerm);
-            addedSuggestions++;
-        }
+        return stQueue.values();
+    }
 
-        return endResult;
+    public StringDistance getDistance() {
+        return distance;
     }
 
     private static class ScoreTerm implements Comparable<ScoreTerm> {

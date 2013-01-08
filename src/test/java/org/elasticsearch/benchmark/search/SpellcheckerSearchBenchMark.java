@@ -60,7 +60,7 @@ public class SpellcheckerSearchBenchMark {
             }
 
             StopWatch stopWatch = new StopWatch().start();
-            long COUNT = SizeValue.parseSizeValue("2m").singles();
+            long COUNT = SizeValue.parseSizeValue("100m").singles();
             int BATCH = 100;
             System.out.println("Indexing [" + COUNT + "] ...");
             long ITERS = COUNT / BATCH;
