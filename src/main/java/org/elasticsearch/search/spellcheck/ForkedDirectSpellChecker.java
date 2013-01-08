@@ -384,6 +384,10 @@ public class ForkedDirectSpellChecker {
             }
         }
 
+        if (segmentStQueue.isEmpty()) {
+            return Collections.emptyList();
+        }
+
         NavigableMap<BytesRef, ScoreTerm> stQueue = null;
         for (Map.Entry<Object, PriorityQueue<ScoreTerm>> entry : segmentStQueue.entrySet()) {
             if (stQueue == null) {
