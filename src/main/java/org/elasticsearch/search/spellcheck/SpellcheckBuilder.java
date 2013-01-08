@@ -2,12 +2,15 @@ package org.elasticsearch.search.spellcheck;
 
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.FilterBuilder;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
 /**
+ * Defines how to perform spellchecking. This builders allows a number of global options to be specified and
+ * an arbitrary number of {@link Command} instances.
  */
 public class SpellcheckBuilder implements ToXContent {
 
@@ -27,6 +30,7 @@ public class SpellcheckBuilder implements ToXContent {
     private Integer globalMinPrefix;
     private Integer globalMinQueryLength;
     private Float globalThresholdFrequency;
+    private FilterBuilder globalFilter;
 
     private final Map<String, Command> commands = new HashMap<String, Command>();
 
@@ -110,6 +114,11 @@ public class SpellcheckBuilder implements ToXContent {
         return this;
     }
 
+    public SpellcheckBuilder setGlobalFilter(FilterBuilder globalFilter) {
+        this.globalFilter = globalFilter;
+        return this;
+    }
+
     public SpellcheckBuilder addCommand(String name, Command command) {
         commands.put(name, command);
         return this;
@@ -170,6 +179,10 @@ public class SpellcheckBuilder implements ToXContent {
         if (globalThresholdFrequency != null) {
             builder.field("threshold_frequency", globalThresholdFrequency);
         }
+        if (globalFilter != null) {
+            builder.field("filter");
+            globalFilter.toXContent(builder, params);
+        }
 
         for (Map.Entry<String, Command> entry : commands.entrySet()) {
             builder.startObject(entry.getKey());
@@ -222,6 +235,10 @@ public class SpellcheckBuilder implements ToXContent {
             if (command.thresholdFrequency != null) {
                 builder.field("threshold_frequency", command.thresholdFrequency);
             }
+            if (command.filter != null) {
+                builder.field("filter");
+                command.filter.toXContent(builder, params);
+            }
             builder.endObject();
         }
 
@@ -251,6 +268,7 @@ public class SpellcheckBuilder implements ToXContent {
         private Integer minPrefix;
         private Integer minQueryLength;
         private Float thresholdFrequency;
+        private FilterBuilder filter;
 
         public Command setType(String type) {
             this.type = type;
@@ -329,6 +347,11 @@ public class SpellcheckBuilder implements ToXContent {
 
         public Command setThresholdFrequency(Float thresholdFrequency) {
             this.thresholdFrequency = thresholdFrequency;
+            return this;
+        }
+
+        public Command setFilter(FilterBuilder filter) {
+            this.filter = filter;
             return this;
         }
     }

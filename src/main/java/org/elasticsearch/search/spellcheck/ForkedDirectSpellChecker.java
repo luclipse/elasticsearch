@@ -12,6 +12,7 @@ import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.apache.lucene.util.automaton.LevenshteinAutomata;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.text.BytesText;
 
 import java.io.IOException;
@@ -84,14 +85,6 @@ public class ForkedDirectSpellChecker {
     }
 
     /**
-     * Get the maximum number of Levenshtein edit-distances to draw
-     * candidate terms from.
-     */
-    public int getMaxEdits() {
-        return maxEdits;
-    }
-
-    /**
      * Sets the maximum number of Levenshtein edit-distances to draw
      * candidate terms from. This value can be 1 or 2. The default is 2.
      * <p/>
@@ -106,13 +99,6 @@ public class ForkedDirectSpellChecker {
     }
 
     /**
-     * Get the minimal number of characters that must match exactly
-     */
-    public int getMinPrefix() {
-        return minPrefix;
-    }
-
-    /**
      * Sets the minimal number of initial characters (default: 1)
      * that must match exactly.
      * <p/>
@@ -121,13 +107,6 @@ public class ForkedDirectSpellChecker {
      */
     public void setMinPrefix(int minPrefix) {
         this.minPrefix = minPrefix;
-    }
-
-    /**
-     * Get the maximum number of top-N inspections per suggestion
-     */
-    public int getMaxInspections() {
-        return maxInspections;
     }
 
     /**
@@ -141,25 +120,11 @@ public class ForkedDirectSpellChecker {
     }
 
     /**
-     * Get the minimal accuracy from the StringDistance for a match
-     */
-    public float getAccuracy() {
-        return accuracy;
-    }
-
-    /**
      * Set the minimal accuracy required (default: 0.5f) from a StringDistance
      * for a suggestion match.
      */
     public void setAccuracy(float accuracy) {
         this.accuracy = accuracy;
-    }
-
-    /**
-     * Get the minimal threshold of documents a term must appear for a match
-     */
-    public float getThresholdFrequency() {
-        return thresholdFrequency;
     }
 
     /**
@@ -181,13 +146,6 @@ public class ForkedDirectSpellChecker {
     }
 
     /**
-     * Get the minimum length of a query term needed to return suggestions
-     */
-    public int getMinQueryLength() {
-        return minQueryLength;
-    }
-
-    /**
      * Set the minimum length of a query term (default: 4) needed to return suggestions.
      * <p/>
      * Very short query terms will often cause only bad suggestions with any distance
@@ -195,14 +153,6 @@ public class ForkedDirectSpellChecker {
      */
     public void setMinQueryLength(int minQueryLength) {
         this.minQueryLength = minQueryLength;
-    }
-
-    /**
-     * Get the maximum threshold of documents a query term can appear in order
-     * to provide suggestions.
-     */
-    public float getMaxQueryFrequency() {
-        return maxQueryFrequency;
     }
 
     /**
@@ -224,13 +174,6 @@ public class ForkedDirectSpellChecker {
     }
 
     /**
-     * true if the spellchecker should lowercase terms
-     */
-    public boolean getLowerCaseTerms() {
-        return lowerCaseTerms;
-    }
-
-    /**
      * True if the spellchecker should lowercase terms (default: true)
      * <p/>
      * This is a convenience method, if your index field has more complicated
@@ -245,25 +188,11 @@ public class ForkedDirectSpellChecker {
     }
 
     /**
-     * Get the current comparator in use.
-     */
-    public Comparator<SuggestedWord> getComparator() {
-        return comparator;
-    }
-
-    /**
      * Set the comparator for sorting suggestions.
      * The default is {@link SuggestWordQueue#DEFAULT_COMPARATOR}
      */
     public void setComparator(Comparator<SuggestedWord> comparator) {
         this.comparator = comparator;
-    }
-
-    /**
-     * Get the string distance metric in use.
-     */
-    public StringDistance getDistance() {
-        return distance;
     }
 
     /**
@@ -278,6 +207,15 @@ public class ForkedDirectSpellChecker {
      */
     public void setDistance(StringDistance distance) {
         this.distance = distance;
+    }
+
+    /**
+     * Sets The filter the suggested words need to match with.
+     *
+     * @param filter The filter the suggested words need to match with.
+     */
+    public void setFilter(Filter filter) {
+        this.filter = filter;
     }
 
     /**
@@ -379,11 +317,13 @@ public class ForkedDirectSpellChecker {
             DocsEnum docsEnum = null;
             outer:
             while ((candidateTerm = e.next()) != null) {
-                // BEGIN CHANGE:
                 if (filter != null) {
                     DocIdSet docIdSet = filter.getDocIdSet(readerContext, null);
-                    docsEnum = e.docs(null, docsEnum);
+                    if (DocIdSets.isEmpty(docIdSet)) {
+                        continue;
+                    }
                     DocIdSetIterator iterator = docIdSet.iterator();
+                    docsEnum = e.docs(null, docsEnum);
                     int filterDocId = iterator.advance(0);
                     int termsDocId = docsEnum.advance(filterDocId);
                     while (filterDocId != termsDocId) {
@@ -398,12 +338,12 @@ public class ForkedDirectSpellChecker {
                         }
                     }
                 }
-                // END CHANGE
 
                 final float boost = boostAtt.getBoost();
                 // ignore uncompetitive hits
-                if (segmentResult.size() >= numSug && boost <= segmentResult.peek().boost)
+                if (segmentResult.size() >= numSug && boost <= segmentResult.peek().boost) {
                     continue;
+                }
 
                 // ignore exact match of the same term
                 if (queryTerm.bytesEquals(candidateTerm)) {
@@ -459,6 +399,8 @@ public class ForkedDirectSpellChecker {
             }
         }
 
+        // TODO: Hits that have docFreq lower than required docFreq are just removed now. If because of removal the
+        // number of hits is lower than numSug we should re-execute...
         Iterator<Map.Entry<BytesRef, ScoreTerm>> iterator = stQueue.entrySet().iterator();
         while (iterator.hasNext()) {
             if (iterator.next().getValue().docfreq < docfreq) {
@@ -467,10 +409,6 @@ public class ForkedDirectSpellChecker {
         }
 
         return stQueue.values();
-    }
-
-    public void setFilter(Filter filter) {
-        this.filter = filter;
     }
 
     private static class ScoreTerm implements Comparable<ScoreTerm> {
@@ -482,31 +420,30 @@ public class ForkedDirectSpellChecker {
         public float score;
 
         public int compareTo(ScoreTerm other) {
-            if (term.bytesEquals(other.term))
+            if (term.bytesEquals(other.term)) {
                 return 0; // consistent with equals
-            if (this.boost == other.boost)
+            } else if (this.boost == other.boost) {
                 return other.term.compareTo(this.term);
-            else
+            } else {
                 return Float.compare(this.boost, other.boost);
+            }
         }
 
         @Override
         public int hashCode() {
-            final int prime = 31;
-            int result = 1;
-            result = prime * result + ((term == null) ? 0 : term.hashCode());
-            return result;
+            return term.hashCode();
         }
 
         @Override
         public boolean equals(Object obj) {
-            if (this == obj) return true;
-            if (obj == null) return false;
-            if (getClass() != obj.getClass()) return false;
             ScoreTerm other = (ScoreTerm) obj;
             if (term == null) {
-                if (other.term != null) return false;
-            } else if (!term.bytesEquals(other.term)) return false;
+                if (other.term != null) {
+                    return false;
+                }
+            } else if (!term.bytesEquals(other.term)) {
+                return false;
+            }
             return true;
         }
     }

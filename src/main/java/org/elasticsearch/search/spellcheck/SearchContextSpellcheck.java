@@ -1,6 +1,7 @@
 package org.elasticsearch.search.spellcheck;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.spell.StringDistance;
 import org.apache.lucene.search.spell.SuggestMode;
 import org.apache.lucene.util.BytesRef;
@@ -40,6 +41,7 @@ public class SearchContextSpellcheck {
         private Integer minPrefix;
         private Integer minQueryLength;
         private Float thresholdFrequency;
+        private Filter filter;
 
         public String type() {
             return type;
@@ -168,6 +170,15 @@ public class SearchContextSpellcheck {
         public void thresholdFrequency(float thresholdFrequency) {
             this.thresholdFrequency = thresholdFrequency;
         }
+
+        public Filter filter() {
+            return filter;
+        }
+
+        public void filter(Filter filter) {
+            this.filter = filter;
+        }
+
     }
 
 }

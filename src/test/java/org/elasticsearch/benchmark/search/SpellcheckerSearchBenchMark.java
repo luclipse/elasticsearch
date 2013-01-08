@@ -108,8 +108,8 @@ public class SpellcheckerSearchBenchMark {
             SearchResponse response = client.prepareSearch()
                     .setTypes("type1")
                     .setQuery(matchQuery("field", term))
-                    .setGlobalSpellcheckField("field")
-                    .setGlobalSuggestMode("always")
+                    .setSpellcheckGlobalField("field")
+                    .setSpellcheckGlobalSuggestMode("always")
                     .addSpellcheckCommand("field", new SpellcheckBuilder.Command().setSpellCheckText(term))
                     .execute().actionGet();
             timeTaken += response.tookInMillis();

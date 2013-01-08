@@ -154,49 +154,13 @@ public class SpellCheckResult implements Streamable, ToXContent {
                 Comparator<SuggestedWord> comparator;
                 switch (sort) {
                     case SCORE_FIRST:
-                        comparator = new Comparator<SuggestedWord>() {
-                            @Override
-                            public int compare(SuggestedWord first, SuggestedWord second) {
-                                // first criteria: the distance
-                                int cmp = Float.compare(first.score(), second.score());
-                                if (cmp != 0) {
-                                    return cmp;
-                                }
-
-                                // second criteria (if first criteria is equal): the popularity
-                                cmp = first.frequency() - second.frequency();
-                                if (cmp != 0) {
-                                    return cmp;
-                                }
-                                // third criteria: term text
-                                return second.suggestion().compareTo(first.suggestion());
-                            }
-                        };
+                        comparator = ForkedDirectSpellChecker.frequenctFirst;
                         break;
                     case FREQUENCY_FIRST:
-                        comparator = new Comparator<SuggestedWord>() {
-                            @Override
-                            public int compare(SuggestedWord first, SuggestedWord second) {
-                                // first criteria: the popularity
-                                int cmp = first.frequency() - second.frequency();
-                                if (cmp != 0) {
-                                    return cmp;
-                                }
-
-                                // second criteria (if first criteria is equal): the distance
-                                cmp = Float.compare(first.score(), second.score());
-                                if (cmp != 0) {
-                                    return cmp;
-                                }
-
-                                // third criteria: term text
-                                return second.suggestion().compareTo(first.suggestion());
-                            }
-                        };
+                        comparator = ForkedDirectSpellChecker.frequenctFirst;
                         break;
                     default:
                         throw new ElasticSearchException("Could not resolve comparator in reduce phase.");
-
                 }
 
                 NavigableSet<SuggestedWord> mergedSuggestedWords = new TreeSet<SuggestedWord>(comparator);

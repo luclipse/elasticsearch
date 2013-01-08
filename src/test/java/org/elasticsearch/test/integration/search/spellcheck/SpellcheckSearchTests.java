@@ -3,6 +3,7 @@ package org.elasticsearch.test.integration.search.spellcheck;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -51,6 +52,7 @@ public class SpellcheckSearchTests extends AbstractNodesTests {
         client.prepareIndex("test", "type1")
                 .setSource(XContentFactory.jsonBuilder()
                         .startObject()
+                        .field("cat", "0")
                         .field("text", "abcd")
                         .endObject()
                 )
@@ -58,6 +60,7 @@ public class SpellcheckSearchTests extends AbstractNodesTests {
         client.prepareIndex("test", "type1")
                 .setSource(XContentFactory.jsonBuilder()
                         .startObject()
+                        .field("cat", "0")
                         .field("text", "aacd")
                         .endObject()
                 )
@@ -65,6 +68,7 @@ public class SpellcheckSearchTests extends AbstractNodesTests {
         client.prepareIndex("test", "type1")
                 .setSource(XContentFactory.jsonBuilder()
                         .startObject()
+                        .field("cat", "1")
                         .field("text", "abbd")
                         .endObject()
                 )
@@ -72,6 +76,7 @@ public class SpellcheckSearchTests extends AbstractNodesTests {
         client.prepareIndex("test", "type1")
                 .setSource(XContentFactory.jsonBuilder()
                         .startObject()
+                        .field("cat", "1")
                         .field("text", "abcc")
                         .endObject()
                 )
@@ -95,6 +100,40 @@ public class SpellcheckSearchTests extends AbstractNodesTests {
         assertThat(search.spellcheck().commands().get(0).getSuggestedWords().get("abcd").get(0).getSuggestion(), equalTo("abcc"));
         assertThat(search.spellcheck().commands().get(0).getSuggestedWords().get("abcd").get(1).getSuggestion(), equalTo("abbd"));
         assertThat(search.spellcheck().commands().get(0).getSuggestedWords().get("abcd").get(2).getSuggestion(), equalTo("aacd"));
+
+        // Use a filter on the spellcheck command
+        search = client.prepareSearch()
+                .setQuery(matchQuery("text", "spellcecker"))
+                .addSpellcheckCommand("test", createCommand().setSuggestMode("always")
+                        .setSpellCheckText("abcd")
+                        .setSpellCheckField("text")
+                        .setFilter(FilterBuilders.termFilter("cat", "1")))
+                .execute().actionGet();
+
+        assertThat(Arrays.toString(search.shardFailures()), search.failedShards(), equalTo(0));
+        assertThat(search.spellcheck(), notNullValue());
+        assertThat(search.spellcheck().commands().size(), equalTo(1));
+        assertThat(search.spellcheck().commands().get(0).getName(), equalTo("test"));
+        assertThat(search.spellcheck().commands().get(0).getSuggestedWords().size(), equalTo(1));
+        assertThat(search.spellcheck().commands().get(0).getSuggestedWords().get("abcd").size(), equalTo(2));
+        assertThat(search.spellcheck().commands().get(0).getSuggestedWords().get("abcd").get(0).getSuggestion(), equalTo("abcc"));
+        assertThat(search.spellcheck().commands().get(0).getSuggestedWords().get("abcd").get(1).getSuggestion(), equalTo("abbd"));
+
+        // Use a global spellcheck filter and omit the query
+        search = client.prepareSearch()
+                .setSpellcheckGlobalFilter(FilterBuilders.termFilter("cat", "0"))
+                .addSpellcheckCommand("test", createCommand().setSuggestMode("always")
+                        .setSpellCheckText("abcd")
+                        .setSpellCheckField("text"))
+                .execute().actionGet();
+
+        assertThat(Arrays.toString(search.shardFailures()), search.failedShards(), equalTo(0));
+        assertThat(search.spellcheck(), notNullValue());
+        assertThat(search.spellcheck().commands().size(), equalTo(1));
+        assertThat(search.spellcheck().commands().get(0).getName(), equalTo("test"));
+        assertThat(search.spellcheck().commands().get(0).getSuggestedWords().size(), equalTo(1));
+        assertThat(search.spellcheck().commands().get(0).getSuggestedWords().get("abcd").size(), equalTo(1));
+        assertThat(search.spellcheck().commands().get(0).getSuggestedWords().get("abcd").get(0).getSuggestion(), equalTo("aacd"));
     }
 
 }

@@ -20,6 +20,7 @@
 package org.elasticsearch.search.spellcheck;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.spell.*;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.LevenshteinAutomata;
@@ -53,6 +54,7 @@ public class SpellCheckParseElement implements SearchParseElement {
         int globalMinPrefix = 1;
         int globalMinQueryLength = 4;
         float globalThresholdFrequency = 0f;
+        Filter globalFilter = null;
 
         String fieldName = null;
         XContentParser.Token token;
@@ -98,6 +100,12 @@ public class SpellCheckParseElement implements SearchParseElement {
                     globalThresholdFrequency = parser.floatValue();
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
+                if ("filter".equals(fieldName)) {
+//                    context.filterCache().cache(filter);
+                    globalFilter = context.queryParserService().parseInnerFilter(parser);
+                    continue;
+                }
+
                 SearchContextSpellcheck.Command command = new SearchContextSpellcheck.Command();
                 searchContextSpellcheck.addCommand(fieldName, command);
 
@@ -142,6 +150,10 @@ public class SpellCheckParseElement implements SearchParseElement {
                             command.minQueryLength(parser.intValue());
                         } else if ("threshold_frequency".equals(fieldName)) {
                             command.thresholdFrequency(parser.floatValue());
+                        }
+                    } else if (token == XContentParser.Token.START_OBJECT) {
+                        if ("filter".equals(fieldName)) {
+                            command.filter(context.queryParserService().parseInnerFilter(parser));
                         }
                     }
                 }
@@ -197,6 +209,9 @@ public class SpellCheckParseElement implements SearchParseElement {
             }
             if (command.thresholdFrequency() == null) {
                 command.thresholdFrequency(globalThresholdFrequency);
+            }
+            if (command.filter() == null) {
+                command.filter(globalFilter);
             }
         }
         context.spellcheck(searchContextSpellcheck);

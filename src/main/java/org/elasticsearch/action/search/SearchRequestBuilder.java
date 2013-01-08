@@ -655,37 +655,37 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         return this;
     }
 
-    public SearchRequestBuilder setGlobalSpellcheckType(String globalType) {
+    public SearchRequestBuilder setSpellcheckGlobalType(String globalType) {
         spellcheckBuilder().setGlobalType(globalType);
         return this;
     }
 
-    public SearchRequestBuilder setGlobalSpellcheckField(String globalField) {
+    public SearchRequestBuilder setSpellcheckGlobalField(String globalField) {
         spellcheckBuilder().setGlobalSpellCheckField(globalField);
         return this;
     }
 
-    public SearchRequestBuilder setGlobalSpellcheckText(String globalText) {
+    public SearchRequestBuilder setSpellcheckGlobalText(String globalText) {
         spellcheckBuilder().setGlobalSpellCheckText(globalText);
         return this;
     }
 
-    public SearchRequestBuilder setGlobalSpellcheckAccuracy(float globalAccuracy) {
+    public SearchRequestBuilder setSpellcheckGlobalAccuracy(float globalAccuracy) {
         spellcheckBuilder().setGlobalAccuracy(globalAccuracy);
         return this;
     }
 
-    public SearchRequestBuilder setGlobalSpellcheckNumSuggest(int globalNumSuggest) {
+    public SearchRequestBuilder setSpellcheckGlobalNumSuggest(int globalNumSuggest) {
         spellcheckBuilder().setGlobalNumSuggest(globalNumSuggest);
         return this;
     }
 
-    public SearchRequestBuilder setGlobalSpellcheckAnalyzer(String globalAnalyzer) {
+    public SearchRequestBuilder setSpellcheckGlobalAnalyzer(String globalAnalyzer) {
         spellcheckBuilder().setGlobalSpellCheckAnalyzer(globalAnalyzer);
         return this;
     }
 
-    public SearchRequestBuilder setGlobalSuggestMode(String globalSuggestMode) {
+    public SearchRequestBuilder setSpellcheckGlobalSuggestMode(String globalSuggestMode) {
         spellcheckBuilder().setGlobalSuggestMode(globalSuggestMode);
         return this;
     }
@@ -710,28 +710,33 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         return this;
     }
 
-    public SearchRequestBuilder setGlobalMaxInspections(int globalMaxInspections) {
+    public SearchRequestBuilder setSpellcheckGlobalMaxInspections(int globalMaxInspections) {
         spellcheckBuilder().setGlobalMaxInspections(globalMaxInspections);
         return this;
     }
 
-    public SearchRequestBuilder setGlobalMaxQueryFrequency(float globalMaxQueryFrequency) {
+    public SearchRequestBuilder setSpellcheckGlobalMaxQueryFrequency(float globalMaxQueryFrequency) {
         spellcheckBuilder().setGlobalMaxQueryFrequency(globalMaxQueryFrequency);
         return this;
     }
 
-    public SearchRequestBuilder setGlobalMinPrefix(int globalMinPrefix) {
+    public SearchRequestBuilder setSpellcheckGlobalMinPrefix(int globalMinPrefix) {
         spellcheckBuilder().setGlobalMinPrefix(globalMinPrefix);
         return this;
     }
 
-    public SearchRequestBuilder setGlobalMinQueryLength(int globalMinQueryLength) {
+    public SearchRequestBuilder setSpellcheckGlobalMinQueryLength(int globalMinQueryLength) {
         spellcheckBuilder().setGlobalMinQueryLength(globalMinQueryLength);
         return this;
     }
 
-    public SearchRequestBuilder setGlobalThresholdFrequency(float globalThresholdFrequency) {
+    public SearchRequestBuilder setSpellcheckGlobalThresholdFrequency(float globalThresholdFrequency) {
         spellcheckBuilder().setGlobalThresholdFrequency(globalThresholdFrequency);
+        return this;
+    }
+
+    public SearchRequestBuilder setSpellcheckGlobalFilter(FilterBuilder globalFilter) {
+        spellcheckBuilder().setGlobalFilter(globalFilter);
         return this;
     }
 
@@ -917,11 +922,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     private SpellcheckBuilder spellcheckBuilder() {
-        if (sourceBuilder == null) {
-            sourceBuilder = new SearchSourceBuilder();
-        }
-
-        return sourceBuilder.spellchecker();
+        return sourceBuilder().spellchecker();
     }
 
 }
