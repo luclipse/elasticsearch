@@ -7,6 +7,8 @@ import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.CharsRef;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -111,7 +113,9 @@ public class SpellcheckPhase extends AbstractComponent implements SearchPhase {
 
     private List<Term> queryTerms(SearchContextSpellcheck.Command command, SearchContext context) throws IOException {
         Analyzer analyzer = command.spellCheckAnalyzer();
-        TokenStream ts = analyzer.tokenStream(command.spellCheckField(), new FastCharArrayReader(command.spellCheckText().toCharArray()));
+        CharsRef charsRef = new CharsRef();
+        UnicodeUtil.UTF8toUTF16(command.spellCheckText(), charsRef);
+        TokenStream ts = analyzer.tokenStream(command.spellCheckField(), new FastCharArrayReader(charsRef.chars, charsRef.offset, charsRef.length));
         ts.reset();
         TermToBytesRefAttribute termAtt = ts.addAttribute(TermToBytesRefAttribute.class);
         BytesRef term = termAtt.getBytesRef();

@@ -3,6 +3,7 @@ package org.elasticsearch.search.spellcheck;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.spell.StringDistance;
 import org.apache.lucene.search.spell.SuggestMode;
+import org.apache.lucene.util.BytesRef;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -24,7 +25,7 @@ public class SearchContextSpellcheck {
     public static class Command {
 
         private String type;
-        private String spellCheckText;
+        private BytesRef spellCheckText;
         private String spellCheckField;
         private Analyzer spellCheckAnalyzer;
         private SuggestMode suggestMode;
@@ -48,11 +49,11 @@ public class SearchContextSpellcheck {
             this.type = type;
         }
 
-        public String spellCheckText() {
+        public BytesRef spellCheckText() {
             return spellCheckText;
         }
 
-        public void spellCheckText(String spellCheckText) {
+        public void spellCheckText(BytesRef spellCheckText) {
             this.spellCheckText = spellCheckText;
         }
 

@@ -21,6 +21,7 @@ package org.elasticsearch.search.spellcheck;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.spell.*;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.LevenshteinAutomata;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -38,7 +39,7 @@ public class SpellCheckParseElement implements SearchParseElement {
 
         String globalType = "direct";
         Analyzer globalAnalyzer = context.mapperService().searchAnalyzer();
-        String globalText = null;
+        BytesRef globalText = null;
         String globalField = null;
         float globalAccuracy = SpellChecker.DEFAULT_ACCURACY;
         int globalNumSuggest = 5;
@@ -68,7 +69,7 @@ public class SpellCheckParseElement implements SearchParseElement {
                         throw new ElasticSearchIllegalArgumentException("Analyzer [" + analyzerName + "] doesn't exists");
                     }
                 } else if ("text".equals(fieldName)) {
-                    globalText = parser.text();
+                    globalText = parser.bytes();
                 } else if ("field".equals(fieldName)) {
                     globalField = parser.text();
                 } else if ("accuracy".equals(fieldName)) {
@@ -114,7 +115,7 @@ public class SpellCheckParseElement implements SearchParseElement {
                             }
                             command.spellCheckAnalyzer(analyzer);
                         } else if ("text".equals(fieldName)) {
-                            command.spellCheckText(parser.text());
+                            command.spellCheckText(parser.bytes());
                         } else if ("field".equals(fieldName)) {
                             command.setSpellCheckField(parser.text());
                         } else if ("accuracy".equals(fieldName)) {
