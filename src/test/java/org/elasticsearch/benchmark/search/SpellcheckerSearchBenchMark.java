@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.search.spellcheck.SpellcheckBuilder;
 import org.elasticsearch.search.spellcheck.SuggestedWord;
@@ -22,8 +23,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 
 /**
@@ -31,11 +31,9 @@ import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 public class SpellcheckerSearchBenchMark {
 
     public static void main(String[] args) throws Exception {
+        int SEARCH_ITERS = 200;
+
         Settings settings = settingsBuilder()
-//                .put("index.refresh_interval", "1s")
-//                .put("index.merge.async", true)
-//                .put("index.translog.flush_threshold_ops", 5000)
-//                .put("gateway.type", "none")
                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
                 .build();
@@ -45,11 +43,7 @@ public class SpellcheckerSearchBenchMark {
             nodes[i] = nodeBuilder().settings(settingsBuilder().put(settings).put("name", "node" + i)).node();
         }
 
-        //Node client = nodeBuilder().settings(settingsBuilder().put(settings).put("name", "client")).client(true).node();
-        Client client = nodes[0].client();//client.client();
-
-        Thread.sleep(1000);
-
+        Client client = nodes[0].client();
         try {
             client.admin().indices().prepareCreate("test").setSettings(settings).addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1")
                     .startObject("_source").field("enabled", false).endObject()
@@ -60,7 +54,10 @@ public class SpellcheckerSearchBenchMark {
                     .startObject("field").field("type", "string").field("index", "not_analyzed").field("omit_norms", true).endObject()
                     .endObject()
                     .endObject().endObject()).execute().actionGet();
-            Thread.sleep(5000);
+            ClusterHealthResponse clusterHealthResponse = client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+            if (clusterHealthResponse.timedOut()) {
+                System.err.println("--> Timed out waiting for cluster health");
+            }
 
             StopWatch stopWatch = new StopWatch().start();
             long COUNT = SizeValue.parseSizeValue("2m").singles();
@@ -74,19 +71,15 @@ public class SpellcheckerSearchBenchMark {
                 int termCounter = 0;
                 BulkRequestBuilder request = client.prepareBulk();
                 for (int j = 0; j < BATCH; j++) {
-                    request.add(Requests.indexRequest("test").type("type1").id(Integer.toString(idCounter++)).source(source("prefix" + character + termCounter++)));
+                    request.add(Requests.indexRequest("test").type("type1").id(Integer.toString(idCounter++)).source(source(idCounter, "prefix" + character + termCounter++)));
                 }
                 character++;
                 BulkResponse response = request.execute().actionGet();
                 if (response.hasFailures()) {
                     System.err.println("failures...");
                 }
-                if (((i * BATCH) % 10000) == 0) {
-                    System.out.println("Indexed " + (i * BATCH) + " took " + stopWatch.stop().lastTaskTime());
-                    stopWatch.start();
-                }
             }
-            System.out.println("Indexing took " + stopWatch.totalTime() + ", TPS " + (((double) COUNT) / stopWatch.totalTime().secondsFrac()));
+            System.out.println("Indexing took " + stopWatch.totalTime());
 
             client.admin().indices().prepareRefresh().execute().actionGet();
             System.out.println("Count: " + client.prepareCount().setQuery(matchAllQuery()).execute().actionGet().count());
@@ -100,13 +93,31 @@ public class SpellcheckerSearchBenchMark {
             System.out.println("Count: " + client.prepareCount().setQuery(matchAllQuery()).execute().actionGet().count());
         }
 
-        char character = 'a';
-        int ITERS = 100;
-        long timeTaken = 0;
-        for (int i = 0; i <= ITERS; i++) {
-            String term = "prefix" + character;
+
+        System.out.println("Warming up...");
+        char startChar = 'a';
+        for (int i = 0; i <= 20; i++) {
+            String term = "prefix" + startChar;
             SearchResponse response = client.prepareSearch()
-                    .setTypes("type1")
+                    .setQuery(prefixQuery("field", term))
+                    .setSpellcheckGlobalField("field")
+                    .setSpellcheckGlobalSuggestMode("always")
+                    .addSpellcheckCommand("field", new SpellcheckBuilder.Command().setSpellCheckText(term))
+                    .execute().actionGet();
+            if (response.hits().totalHits() == 1) {
+                System.err.println("No hits");
+                continue;
+            }
+            startChar++;
+        }
+
+
+        System.out.println("Starting benchmarking spellchecking without filter.");
+        startChar = 'a';
+        long timeTaken = 0;
+        for (int i = 0; i <= SEARCH_ITERS; i++) {
+            String term = "prefix" + startChar;
+            SearchResponse response = client.prepareSearch()
                     .setQuery(matchQuery("field", term))
                     .setSpellcheckGlobalField("field")
                     .setSpellcheckGlobalSuggestMode("always")
@@ -121,10 +132,35 @@ public class SpellcheckerSearchBenchMark {
             if (words == null || words.isEmpty()) {
                 System.err.println("No suggestions");
             }
-            character++;
+            startChar++;
         }
 
-        System.out.println("Avg time taken " + (timeTaken / ITERS));
+        System.out.println("Avg time taken without filter " + (timeTaken / SEARCH_ITERS));
+
+        System.out.println("Starting benchmarking spellchecking with filter.");
+        startChar = 'a';
+        timeTaken = 0;
+        for (int i = 0; i <= SEARCH_ITERS; i++) {
+            String term = "prefix" + startChar;
+            SearchResponse response = client.prepareSearch()
+                    .setQuery(matchQuery("field", term))
+                    .setSpellcheckGlobalField("field")
+                    .setSpellcheckGlobalSuggestMode("always")
+                    .setSpellcheckGlobalFilter(FilterBuilders.termFilter("field2", i % 2 == 0 ? "even" : "odd"))
+                    .addSpellcheckCommand("field", new SpellcheckBuilder.Command().setSpellCheckText(term))
+                    .execute().actionGet();
+            timeTaken += response.tookInMillis();
+            if (response.spellcheck() == null) {
+                System.err.println("No suggestions");
+                continue;
+            }
+            List<SuggestedWord> words = response.spellcheck().commands().get(0).getSuggestedWords().get(term);
+            if (words == null || words.isEmpty()) {
+                System.err.println("No suggestions");
+            }
+            startChar++;
+        }
+        System.out.println("Avg time taken with filter " + (timeTaken / SEARCH_ITERS));
 
         client.close();
         for (Node node : nodes) {
@@ -132,8 +168,11 @@ public class SpellcheckerSearchBenchMark {
         }
     }
 
-    private static XContentBuilder source(String nameValue) throws IOException {
-        return jsonBuilder().startObject().field("field", nameValue).endObject();
+    private static XContentBuilder source(int id, String nameValue) throws IOException {
+        return jsonBuilder().startObject()
+                .field("field", nameValue)
+                .field("field2", id % 2 == 0 ? "even" : "odd")
+                .endObject();
     }
 
 }
