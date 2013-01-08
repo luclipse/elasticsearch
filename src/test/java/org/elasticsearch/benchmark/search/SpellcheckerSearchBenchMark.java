@@ -102,28 +102,30 @@ public class SpellcheckerSearchBenchMark {
 
         char character = 'a';
         int ITERS = 100;
+        long timeTaken = 0;
         for (int i = 0; i <= ITERS; i++) {
             String term = "prefix" + character;
             SearchResponse response = client.prepareSearch()
+                    .setTypes("type1")
                     .setQuery(matchQuery("field", term))
-//                    .setGlobalMinQueryLength(1)
-//                    .setGlobalSpellcheckAccuracy(0.1f)
                     .setGlobalSpellcheckField("field")
                     .setGlobalSuggestMode("always")
                     .addSpellcheckCommand("field", new SpellcheckBuilder.Command().setSpellCheckText(term))
                     .execute().actionGet();
-            System.out.println("Took: " + response.took());
-            System.out.println("num hits:" + response.hits().totalHits());
+            timeTaken += response.tookInMillis();
             if (response.spellcheck() == null) {
+                System.err.println("No suggestions");
                 continue;
             }
             List<SuggestedWord> words = response.spellcheck().commands().get(0).getSuggestedWords().get(term);
-            if (words != null) {
-                System.out.println("Num suggestions:" + words.size());
-                System.out.println("Top suggestion[" + words.get(0).getSuggestion() + "] has score " + words.get(0).score());
+            if (words == null || words.isEmpty()) {
+                System.err.println("No suggestions");
             }
             character++;
         }
+
+        System.out.println("Avg time taken " + (timeTaken / ITERS));
+
         client.close();
         for (Node node : nodes) {
             node.close();

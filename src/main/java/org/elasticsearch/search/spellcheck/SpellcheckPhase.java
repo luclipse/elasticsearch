@@ -2,20 +2,17 @@ package org.elasticsearch.search.spellcheck;
 
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.Token;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.spell.DirectSpellChecker;
-import org.apache.lucene.search.spell.SuggestWord;
-import org.apache.lucene.search.spell.SuggestWordFrequencyComparator;
-import org.apache.lucene.search.spell.SuggestWordQueue;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.FastStringReader;
+import org.elasticsearch.common.io.FastCharArrayReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.BytesText;
 import org.elasticsearch.common.text.StringText;
@@ -62,15 +59,16 @@ public class SpellcheckPhase extends AbstractComponent implements SearchPhase {
             for (Map.Entry<String, SearchContextSpellcheck.Command> entry : spellCheck.commands().entrySet()) {
                 SearchContextSpellcheck.Command command = entry.getValue();
                 if ("direct".equals(command.type())) {
-                    DirectSpellChecker directSpellChecker = new DirectSpellChecker();
+                    ForkedDirectSpellChecker directSpellChecker = new ForkedDirectSpellChecker();
+//                    DirectSpellChecker directSpellChecker = new DirectSpellChecker();
                     directSpellChecker.setAccuracy(command.accuracy());
-                    Comparator<SuggestWord> comparator;
+                    Comparator<SuggestedWord> comparator;
                     switch (command.sort()) {
                         case SCORE_FIRST:
-                            comparator = SuggestWordQueue.DEFAULT_COMPARATOR;
+                            comparator = ForkedDirectSpellChecker.scoreFirst;
                             break;
                         case FREQUENCY_FIRST:
-                            comparator = new SuggestWordFrequencyComparator();
+                            comparator = ForkedDirectSpellChecker.frequenctFirst;
                             break;
                         default:
                             throw new ElasticSearchIllegalArgumentException("Illegal spellcheck sort" + command.sort());
@@ -84,23 +82,20 @@ public class SpellcheckPhase extends AbstractComponent implements SearchPhase {
                     directSpellChecker.setMinPrefix(command.minPrefix());
                     directSpellChecker.setMinQueryLength(command.minQueryLength());
                     directSpellChecker.setThresholdFrequency(command.thresholdFrequency());
+//                    directSpellChecker.setFilter(context.filterCache().cache(context.mapperService().searchFilter(context.types())));
 
                     SpellCheckResult.CommandResult commandResult = new SpellCheckResult.CommandResult(
                             new StringText(entry.getKey()), command.numSuggest(), command.sort()
                     );
-                    List<Token> tokens = queryTerms(command, context);
-                    for (Token token : tokens) {
-                        Term term = new Term(command.spellCheckField(), new String(token.buffer(), 0, token.length()));
-                        // TODO: tweak DirectSpellChecker to allow us to get words as BR instead of String
-                        SuggestWord[] suggestWords = directSpellChecker.suggestSimilar(
-                                term, command.numSuggest(), context.searcher().getIndexReader(), command.suggestMode()
-                        );
-                        Text key = new BytesText(new BytesArray(term.bytes()));
-                        for (SuggestWord suggestWord : suggestWords) {
-                            SuggestedWord suggestedWord = new SuggestedWord(
-                                    new StringText(suggestWord.string), suggestWord.freq, suggestWord.score
+                    List<Term> tokens = queryTerms(command, context);
+                    for (Term term : tokens) {
+                        List<AtomicReaderContext> readerContexts = context.searcher().getIndexReader().leaves();
+                        if (!readerContexts.isEmpty()) {
+                            List<SuggestedWord> suggestedWords = directSpellChecker.suggestSimilar(
+                                    term, command.numSuggest(), readerContexts, command.suggestMode()
                             );
-                            commandResult.addSuggestedWord(key, suggestedWord);
+                            Text key = new BytesText(new BytesArray(term.bytes()));
+                            commandResult.addSuggestedWord(key, suggestedWords);
                         }
                     }
                     result.addCommand(commandResult);
@@ -109,22 +104,22 @@ public class SpellcheckPhase extends AbstractComponent implements SearchPhase {
                 }
             }
             context.queryResult().spellCheck(result);
-        } catch (IOException e) {
+        } catch (Exception e) {
             throw new ElasticSearchException("Exception during spellchecking", e);
         }
     }
 
-    private List<Token> queryTerms(SearchContextSpellcheck.Command command, SearchContext context) throws IOException {
+    private List<Term> queryTerms(SearchContextSpellcheck.Command command, SearchContext context) throws IOException {
         Analyzer analyzer = command.spellCheckAnalyzer();
-        TokenStream ts = analyzer.tokenStream(command.spellCheckField(), new FastStringReader(command.spellCheckText()));
+        TokenStream ts = analyzer.tokenStream(command.spellCheckField(), new FastCharArrayReader(command.spellCheckText().toCharArray()));
         ts.reset();
-        CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
+        TermToBytesRefAttribute termAtt = ts.addAttribute(TermToBytesRefAttribute.class);
+        BytesRef term = termAtt.getBytesRef();
 
-        List<Token> result = new ArrayList<Token>(5);
+        List<Term> result = new ArrayList<Term>(5);
         while (ts.incrementToken()) {
-            Token token = new Token();
-            token.copyBuffer(termAtt.buffer(), 0, termAtt.length());
-            result.add(token);
+            termAtt.fillBytesRef();
+            result.add(new Term(command.spellCheckField(), BytesRef.deepCopyOf(term)));
         }
         return result;
     }

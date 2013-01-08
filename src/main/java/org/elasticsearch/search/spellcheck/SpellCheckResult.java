@@ -103,6 +103,15 @@ public class SpellCheckResult implements Streamable, ToXContent {
             values.add(suggestWord);
         }
 
+        void addSuggestedWord(Text term, List<SuggestedWord> suggestWord) {
+            List<SuggestedWord> values = suggestedWords.get(term);
+            if (values == null) {
+                suggestedWords.put(term, suggestWord);
+            } else {
+                values.addAll(suggestWord);
+            }
+        }
+
         public Text name() {
             return name;
         }

@@ -44,7 +44,7 @@ public class SpellCheckParseElement implements SearchParseElement {
         int globalNumSuggest = 5;
         SuggestMode globalSuggestMode = SuggestMode.SUGGEST_WHEN_NOT_IN_INDEX;
         SpellcheckSort globalSort = SpellcheckSort.SCORE_FIRST;
-        StringDistance globalStringDistance = DirectSpellChecker.INTERNAL_LEVENSHTEIN;
+        StringDistance globalStringDistance = ForkedDirectSpellChecker.INTERNAL_LEVENSHTEIN;
         boolean globalLowerCaseTerms = true;
         int globalMaxEdits = LevenshteinAutomata.MAXIMUM_SUPPORTED_DISTANCE;
         int globalMaxInspections = 5;
@@ -225,7 +225,7 @@ public class SpellCheckParseElement implements SearchParseElement {
 
     private StringDistance resolveDistance(String distanceVal) {
         if ("internal".equals(distanceVal)) {
-            return DirectSpellChecker.INTERNAL_LEVENSHTEIN;
+            return ForkedDirectSpellChecker.INTERNAL_LEVENSHTEIN;
         } else if ("damerau_levenshtein".equals(distanceVal)) {
             return new LuceneLevenshteinDistance();
         } else if ("levenstein".equals(distanceVal)) {

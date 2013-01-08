@@ -76,7 +76,6 @@ public class SpellcheckSearchTests extends AbstractNodesTests {
                         .endObject()
                 )
                 .execute().actionGet();
-
         client.admin().indices().prepareRefresh().execute().actionGet();
 
         SearchResponse search = client.prepareSearch()
