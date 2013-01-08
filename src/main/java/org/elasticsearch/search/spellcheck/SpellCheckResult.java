@@ -154,10 +154,10 @@ public class SpellCheckResult implements Streamable, ToXContent {
                 Comparator<SuggestedWord> comparator;
                 switch (sort) {
                     case SCORE_FIRST:
-                        comparator = ForkedDirectSpellChecker.frequenctFirst;
+                        comparator = AtomicDirectSpellChecker.frequenctFirst;
                         break;
                     case FREQUENCY_FIRST:
-                        comparator = ForkedDirectSpellChecker.frequenctFirst;
+                        comparator = AtomicDirectSpellChecker.frequenctFirst;
                         break;
                     default:
                         throw new ElasticSearchException("Could not resolve comparator in reduce phase.");

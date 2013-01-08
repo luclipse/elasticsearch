@@ -19,9 +19,11 @@ import java.io.IOException;
 import java.util.*;
 
 /**
+ * Forked this from Lucene's direct spellchecker.
+ * This spellchecker works on an atomic reader instead of a top level reader, in order to support spellcheck
+ * filter efficiently. Performance slowdown of this impl compared to direct spellchecker seems around 12%
  */
-// FORKED
-class ForkedDirectSpellChecker {
+class AtomicDirectSpellChecker {
 
     /**
      * The default StringDistance, Damerau-Levenshtein distance implemented internally
@@ -81,7 +83,7 @@ class ForkedDirectSpellChecker {
     /**
      * Creates a DirectSpellChecker with default configuration values
      */
-    ForkedDirectSpellChecker() {
+    AtomicDirectSpellChecker() {
     }
 
     /**
@@ -320,8 +322,7 @@ class ForkedDirectSpellChecker {
             BytesRef queryTerm = new BytesRef(term.text());
             BytesRef candidateTerm;
             ScoreTerm st = new ScoreTerm();
-            BoostAttribute boostAtt =
-                    e.attributes().addAttribute(BoostAttribute.class);
+            BoostAttribute boostAtt = e.attributes().addAttribute(BoostAttribute.class);
             DocsEnum docsEnum = null;
             outer:
             while ((candidateTerm = e.next()) != null) {

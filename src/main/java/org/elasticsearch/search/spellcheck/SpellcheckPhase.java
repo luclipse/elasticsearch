@@ -124,15 +124,15 @@ public class SpellcheckPhase extends AbstractComponent implements SearchPhase {
     }
 
     private SpellCheckResult.CommandResult executeWithFilter(String commandName, SearchContextSpellcheck.Command command, SearchContext context, CharsRef spare) throws IOException {
-        ForkedDirectSpellChecker directSpellChecker = new ForkedDirectSpellChecker();
+        AtomicDirectSpellChecker directSpellChecker = new AtomicDirectSpellChecker();
         directSpellChecker.setAccuracy(command.accuracy());
         Comparator<SuggestedWord> comparator;
         switch (command.sort()) {
             case SCORE_FIRST:
-                comparator = ForkedDirectSpellChecker.scoreFirst;
+                comparator = AtomicDirectSpellChecker.scoreFirst;
                 break;
             case FREQUENCY_FIRST:
-                comparator = ForkedDirectSpellChecker.frequenctFirst;
+                comparator = AtomicDirectSpellChecker.frequenctFirst;
                 break;
             default:
                 throw new ElasticSearchIllegalArgumentException("Illegal spellcheck sort: " + command.sort());
