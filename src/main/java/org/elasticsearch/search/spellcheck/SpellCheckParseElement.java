@@ -88,6 +88,9 @@ public class SpellCheckParseElement implements SearchParseElement {
                     globalLowerCaseTerms = parser.booleanValue();
                 } else if ("max_edits".equals(fieldName)) {
                     globalMaxEdits = parser.intValue();
+                    if (globalMaxEdits < 1 || globalMaxEdits > LevenshteinAutomata.MAXIMUM_SUPPORTED_DISTANCE) {
+                        throw new ElasticSearchIllegalArgumentException("Illegal max_edits value " + globalMaxEdits);
+                    }
                 } else if ("max_inspections".equals(fieldName)) {
                     globalMaxInspections = parser.intValue();
                 } else if ("max_query_frequency".equals(fieldName)) {
@@ -140,6 +143,9 @@ public class SpellCheckParseElement implements SearchParseElement {
                             command.lowerCaseTerms(parser.booleanValue());
                         } else if ("max_edits".equals(fieldName)) {
                             command.maxEdits(parser.intValue());
+                            if (command.maxEdits() < 1 || command.maxEdits() > LevenshteinAutomata.MAXIMUM_SUPPORTED_DISTANCE) {
+                                throw new ElasticSearchIllegalArgumentException("Illegal max_edits value " + command.maxEdits());
+                            }
                         } else if ("max_inspections".equals(fieldName)) {
                             command.maxInspections(parser.intValue());
                         } else if ("max_query_frequency".equals(fieldName)) {

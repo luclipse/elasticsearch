@@ -21,7 +21,7 @@ import java.util.*;
 /**
  */
 // FORKED
-public class ForkedDirectSpellChecker {
+class ForkedDirectSpellChecker {
 
     /**
      * The default StringDistance, Damerau-Levenshtein distance implemented internally
@@ -81,7 +81,7 @@ public class ForkedDirectSpellChecker {
     /**
      * Creates a DirectSpellChecker with default configuration values
      */
-    public ForkedDirectSpellChecker() {
+    ForkedDirectSpellChecker() {
     }
 
     /**
@@ -407,16 +407,23 @@ public class ForkedDirectSpellChecker {
             }
         }
 
-        // TODO: Hits that have docFreq lower than required docFreq are just removed now. If because of removal the
-        // number of hits is lower than numSug we should re-execute...
-        Iterator<Map.Entry<BytesRef, ScoreTerm>> iterator = stQueue.entrySet().iterator();
-        while (iterator.hasNext()) {
-            if (iterator.next().getValue().docfreq < docfreq) {
-                iterator.remove();
+        List<ScoreTerm> endResult = new ArrayList<ScoreTerm>(numSug);
+        int addedSuggestions = 0;
+        for (ScoreTerm scoreTerm : stQueue.values()) {
+            if (addedSuggestions == numSug) {
+                return endResult;
             }
+
+            if (scoreTerm.docfreq < docfreq) {
+                // TODO: Hits that have docFreq lower than required docFreq are just removed now. If because of removal the
+                // number of hits is lower than numSug we should re-execute...
+                continue;
+            }
+            endResult.add(scoreTerm);
+            addedSuggestions++;
         }
 
-        return stQueue.values();
+        return endResult;
     }
 
     private static class ScoreTerm implements Comparable<ScoreTerm> {
