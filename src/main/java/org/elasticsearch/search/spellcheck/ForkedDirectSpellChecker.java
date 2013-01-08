@@ -297,6 +297,14 @@ public class ForkedDirectSpellChecker {
 
         Map<Object, PriorityQueue<ScoreTerm>> segmentStQueue = new HashMap<Object, PriorityQueue<ScoreTerm>>();
         for (AtomicReaderContext readerContext : readerContexts) {
+            DocIdSet docIdSet = null;
+            if (filter != null) {
+                docIdSet = filter.getDocIdSet(readerContext, null);
+                if (DocIdSets.isEmpty(docIdSet)) {
+                    continue;
+                }
+            }
+
             PriorityQueue<ScoreTerm> segmentResult;
             segmentStQueue.put(readerContext.reader().getCoreCacheKey(), segmentResult = new PriorityQueue<ScoreTerm>());
             AttributeSource atts = new AttributeSource();
@@ -318,10 +326,6 @@ public class ForkedDirectSpellChecker {
             outer:
             while ((candidateTerm = e.next()) != null) {
                 if (filter != null) {
-                    DocIdSet docIdSet = filter.getDocIdSet(readerContext, null);
-                    if (DocIdSets.isEmpty(docIdSet)) {
-                        continue;
-                    }
                     DocIdSetIterator iterator = docIdSet.iterator();
                     docsEnum = e.docs(null, docsEnum);
                     int filterDocId = iterator.advance(0);
