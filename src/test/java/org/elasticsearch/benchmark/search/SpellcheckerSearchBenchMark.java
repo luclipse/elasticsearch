@@ -104,7 +104,7 @@ public class SpellcheckerSearchBenchMark {
                     .setSpellcheckGlobalSuggestMode("always")
                     .addSpellcheckCommand("field", new SpellcheckBuilder.Command().setSpellCheckText(term))
                     .execute().actionGet();
-            if (response.hits().totalHits() == 1) {
+            if (response.hits().totalHits() == 0) {
                 System.err.println("No hits");
                 continue;
             }
