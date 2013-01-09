@@ -28,6 +28,8 @@ import org.apache.lucene.codecs.memory.DirectPostingsFormat;
 import org.apache.lucene.codecs.memory.MemoryPostingsFormat;
 import org.apache.lucene.codecs.pulsing.Pulsing40PostingsFormat;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.index.codec.CachingPostingsFormat;
+import org.elasticsearch.index.codec.MPostingsFormat;
 
 /**
  * This class represents the set of Elasticsearch "build-in"
@@ -37,23 +39,23 @@ import org.elasticsearch.common.collect.MapBuilder;
  * its terms and postings directly into memory. Note this postings format is
  * very memory intensive and has certain limitation that don't allow segments to
  * grow beyond 2.1GB see {@link DirectPostingsFormat} for details.</li>
- * 
+ * <p/>
  * <li><b>memory</b>: a postings format that stores its entire terms, postings,
  * positions and payloads in a finite state transducer. This format should only
  * be used for primary keys or with fields where each term is contained in a
  * very low number of documents.</li>
- * 
+ * <p/>
  * <li><b>pulsing</b>: a postings format in-lines the posting lists for very low
  * frequent terms in the term dictionary. This is useful to improve lookup
  * performance for low-frequent terms.</li>
- * 
+ * <p/>
  * <li><b>bloom_default</b>: a postings format that uses a bloom filter to
  * improve term lookup performance. This is useful for primarily keys or fields
  * that are used as a delete key</li>
- * 
+ * <p/>
  * <li><b>bloom_pulsing</b>: a postings format that combines the advantages of
  * <b>bloom</b> and <b>pulsing</b> to further improve lookup performance</li>
- * 
+ * <p/>
  * <li><b>default</b>: the default Elasticsearch postings format offering best
  * general purpose performance. This format is used if no postings format is
  * specified in the field mapping.</li>
@@ -76,6 +78,11 @@ public class PostingFormats {
         buildInPostingFormatsX.put("bloom_pulsing", new PreBuiltPostingsFormatProvider.Factory("bloom_pulsing", new BloomFilteringPostingsFormat(new Pulsing40PostingsFormat(), new BloomFilterPostingsFormatProvider.CustomBloomFilterFactory())));
         buildInPostingFormatsX.put("default", new PreBuiltPostingsFormatProvider.Factory("default", new Lucene40PostingsFormat()));
         buildInPostingFormatsX.put("bloom_default", new PreBuiltPostingsFormatProvider.Factory("bloom_default", new BloomFilteringPostingsFormat(new Lucene40PostingsFormat(), new BloomFilterPostingsFormatProvider.CustomBloomFilterFactory())));
+        buildInPostingFormatsX.put("m_bloom", new PreBuiltPostingsFormatProvider.Factory("m_bloom", new MPostingsFormat(new Lucene40PostingsFormat(), new BloomFilterPostingsFormatProvider.CustomBloomFilterFactory())));
+        buildInPostingFormatsX.put("m_bloom_pulsing", new PreBuiltPostingsFormatProvider.Factory("m_bloom_pulsing", new MPostingsFormat(new Pulsing40PostingsFormat(), new BloomFilterPostingsFormatProvider.CustomBloomFilterFactory())));
+
+
+        buildInPostingFormatsX.put("bloom_default_caching", new PreBuiltPostingsFormatProvider.Factory("bloom_default_caching", new CachingPostingsFormat(new BloomFilteringPostingsFormat(new Lucene40PostingsFormat(), new BloomFilterPostingsFormatProvider.CustomBloomFilterFactory()))));
 
         builtInPostingFormats = buildInPostingFormatsX.immutableMap();
     }

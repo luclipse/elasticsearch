@@ -1,0 +1,2 @@
+org.elasticsearch.index.codec.CachingPostingsFormat
+org.elasticsearch.index.codec.MPostingsFormat
