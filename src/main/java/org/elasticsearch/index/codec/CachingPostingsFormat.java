@@ -4,7 +4,9 @@ import org.apache.lucene.codecs.*;
 import org.apache.lucene.index.*;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.CloseableThreadLocal;
 import org.apache.lucene.util.IOUtils;
 
 import java.io.IOException;
@@ -18,15 +20,6 @@ import java.util.Map;
  * All read and write operations are performed by the delete postings format.
  */
 public class CachingPostingsFormat extends PostingsFormat {
-
-    private static ThreadLocal<Map<Object, TermsEnum>> cachedTermsEnums = new ThreadLocal<Map<Object, TermsEnum>>() {
-
-        @Override
-        protected Map<Object, TermsEnum> initialValue() {
-            return new HashMap<Object, TermsEnum>();
-        }
-
-    };
 
     private final PostingsFormat delegate;
 
@@ -66,7 +59,7 @@ public class CachingPostingsFormat extends PostingsFormat {
         public void close() throws IOException {
             delegateFieldsConsumer.close();
             String delegateFileName = IndexFileNames.segmentFileName(
-                    state.segmentInfo.name, state.segmentSuffix, "fantastic"
+                    state.segmentInfo.name, state.segmentSuffix, "martijn"
             );
             IndexOutput indexOutput = state.directory.createOutput(delegateFileName, state.context);
             CodecUtil.writeHeader(indexOutput, "caching", 1);
@@ -82,13 +75,24 @@ public class CachingPostingsFormat extends PostingsFormat {
 
     static class CachingFieldsProducer extends FieldsProducer {
 
+        // We can keep this here, reference is kept in SegmentCoreReaders as a field
+        // Not static, b/c we have now one per segment / field combination.
+        private final CloseableThreadLocal<Map<Object, TermsEnum>> cachedTermsEnums = new CloseableThreadLocal<Map<Object, TermsEnum>>() {
+
+            @Override
+            protected Map<Object, TermsEnum> initialValue() {
+                return new HashMap<Object, TermsEnum>();
+            }
+
+        };
+
         private final SegmentReadState state;
         private final FieldsProducer delegate;
 
         CachingFieldsProducer(SegmentReadState state) throws IOException {
             this.state = state;
             String delegateFileName = IndexFileNames.segmentFileName(
-                    state.segmentInfo.name, state.segmentSuffix, "fantastic"
+                    state.segmentInfo.name, state.segmentSuffix, "martijn"
             );
             IndexInput indexInput = state.dir.openInput(delegateFileName, state.context);
             CodecUtil.checkHeader(indexInput, "caching", 1, 1);
@@ -99,6 +103,7 @@ public class CachingPostingsFormat extends PostingsFormat {
 
         @Override
         public void close() throws IOException {
+            cachedTermsEnums.close();
             delegate.close();
         }
 
@@ -109,7 +114,7 @@ public class CachingPostingsFormat extends PostingsFormat {
 
         @Override
         public Terms terms(String field) throws IOException {
-            return new CachingTerms(delegate.terms(field), state.segmentInfo.name);
+            return new CachingTerms(delegate.terms(field), cachedTermsEnums);
         }
 
         @Override
@@ -125,22 +130,22 @@ public class CachingPostingsFormat extends PostingsFormat {
         static class CachingTerms extends Terms {
 
             private final Terms delegate;
-            private final String name;
+            private final CloseableThreadLocal<Map<Object, TermsEnum>> cachedTermsEnums;
 
-            public CachingTerms(Terms delegate, String name) {
+            public CachingTerms(Terms delegate, CloseableThreadLocal<Map<Object, TermsEnum>> cachedTermsEnums) {
                 this.delegate = delegate;
-                this.name = name;
+                this.cachedTermsEnums = cachedTermsEnums;
             }
 
             @Override
             public TermsEnum iterator(TermsEnum reuse) throws IOException {
-                TermsEnum termsEnum = cachedTermsEnums.get().get(name);
+                TermsEnum termsEnum = cachedTermsEnums.get().get(cachedTermsEnums);
                 if (termsEnum != null) {
                     return termsEnum;
                 }
                 termsEnum = delegate.iterator(reuse);
-                cachedTermsEnums.get().put(name, termsEnum);
-                return termsEnum;
+                cachedTermsEnums.get().put(cachedTermsEnums, termsEnum);
+                return new CachingTermsEnum(this, termsEnum, reuse);
             }
 
             @Override
@@ -181,6 +186,89 @@ public class CachingPostingsFormat extends PostingsFormat {
             @Override
             public boolean hasPayloads() {
                 return delegate.hasPayloads();
+            }
+
+            static class CachingTermsEnum extends TermsEnum {
+
+                private final Terms delegateTerms;
+                private final TermsEnum cachedTermsEnum;
+                private final TermsEnum reuse;
+
+                private TermsEnum termsEnum;
+
+                CachingTermsEnum(Terms delegateTerms, TermsEnum cachedTermsEnum, TermsEnum reuse) {
+                    this.delegateTerms = delegateTerms;
+                    this.cachedTermsEnum = cachedTermsEnum;
+                    this.reuse = reuse;
+                }
+
+                @Override
+                public boolean seekExact(BytesRef text, boolean useCache) throws IOException {
+                    TermsEnum actual = termsEnum != null ? termsEnum : cachedTermsEnum;
+                    return actual.seekExact(text, useCache);
+                }
+
+                @Override
+                public SeekStatus seekCeil(BytesRef text, boolean useCache) throws IOException {
+                    TermsEnum actual = termsEnum != null ? termsEnum : cachedTermsEnum;
+                    return actual.seekCeil(text, useCache);
+                }
+
+                @Override
+                public void seekExact(long ord) throws IOException {
+                    TermsEnum actual = termsEnum != null ? termsEnum : cachedTermsEnum;
+                    actual.seekExact(ord);
+                }
+
+                @Override
+                public BytesRef term() throws IOException {
+                    TermsEnum actual = termsEnum != null ? termsEnum : cachedTermsEnum;
+                    return actual.term();
+                }
+
+                @Override
+                public long ord() throws IOException {
+                    TermsEnum actual = termsEnum != null ? termsEnum : cachedTermsEnum;
+                    return actual.ord();
+                }
+
+                @Override
+                public int docFreq() throws IOException {
+                    TermsEnum actual = termsEnum != null ? termsEnum : cachedTermsEnum;
+                    return actual.docFreq();
+                }
+
+                @Override
+                public long totalTermFreq() throws IOException {
+                    TermsEnum actual = termsEnum != null ? termsEnum : cachedTermsEnum;
+                    return actual.totalTermFreq();
+                }
+
+                @Override
+                public DocsEnum docs(Bits liveDocs, DocsEnum reuse, int flags) throws IOException {
+                    TermsEnum actual = termsEnum != null ? termsEnum : cachedTermsEnum;
+                    return actual.docs(liveDocs, reuse, flags);
+                }
+
+                @Override
+                public DocsAndPositionsEnum docsAndPositions(Bits liveDocs, DocsAndPositionsEnum reuse, int flags) throws IOException {
+                    TermsEnum actual = termsEnum != null ? termsEnum : cachedTermsEnum;
+                    return actual.docsAndPositions(liveDocs, reuse, flags);
+                }
+
+                @Override
+                public BytesRef next() throws IOException {
+                    if (termsEnum == null) {
+                        termsEnum = delegateTerms.iterator(reuse);
+                    }
+                    return termsEnum.next();
+                }
+
+                @Override
+                public Comparator<BytesRef> getComparator() {
+                    TermsEnum actual = termsEnum != null ? termsEnum : cachedTermsEnum;
+                    return actual.getComparator();
+                }
             }
 
         }

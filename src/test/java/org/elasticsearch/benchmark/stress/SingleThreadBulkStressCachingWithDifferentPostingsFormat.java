@@ -1,5 +1,6 @@
 package org.elasticsearch.benchmark.stress;
 
+import jsr166y.ThreadLocalRandom;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.client.Client;
@@ -25,6 +26,8 @@ import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 public class SingleThreadBulkStressCachingWithDifferentPostingsFormat {
 
     public static void main(String[] args) throws Exception {
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+
         Settings settings = settingsBuilder()
                 .put("index.refresh_interval", "1s")
                 .put("index.merge.async", true)
@@ -40,7 +43,7 @@ public class SingleThreadBulkStressCachingWithDifferentPostingsFormat {
         }
         Client client = nodes[0].client();
 
-        String[] postingFormats = new String[]{"default", "bloom_default", "m_bloom"};
+        String[] postingFormats = new String[]{"lucene40", "bloom_default", "m_bloom", "bloom_default_caching"};
         for (String postingFormat : postingFormats) {
             client.admin().indices().prepareCreate(postingFormat).setSettings(settings).addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1")
                     .startObject("_source").field("enabled", false).endObject()
@@ -66,7 +69,7 @@ public class SingleThreadBulkStressCachingWithDifferentPostingsFormat {
                 BulkRequestBuilder request = client.prepareBulk();
                 for (int j = 0; j < BATCH; j++) {
                     counter++;
-                    request.add(Requests.indexRequest(postingFormat).type("type1").id(Integer.toString(counter)).source(source("test" + counter)));
+                    request.add(Requests.indexRequest(postingFormat).type("type1").id(Integer.toString(random.nextInt())).source(source("test" + counter)));
                 }
                 BulkResponse response = request.execute().actionGet();
                 if (response.hasFailures()) {

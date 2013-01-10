@@ -82,7 +82,7 @@ public class PostingFormats {
         buildInPostingFormatsX.put("m_bloom_pulsing", new PreBuiltPostingsFormatProvider.Factory("m_bloom_pulsing", new MPostingsFormat(new Pulsing40PostingsFormat(), new BloomFilterPostingsFormatProvider.CustomBloomFilterFactory())));
 
 
-        buildInPostingFormatsX.put("bloom_default_caching", new PreBuiltPostingsFormatProvider.Factory("bloom_default_caching", new CachingPostingsFormat(new BloomFilteringPostingsFormat(new Lucene40PostingsFormat(), new BloomFilterPostingsFormatProvider.CustomBloomFilterFactory()))));
+        buildInPostingFormatsX.put("bloom_default_caching", new PreBuiltPostingsFormatProvider.Factory("bloom_default_caching", new CachingPostingsFormat(new MPostingsFormat(new Lucene40PostingsFormat(), new BloomFilterPostingsFormatProvider.CustomBloomFilterFactory()))));
 
         builtInPostingFormats = buildInPostingFormatsX.immutableMap();
     }

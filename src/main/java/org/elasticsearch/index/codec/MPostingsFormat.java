@@ -170,10 +170,10 @@ public final class MPostingsFormat extends PostingsFormat {
             @Override
             public TermsEnum iterator(TermsEnum reuse) throws IOException {
                 TermsEnum result;
-                if ((reuse != null) && (reuse instanceof BloomFilteredTermsEnum)) {
+                if ((reuse != null) && (reuse instanceof LazyTermsEnum)) {
                     // recycle the existing BloomFilteredTermsEnum by asking the delegate
                     // to recycle its contained TermsEnum
-                    BloomFilteredTermsEnum bfte = (BloomFilteredTermsEnum) reuse;
+                    LazyTermsEnum bfte = (LazyTermsEnum) reuse;
                     if (bfte.filter == filter) {
                         bfte.delegateTermsEnum = delegateTerms
                                 .iterator(bfte.delegateTermsEnum);
@@ -182,7 +182,8 @@ public final class MPostingsFormat extends PostingsFormat {
                 }
                 // We have been handed something we cannot reuse (either null, wrong
                 // class or wrong filter) so allocate a new object
-                result = new BloomFilteredTermsEnum(delegateTerms, filter);
+//                result = new LazyTermsEnum(delegateTerms, filter);
+                result = new DelegateTermsEnum(delegateTerms.iterator(reuse), filter);
                 return result;
             }
 
@@ -227,13 +228,103 @@ public final class MPostingsFormat extends PostingsFormat {
             }
         }
 
-        static class BloomFilteredTermsEnum extends TermsEnum {
+        static class DelegateTermsEnum extends TermsEnum {
+
+            private final FuzzySet filter;
+            private final TermsEnum delegateTermsEnum;
+
+            public DelegateTermsEnum(TermsEnum delegateTermEnum, FuzzySet filter) {
+                this.delegateTermsEnum = delegateTermEnum;
+                this.filter = filter;
+            }
+
+            @Override
+            public final BytesRef next() throws IOException {
+                return delegateTermsEnum.next();
+            }
+
+            @Override
+            public final Comparator<BytesRef> getComparator() {
+                return delegateTermsEnum.getComparator();
+            }
+
+            @Override
+            public final boolean seekExact(BytesRef text, boolean useCache)
+                    throws IOException {
+                // The magical fail-fast speed up that is the entire point of all of
+                // this code - save a disk seek if there is a match on an in-memory
+                // structure
+                // that may occasionally give a false positive but guaranteed no false
+                // negatives
+                if (filter.contains(text) == FuzzySet.ContainsResult.NO) {
+                    return false;
+                }
+                return delegateTermsEnum.seekExact(text, useCache);
+            }
+
+            @Override
+            public final SeekStatus seekCeil(BytesRef text, boolean useCache)
+                    throws IOException {
+                return delegateTermsEnum.seekCeil(text, useCache);
+            }
+
+            @Override
+            public final void seekExact(long ord) throws IOException {
+                delegateTermsEnum.seekExact(ord);
+            }
+
+            @Override
+            public final BytesRef term() throws IOException {
+                return delegateTermsEnum.term();
+            }
+
+            @Override
+            public final long ord() throws IOException {
+                return delegateTermsEnum.ord();
+            }
+
+            @Override
+            public final int docFreq() throws IOException {
+                return delegateTermsEnum.docFreq();
+            }
+
+            @Override
+            public final long totalTermFreq() throws IOException {
+                return delegateTermsEnum.totalTermFreq();
+            }
+
+            @Override
+            public TermState termState() throws IOException {
+                return delegateTermsEnum.termState();
+            }
+
+            @Override
+            public void seekExact(BytesRef term, TermState state) throws IOException {
+                delegateTermsEnum.seekExact(term, state);
+            }
+
+            @Override
+            public DocsAndPositionsEnum docsAndPositions(Bits liveDocs,
+                                                         DocsAndPositionsEnum reuse, int flags) throws IOException {
+                return delegateTermsEnum.docsAndPositions(liveDocs, reuse, flags);
+            }
+
+            @Override
+            public DocsEnum docs(Bits liveDocs, DocsEnum reuse, int flags)
+                    throws IOException {
+                return delegateTermsEnum.docs(liveDocs, reuse, flags);
+            }
+
+
+        }
+
+        static class LazyTermsEnum extends TermsEnum {
 
             private final FuzzySet filter;
             private final Terms delegateTerm;
             TermsEnum delegateTermsEnum;
 
-            public BloomFilteredTermsEnum(Terms delegateTerm, FuzzySet filter) {
+            public LazyTermsEnum(Terms delegateTerm, FuzzySet filter) {
                 this.delegateTerm = delegateTerm;
                 this.filter = filter;
             }
@@ -322,6 +413,15 @@ public final class MPostingsFormat extends PostingsFormat {
                 return delegateTermsEnum.totalTermFreq();
             }
 
+            @Override
+            public TermState termState() throws IOException {
+                return delegateTermsEnum.termState();
+            }
+
+            @Override
+            public void seekExact(BytesRef term, TermState state) throws IOException {
+                delegateTermsEnum.seekExact(term, state);
+            }
 
             @Override
             public DocsAndPositionsEnum docsAndPositions(Bits liveDocs,
