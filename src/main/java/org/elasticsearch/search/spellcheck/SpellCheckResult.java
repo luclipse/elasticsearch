@@ -60,7 +60,7 @@ public class SpellCheckResult implements Streamable, ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("spellcheck");
+        builder.startObject("spellcheck");
         for (CommandResult command : commands) {
             command.toXContent(builder, params);
         }
@@ -209,9 +209,9 @@ public class SpellCheckResult implements Streamable, ToXContent {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(name.string());
+            builder.startObject(name.string());
             for (Map.Entry<Text, List<SuggestedWord>> entry : suggestedWords.entrySet()) {
-                builder.field(entry.getKey().string());
+                builder.startObject(entry.getKey().string());
                 builder.startArray("suggestion");
                 for (SuggestedWord word : entry.getValue()) {
                     builder.startObject();

@@ -70,7 +70,11 @@ public class TypeParsers {
             } else if (propName.equals("store")) {
                 builder.store(parseStore(name, propNode.toString()));
             } else if (propName.equals("index")) {
-                parseIndex(name, propNode.toString(), builder);
+                if (nodeBooleanValue(propNode)) {
+                    builder.index(true);
+                } else { // TODO: CHECK: For legacy mappings?
+                    parseIndex(name, propNode.toString(), builder);
+                }
             } else if (propName.equals("tokenized")) {
                 builder.tokenized(nodeBooleanValue(propNode));
             } else if (propName.equals("term_vector")) {

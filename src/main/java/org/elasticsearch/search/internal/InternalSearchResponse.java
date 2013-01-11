@@ -80,6 +80,9 @@ public class InternalSearchResponse implements Streamable, ToXContent {
         if (facets != null) {
             facets.toXContent(builder, params);
         }
+        if (spellCheck != null) {
+            spellCheck.toXContent(builder, params);
+        }
         return builder;
     }
 

@@ -305,6 +305,7 @@ public class AtomicDirectSpellChecker {
                                                  int docfreq, int editDistance, float accuracy, final CharsRef spare) throws IOException {
 
         Map<Object, PriorityQueue<ScoreTerm>> segmentStQueue = new HashMap<Object, PriorityQueue<ScoreTerm>>();
+        readers:
         for (AtomicReaderContext readerContext : readerContexts) {
             DocIdSet docIdSet = null;
             if (filter != null) {
@@ -332,9 +333,13 @@ public class AtomicDirectSpellChecker {
             outer:
             while ((candidateTerm = e.next()) != null) {
                 if (filter != null) {
-                    DocIdSetIterator iterator = docIdSet.iterator();
+                    DocIdSetIterator filterIterator = docIdSet.iterator();
+                    if (filterIterator == null) {
+                        continue readers;
+                    }
+
                     docsEnum = e.docs(null, docsEnum);
-                    int filterDocId = iterator.advance(0);
+                    int filterDocId = filterIterator.advance(0);
                     int termsDocId = docsEnum.advance(filterDocId);
                     while (filterDocId != termsDocId) {
                         if (filterDocId == DocIdSetIterator.NO_MORE_DOCS || termsDocId == DocIdSetIterator.NO_MORE_DOCS) {
@@ -342,7 +347,7 @@ public class AtomicDirectSpellChecker {
                         }
 
                         if (filterDocId < termsDocId) {
-                            filterDocId = iterator.advance(termsDocId);
+                            filterDocId = filterIterator.advance(termsDocId);
                         } else {
                             termsDocId = docsEnum.advance(filterDocId);
                         }

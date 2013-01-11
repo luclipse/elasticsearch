@@ -30,6 +30,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.rest.*;
@@ -45,6 +46,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.action.support.RestXContentBuilder.restContentBuilder;
+import static org.elasticsearch.search.spellcheck.SpellcheckBuilder.createCommand;
 
 /**
  *
@@ -275,6 +277,34 @@ public class RestSearchAction extends BaseRestHandler {
                 searchSourceBuilder = new SearchSourceBuilder();
             }
             searchSourceBuilder.stats(Strings.splitStringByCommaToArray(sStats));
+        }
+
+        String spellCheckField = request.param("spellcheck_field");
+        if (spellCheckField != null) {
+            if (searchSourceBuilder == null) {
+                searchSourceBuilder = new SearchSourceBuilder();
+            }
+            String spellCheckText = request.param("spellcheck_text");
+            if (spellCheckText == null) {
+                spellCheckText = queryString;
+            }
+
+            searchSourceBuilder.spellchecker().addCommand(
+                    "command1",
+                    createCommand().setSpellCheckField(spellCheckField).setSpellCheckText(spellCheckText)
+            );
+
+            String suggestMode = request.param("spellcheck_suggest_mode");
+            if (suggestMode != null) {
+                searchSourceBuilder.spellchecker().setGlobalSuggestMode(suggestMode);
+            }
+
+            String spellCheckFilter = request.param("spellcheck_filter");
+            if (spellCheckFilter != null) {
+                searchSourceBuilder.spellchecker().getCommands().get("command1").setFilter(
+                        FilterBuilders.queryFilter(QueryBuilders.queryString(spellCheckFilter))
+                );
+            }
         }
 
         return searchSourceBuilder;
