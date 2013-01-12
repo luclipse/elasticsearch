@@ -20,7 +20,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
  */
 public class CreateEnWikiBulkRequests {
 
-    public static final int MAX_DOCS = 5000000;
+    public static final int MAX_DOCS = 10000000;
     public static final int BATCH = 1000;
     public static final String EN_WIKI_FILE = "/Users/mvg/Temp/enwiki-20121201-pages-articles.xml.gz2";
     public static final String DIRECTORY_PATH = "/Users/mvg/development/data-sets/enwiki";
