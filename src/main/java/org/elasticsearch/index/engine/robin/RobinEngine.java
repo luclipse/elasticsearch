@@ -1305,14 +1305,50 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         return dirtyLock(uid.text());
     }
 
+    public static boolean enable = false;
+
     private long loadCurrentVersionFromIndex(Term uid) {
+        if (enable) {
+            return with(uid);
+        } else {
+            return without(uid);
+        }
+    }
+
+    private long with(Term uid) {
         Searcher searcher = searcher();
         try {
             List<AtomicReaderContext> readers = searcher.reader().leaves();
             Map<String, Map<String, BloomFilter>> testje = BloomFilteringPostingsFormat.testje;
             for (int i = 0; i < readers.size(); i++) {
                 AtomicReaderContext readerContext = readers.get(i);
-                BloomFilter bloomFilter = testje.get(((SegmentReader)readerContext.reader()).getSegmentName()).get(uid.field());
+                if (enable) {
+                    BloomFilter bloomFilter = testje.get(((SegmentReader) readerContext.reader()).getSegmentName()).get(uid.field());
+                    if (!bloomFilter.isPresent(uid.bytes())) {
+                        continue;
+                    }
+                }
+
+                long version = UidField.loadVersion(readerContext, uid);
+                // either -2 (its there, but no version associated), or an actual version
+                if (version != -1) {
+                    return version;
+                }
+            }
+            return -1;
+        } finally {
+            searcher.release();
+        }
+    }
+
+    private long without(Term uid) {
+        Searcher searcher = searcher();
+        try {
+            List<AtomicReaderContext> readers = searcher.reader().leaves();
+            Map<String, Map<String, BloomFilter>> testje = BloomFilteringPostingsFormat.testje;
+            for (int i = 0; i < readers.size(); i++) {
+                AtomicReaderContext readerContext = readers.get(i);
+                BloomFilter bloomFilter = testje.get(((SegmentReader) readerContext.reader()).getSegmentName()).get(uid.field());
                 if (!bloomFilter.isPresent(uid.bytes())) {
                     continue;
                 }

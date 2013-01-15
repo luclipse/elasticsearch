@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.engine.robin.RobinEngine;
 import org.elasticsearch.node.Node;
 
 import java.io.IOException;
@@ -55,6 +56,7 @@ public class SingleThreadBulkStress {
                 .put("gateway.type", "none")
                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                 .put(SETTING_NUMBER_OF_REPLICAS, 1)
+                .put("cluster.name", "mvg")
                 .build();
 
         Node[] nodes = new Node[1];
@@ -67,45 +69,50 @@ public class SingleThreadBulkStress {
 
         Client client1 = client.client();
 
-        Thread.sleep(1000);
-        client1.admin().indices().prepareCreate("test").setSettings(settings).addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("_source").field("enabled", false).endObject()
-                .startObject("_all").field("enabled", false).endObject()
-                .startObject("_type").field("index", "no").endObject()
-                .startObject("_id").field("index", "no").endObject()
-                .startObject("properties")
-                .startObject("field").field("type", "string").field("index", "not_analyzed").field("omit_norms", true).endObject()
+
+        for (int k = 0; k < 3; k++) {
+            RobinEngine.enable = k % 2 == 0;
+            String indexName = "test" + k;
+            Thread.sleep(1000);
+            client1.admin().indices().prepareCreate(indexName).setSettings(settings).addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1")
+                    .startObject("_source").field("enabled", false).endObject()
+                    .startObject("_all").field("enabled", false).endObject()
+                    .startObject("_type").field("index", "no").endObject()
+                    .startObject("_id").field("index", "no").endObject()
+                    .startObject("properties")
+                    .startObject("field").field("type", "string").field("index", "not_analyzed").field("omit_norms", true).endObject()
 //                .startObject("field").field("index", "analyzed").field("omit_norms", false).endObject()
-                .endObject()
-                .endObject().endObject()).execute().actionGet();
-        Thread.sleep(5000);
+                    .endObject()
+                    .endObject().endObject()).execute().actionGet();
+            Thread.sleep(5000);
 
-        StopWatch stopWatch = new StopWatch().start();
-        long COUNT = SizeValue.parseSizeValue("2m").singles();
-        int BATCH = 500;
-        System.out.println("Indexing [" + COUNT + "] ...");
-        long ITERS = COUNT / BATCH;
-        long i = 1;
-        int counter = 0;
-        for (; i <= ITERS; i++) {
-            BulkRequestBuilder request = client1.prepareBulk();
-            for (int j = 0; j < BATCH; j++) {
-                counter++;
-                request.add(Requests.indexRequest("test").type("type1").id(Integer.toString(counter)).source(source(Integer.toString(counter), "test" + counter)));
+            StopWatch stopWatch = new StopWatch().start();
+            long COUNT = SizeValue.parseSizeValue("2m").singles();
+            int BATCH = 500;
+            System.out.println("Indexing [" + COUNT + "] ...");
+            long ITERS = COUNT / BATCH;
+            long i = 1;
+            int counter = 0;
+            for (; i <= ITERS; i++) {
+                BulkRequestBuilder request = client1.prepareBulk();
+                for (int j = 0; j < BATCH; j++) {
+                    counter++;
+                    request.add(Requests.indexRequest(indexName).type("type1").id(Integer.toString(counter)).source(source(Integer.toString(counter), "test" + counter)));
+                }
+                BulkResponse response = request.execute().actionGet();
+                if (response.hasFailures()) {
+                    System.err.println("failures...");
+                }
+                if (((i * BATCH) % 10000) == 0) {
+                    System.out.println("Indexed " + (i * BATCH) + " took " + stopWatch.stop().lastTaskTime());
+                    stopWatch.start();
+                }
             }
-            BulkResponse response = request.execute().actionGet();
-            if (response.hasFailures()) {
-                System.err.println("failures...");
-            }
-            if (((i * BATCH) % 10000) == 0) {
-                System.out.println("Indexed " + (i * BATCH) + " took " + stopWatch.stop().lastTaskTime());
-                stopWatch.start();
-            }
+            System.out.println("Indexing took " + stopWatch.totalTime() + ", TPS " + (((double) COUNT) / stopWatch.totalTime().secondsFrac()) + " RobinEngine.enable " + RobinEngine.enable);
+
+            client.client().admin().indices().prepareRefresh(indexName).execute().actionGet();
+            System.out.println("Count: " + client.client().prepareCount(indexName).setQuery(matchAllQuery()).execute().actionGet().count());
         }
-        System.out.println("Indexing took " + stopWatch.totalTime() + ", TPS " + (((double) COUNT) / stopWatch.totalTime().secondsFrac()));
-
-        client.client().admin().indices().prepareRefresh().execute().actionGet();
-        System.out.println("Count: " + client.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().count());
 
         client.close();
 
