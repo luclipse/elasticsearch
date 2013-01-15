@@ -11,9 +11,7 @@ import org.apache.lucene.util.IOUtils;
 
 import java.io.IOException;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.Iterator;
-import java.util.Map;
 
 /**
  * A postings formats that only caches the TermsEnum in a thread local cache.
@@ -77,14 +75,7 @@ public class CachingPostingsFormat extends PostingsFormat {
 
         // We can keep this here, reference is kept in SegmentCoreReaders as a field
         // Not static, b/c we have now one per segment / field combination.
-        private final CloseableThreadLocal<Map<Object, TermsEnum>> cachedTermsEnums = new CloseableThreadLocal<Map<Object, TermsEnum>>() {
-
-            @Override
-            protected Map<Object, TermsEnum> initialValue() {
-                return new HashMap<Object, TermsEnum>();
-            }
-
-        };
+        private final CloseableThreadLocal<TermsEnum> cachedTermsEnums = new CloseableThreadLocal<TermsEnum>();
 
         private final SegmentReadState state;
         private final FieldsProducer delegate;
@@ -130,21 +121,21 @@ public class CachingPostingsFormat extends PostingsFormat {
         static class CachingTerms extends Terms {
 
             private final Terms delegate;
-            private final CloseableThreadLocal<Map<Object, TermsEnum>> cachedTermsEnums;
+            private final CloseableThreadLocal<TermsEnum> cachedTermsEnums;
 
-            public CachingTerms(Terms delegate, CloseableThreadLocal<Map<Object, TermsEnum>> cachedTermsEnums) {
+            public CachingTerms(Terms delegate, CloseableThreadLocal<TermsEnum> cachedTermsEnums) {
                 this.delegate = delegate;
                 this.cachedTermsEnums = cachedTermsEnums;
             }
 
             @Override
             public TermsEnum iterator(TermsEnum reuse) throws IOException {
-                TermsEnum termsEnum = cachedTermsEnums.get().get(cachedTermsEnums);
+                TermsEnum termsEnum = cachedTermsEnums.get();
                 if (termsEnum != null) {
                     return termsEnum;
                 }
                 termsEnum = delegate.iterator(reuse);
-                cachedTermsEnums.get().put(cachedTermsEnums, termsEnum);
+                cachedTermsEnums.set(termsEnum);
                 return new CachingTermsEnum(this, termsEnum, reuse);
             }
 
