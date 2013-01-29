@@ -24,9 +24,15 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.highlight.*;
 import org.apache.lucene.search.highlight.Formatter;
+import org.apache.lucene.search.postingshighlight.CustomPassageFormatter;
+import org.apache.lucene.search.postingshighlight.CustomPostingsHighlighter;
+import org.apache.lucene.search.postingshighlight.NoneBreakIterator;
+import org.apache.lucene.search.postingshighlight.PassageScorer;
 import org.apache.lucene.search.vectorhighlight.*;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
@@ -50,6 +56,8 @@ import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
+import java.io.IOException;
+import java.text.BreakIterator;
 import java.util.*;
 
 import static com.google.common.collect.Maps.newHashMap;
@@ -93,7 +101,7 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
 
     @Override
     public void hitExecute(SearchContext context, HitContext hitContext) throws ElasticSearchException {
-        // we use a cache to cache heavy things, mainly the rewrite in FieldQuery for FVH
+        // we use a cache to cache heavy things, mainly the rewrite in FieldQuery for FVH or PH
         HighlighterEntry cache = (HighlighterEntry) hitContext.cache().get("highlight");
         if (cache == null) {
             cache = new HighlighterEntry();
@@ -136,26 +144,79 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                     }
                 }
                 boolean useFastVectorHighlighter;
+                boolean usePostingsHighlighter;
                 if (field.highlighterType() == null) {
-                    // if we can do highlighting using Term Vectors, use FastVectorHighlighter, otherwise, use the
-                    // slower plain highlighter
+                    // if we can do highlighting using Term Vectors, use FastVectorHighlighter,
+                    // if we can use highlighting using index_options=offsets, use PostingsHighlighter
+                    // otherwise, use the slower plain highlighter
                     useFastVectorHighlighter = mapper.fieldType().storeTermVectors() && mapper.fieldType().storeTermVectorOffsets() && mapper.fieldType().storeTermVectorPositions();
+                    if (!useFastVectorHighlighter) {
+                        usePostingsHighlighter = mapper.fieldType().indexOptions() == FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS;
+                    } else {
+                        usePostingsHighlighter = false;
+                    }
                 } else if (field.highlighterType().equals("fast-vector-highlighter") || field.highlighterType().equals("fvh")) {
                     if (!(mapper.fieldType().storeTermVectors() && mapper.fieldType().storeTermVectorOffsets() && mapper.fieldType().storeTermVectorPositions())) {
                         throw new ElasticSearchIllegalArgumentException("the field [" + fieldName + "] should be indexed with term vector with position offsets to be used with fast vector highlighter");
                     }
                     useFastVectorHighlighter = true;
+                    usePostingsHighlighter = false;
                 } else if (field.highlighterType().equals("highlighter") || field.highlighterType().equals("plain")) {
                     useFastVectorHighlighter = false;
+                    usePostingsHighlighter = false;
+                } else if (field.highlighterType().equals("postings-highlighter") || field.highlighterType().equals("ph")) {
+                    useFastVectorHighlighter = false;
+                    usePostingsHighlighter = true;
                 } else {
                     throw new ElasticSearchIllegalArgumentException("unknown highlighter type [" + field.highlighterType() + "] for the field [" + fieldName + "]");
                 }
-                if (!useFastVectorHighlighter) {
+
+                if (usePostingsHighlighter) {
                     MapperHighlightEntry entry = cache.mappers.get(mapper);
                     if (entry == null) {
-                        // Don't use the context.query() since it might be rewritten, and we need to pass the non rewritten queries to
-                        // let the highlighter handle MultiTerm ones
+                        entry = new MapperHighlightEntry();
+                        cache.mappers.put(mapper, entry);
+                    }
 
+                    if (field.numberOfFragments() == 0) {
+                        field.numberOfFragments(Integer.MAX_VALUE);
+                        field.breakIterator(new NoneBreakIterator());
+                    }
+
+                    String hlField = mapper.names().indexName();
+                    Query unwrittenQuery = context.parsedQuery().query();
+                    IndexSearcher searcher = context.searcher();
+                    int numberOfFragments = field.numberOfFragments();
+
+                    CustomPassageFormatter formatter;
+                    if (entry.ph == null) {
+                        int maxLength = field.maxLength();
+                        String preTag = field.preTags()[0];
+                        String postTag = field.postTags()[0];
+                        BreakIterator breakIterator = field.breakIterator();
+
+                        PassageScorer scorer = new PassageScorer();
+                        formatter = new CustomPassageFormatter(preTag, postTag);
+                        entry.ph = new CustomPostingsHighlighter(maxLength, breakIterator, scorer, formatter, mapper, context, field.requireFieldMatch());
+                    } else {
+                        formatter = entry.ph.getFormatter();
+                        formatter.clear();
+                    }
+
+                    try {
+                        entry.ph.setHitContext(hitContext);
+                        entry.ph.highlight(hlField, unwrittenQuery, searcher, CustomPostingsHighlighter.topDocs(hitContext.docId()), numberOfFragments);
+                        String[] snippets = formatter.getPassages();
+                        if (snippets != null) {
+                            HighlightField highlightField = new HighlightField(fieldName, StringText.convertFromStringArray(snippets));
+                            highlightFields.put(highlightField.name(), highlightField);
+                        }
+                    } catch (IOException e) {
+                        throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + fieldName + "]", e);
+                    }
+                } else if (!useFastVectorHighlighter) {
+                    MapperHighlightEntry entry = cache.mappers.get(mapper);
+                    if (entry == null) {
                         Query query = context.parsedQuery().query();
                         QueryScorer queryScorer = new CustomQueryScorer(query, field.requireFieldMatch() ? mapper.names().indexName() : null);
                         queryScorer.setExpandMultiTermQuery(true);
@@ -341,6 +402,7 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
         public FragmentsBuilder fragmentsBuilder;
 
         public Highlighter highlighter;
+        public CustomPostingsHighlighter ph;
     }
 
     static class HighlighterEntry {

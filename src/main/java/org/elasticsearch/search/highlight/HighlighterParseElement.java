@@ -26,7 +26,9 @@ import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
 
+import java.text.BreakIterator;
 import java.util.List;
+import java.util.Locale;
 
 import static com.google.common.collect.Lists.newArrayList;
 
@@ -78,6 +80,8 @@ public class HighlighterParseElement implements SearchParseElement {
         char[] globalBoundaryChars = SimpleBoundaryScanner2.DEFAULT_BOUNDARY_CHARS;
         String globalHighlighterType = null;
         String globalFragmenter = null;
+        BreakIterator globalBreakType = BreakIterator.getSentenceInstance(Locale.ROOT);
+        int globalMaxLength = 10000;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -123,6 +127,10 @@ public class HighlighterParseElement implements SearchParseElement {
                     globalHighlighterType = parser.text();
                 } else if ("fragmenter".equals(topLevelFieldName)) {
                     globalFragmenter = parser.text();
+                } else if ("break_type".equals(topLevelFieldName) || "breakType".equals(topLevelFieldName)) {
+                    globalBreakType = resolveBreakType(parser.text(), context);
+                } else if ("max_length".equals(topLevelFieldName) || "maxLength".equals(topLevelFieldName)) {
+                    globalMaxLength = parser.intValue();
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("fields".equals(topLevelFieldName)) {
@@ -171,6 +179,10 @@ public class HighlighterParseElement implements SearchParseElement {
                                         field.highlighterType(parser.text());
                                     } else if ("fragmenter".equals(fieldName)) {
                                         field.fragmenter(parser.text());
+                                    } else if ("break_type".equals(topLevelFieldName) || "breakType".equals(topLevelFieldName)) {
+                                        field.breakIterator(resolveBreakType(parser.text(), context));
+                                    } else if ("max_length".equals(topLevelFieldName) || "maxLength".equals(topLevelFieldName)) {
+                                        field.maxLength(parser.intValue());
                                     }
                                 }
                             }
@@ -201,6 +213,9 @@ public class HighlighterParseElement implements SearchParseElement {
             if (field.fragmentCharSize() == -1) {
                 field.fragmentCharSize(globalFragmentSize);
             }
+            if (field.breakIterator() == null) {
+                field.breakIterator(globalBreakType);
+            }
             if (field.numberOfFragments() == -1) {
                 field.numberOfFragments(globalNumOfFragments);
             }
@@ -222,8 +237,24 @@ public class HighlighterParseElement implements SearchParseElement {
             if (field.fragmenter() == null) {
                 field.fragmenter(globalFragmenter);
             }
+            if (field.maxLength() == null) {
+                field.maxLength(globalMaxLength);
+            }
         }
 
         context.highlight(new SearchContextHighlight(fields));
     }
+
+    private BreakIterator resolveBreakType(String val, SearchContext context) {
+        if ("sentence".equals(val)) {
+            return BreakIterator.getSentenceInstance(Locale.ROOT);
+        } else if ("line".equals(val)) {
+            return BreakIterator.getLineInstance(Locale.ROOT);
+        } else if ("word".equals(val)) {
+            return BreakIterator.getWordInstance(Locale.ROOT);
+        } else {
+            throw new SearchParseException(context, "Break type[" + val + "] doesn't exists");
+        }
+    }
+
 }

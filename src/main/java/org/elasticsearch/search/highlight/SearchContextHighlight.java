@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.highlight;
 
+import java.text.BreakIterator;
 import java.util.List;
 
 /**
@@ -63,7 +64,12 @@ public class SearchContextHighlight {
         private String fragmenter;
 
         private int boundaryMaxScan = -1;
+
         private char[] boundaryChars = null;
+
+        private BreakIterator breakIterator;
+
+        private Integer maxLength;
 
         public Field(String field) {
             this.field = field;
@@ -175,6 +181,22 @@ public class SearchContextHighlight {
 
         public void boundaryChars(char[] boundaryChars) {
             this.boundaryChars = boundaryChars;
+        }
+
+        public Integer maxLength() {
+            return maxLength;
+        }
+
+        public void maxLength(int maxLength) {
+            this.maxLength = maxLength;
+        }
+
+        public BreakIterator breakIterator() {
+            return breakIterator;
+        }
+
+        public void breakIterator(BreakIterator breakIterator) {
+            this.breakIterator = breakIterator;
         }
     }
 }

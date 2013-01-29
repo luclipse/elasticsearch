@@ -191,6 +191,171 @@ public class HighlighterSearchTests extends AbstractNodesTests {
     }
 
     @Test
+    public void testSourceLookupHighlightingUsingPostingsHighlighter() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 2))
+                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        // we don't store title, now lets see if it works...
+                        .startObject("title").field("type", "string").field("store", "no").field("index_options", "offsets").endObject()
+                        .startObject("attachments").startObject("properties").startObject("body").field("type", "string").field("store", "no").field("index_options", "offsets").endObject().endObject().endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
+
+        for (int i = 0; i < 5; i++) {
+            client.prepareIndex("test", "type1", Integer.toString(i))
+                    .setSource(XContentFactory.jsonBuilder().startObject()
+                            .field("title", "This is a test on the highlighting bug present in elasticsearch. An arbitary sentence. Another bug in this sentence.")
+                            .startArray("attachments").startObject().field("body", "attachment 1").endObject().startObject().field("body", "attachment 2").endObject().endArray()
+                            .endObject())
+                    .setRefresh(true).execute().actionGet();
+        }
+
+        SearchResponse search = client.prepareSearch()
+                .setQuery(fieldQuery("title", "bug"))
+                .addHighlightedField("title", -1, 0)
+                .execute().actionGet();
+
+        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
+
+        assertThat(search.getHits().totalHits(), equalTo(5l));
+        assertThat(search.getHits().hits().length, equalTo(5));
+
+        for (SearchHit hit : search.getHits()) {
+            assertThat(hit.highlightFields().get("title").fragments()[0].string(), equalTo("This is a test on the highlighting <em>bug</em> present in elasticsearch. An arbitary sentence. Another <em>bug</em> in this sentence."));
+        }
+
+        search = client.prepareSearch()
+                .setQuery(fieldQuery("attachments.body", "attachment"))
+                .addHighlightedField("attachments.body", -1, 2)
+                .execute().actionGet();
+
+        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
+
+        assertThat(search.getHits().totalHits(), equalTo(5l));
+        assertThat(search.getHits().hits().length, equalTo(5));
+
+        for (SearchHit hit : search.getHits()) {
+            assertThat(hit.highlightFields().get("attachments.body").fragments()[0].string(), equalTo("<em>attachment</em> 1"));
+            assertThat(hit.highlightFields().get("attachments.body").fragments()[1].string(), equalTo("<em>attachment</em> 2"));
+        }
+    }
+
+    @Test
+    public void testPostingsHighlighter() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (IndexMissingException e) {
+            // its ok
+        }
+        client.admin().indices().prepareCreate("test").addMapping("type1", type1PostingsMapping()).execute().actionGet();
+        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+
+        client.prepareIndex("test", "type1")
+                .setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog")
+                .setRefresh(true).execute().actionGet();
+
+        logger.info("--> highlighting and searching on field1");
+        SearchSourceBuilder source = searchSource()
+                .query(termQuery("field1", "test"))
+                .from(0).size(60).explain(true)
+                .highlight(highlight().field("field1", 100, 0).order("score").preTags("<xxx>").postTags("</xxx>"));
+
+        SearchResponse searchResponse = client.search(searchRequest("test").setSource(source).setSearchType(QUERY_THEN_FETCH).setScroll(timeValueMinutes(10))).actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+
+        assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field1").fragments()[0].string(), equalTo("this is a <xxx>test</xxx>"));
+
+        logger.info("--> searching on _all, highlighting on field1");
+        source = searchSource()
+                .query(termQuery("_all", "test"))
+                .from(0).size(60).explain(true)
+                .highlight(highlight().field("field1", 100, 0).order("score").preTags("<xxx>").postTags("</xxx>"));
+
+        searchResponse = client.search(searchRequest("test").setSource(source).setSearchType(QUERY_THEN_FETCH).setScroll(timeValueMinutes(10))).actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field1").fragments()[0].string(), equalTo("this is a <xxx>test</xxx>"));
+
+        logger.info("--> searching on _all, highlighting on field2");
+        source = searchSource()
+                .query(termQuery("_all", "quick"))
+                .from(0).size(60).explain(true)
+                .highlight(highlight().field("field2", 100, 0).order("score").preTags("<xxx>").postTags("</xxx>"));
+
+        searchResponse = client.search(searchRequest("test").setSource(source).setSearchType(QUERY_THEN_FETCH).setScroll(timeValueMinutes(10))).actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+
+        assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field2").fragments()[0].string(), equalTo("The <xxx>quick</xxx> brown fox jumps over the lazy dog"));
+
+        logger.info("--> searching on _all, highlighting on field2");
+        source = searchSource()
+                .query(prefixQuery("_all", "qui"))
+                .from(0).size(60).explain(true)
+                .highlight(highlight().field("field2", 100, 0).order("score").preTags("<xxx>").postTags("</xxx>"));
+
+        searchResponse = client.search(searchRequest("test").setSource(source).setSearchType(QUERY_THEN_FETCH).setScroll(timeValueMinutes(10))).actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field2").fragments()[0].string(), equalTo("The <xxx>quick</xxx> brown fox jumps over the lazy dog"));
+
+        client.prepareIndex("test", "type1")
+                .setSource("field1", "This should be easier, we declared, and cool, bonsai cool", "field2", "cool easier bonsai")
+                .setRefresh(true).execute().actionGet();
+
+        logger.info("--> searching on field1, highlighting on field1");
+        source = searchSource()
+                .query(matchPhraseQuery("field1", "bonsai cool"))
+                .from(0).size(60).explain(true)
+                .highlight(highlight().field("field1", 100, 5));
+
+        searchResponse = client.search(searchRequest("test").setSource(source)).actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        // TODO; The first "cool" should not have been highlighted, but this is just how the postings highlighter is implemented...
+        assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field1").fragments()[0].string(), equalTo("This should be easier, we declared, and <em>cool</em>, <em>bonsai</em> <em>cool</em>"));
+
+        logger.info("--> searching on field1, highlighting on field2");
+        source = searchSource()
+                .query(matchPhraseQuery("field1", "bonsai cool"))
+                .from(0).size(60).explain(true)
+                .highlight(highlight().field("field2", 100, 5));
+
+        searchResponse = client.search(searchRequest("test").setSource(source)).actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field2").fragments()[0].string(), equalTo("<em>cool</em> easier <em>bonsai</em>"));
+
+        logger.info("--> searching on field1, highlighting on field2 with require_field_match");
+        source = searchSource()
+                .query(matchPhraseQuery("field1", "bonsai cool"))
+                .from(0).size(60).explain(true)
+                .highlight(highlight().field("field2", 100, 5).requireFieldMatch(true));
+
+        searchResponse = client.search(searchRequest("test").setSource(source)).actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field2").fragments().length, equalTo(0));
+
+        logger.info("--> searching on field1, highlighting on field2");
+        source = searchSource()
+                .query(customBoostFactorQuery(matchQuery("field1", "bonsai cool")).boostFactor(5))
+                .from(0).size(60).explain(true)
+                .highlight(highlight().field("field2", 100, 5));
+
+        searchResponse = client.search(searchRequest("test").setSource(source)).actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field2").fragments()[0].string(), equalTo("<em>cool</em> easier <em>bonsai</em>"));
+    }
+
+    @Test
     public void testHighlightIssue1994() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
@@ -502,6 +667,16 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .startObject("properties")
                 .startObject("field1").field("type", "string").field("termVector", "with_positions_offsets").endObject()
                 .startObject("field2").field("type", "string").field("termVector", "with_positions_offsets").endObject()
+                .endObject()
+                .endObject().endObject();
+    }
+
+    public XContentBuilder type1PostingsMapping() throws IOException {
+        return XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("_all").field("store", "yes").field("index_options", "offsets").endObject()
+                .startObject("properties")
+                .startObject("field1").field("type", "string").field("index_options", "offsets").endObject()
+                .startObject("field2").field("type", "string").field("index_options", "offsets").endObject()
                 .endObject()
                 .endObject().endObject();
     }
@@ -949,7 +1124,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         assertThat(response.getHits().hits()[0].highlightFields().get("tags").fragments()[0].string(), equalTo("this is a really long <em>tag</em> i would like to highlight"));
         assertThat(response.getHits().hits()[0].highlightFields().get("tags").fragments()[1].string(), equalTo("here is another one that is very long and has the <em>tag</em> token near the end"));
     }
-    
+
     @Test
     public void testCommonTermsQuery() {
         try {
@@ -976,7 +1151,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
 
         assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field2").fragments()[0].string(), equalTo("The <x>quick</x> <x>brown</x> fox jumps over the lazy dog"));
     }
-    
+
     @Test
     public void testCommonTermsTermVector() throws ElasticSearchException, IOException {
         try {
@@ -1002,8 +1177,8 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field2").fragments()[0].string(),
                 equalTo("The <x>quick</x> <x>brown</x> fox jumps over the lazy dog"));
     }
-    
-    
+
+
     @Test
     public void testPhrasePrefix() throws ElasticSearchException, IOException {
         try {
@@ -1105,7 +1280,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 equalTo("<x>a quick fast blue car</x>"));
         
     }
-    
+
     @Test
     public void testPlainHighlightDifferentFragmenter() throws Exception {
         try {
