@@ -32,14 +32,15 @@ public class ByteValuesComparator extends FieldComparator<Byte> {
 
     private final IndexNumericFieldData indexFieldData;
     private final byte missingValue;
+    private final boolean reversed;
 
     protected final byte[] values;
     private byte bottom;
-    private ByteValues readerValues;
 
-    public ByteValuesComparator(IndexNumericFieldData indexFieldData, byte missingValue, int numHits) {
+    public ByteValuesComparator(IndexNumericFieldData indexFieldData, byte missingValue, int numHits, boolean reversed) {
         this.indexFieldData = indexFieldData;
         this.missingValue = missingValue;
+        this.reversed = reversed;
         this.values = new byte[numHits];
     }
 
@@ -63,26 +64,22 @@ public class ByteValuesComparator extends FieldComparator<Byte> {
 
     @Override
     public int compareBottom(int doc) throws IOException {
-        byte v2 = readerValues.getValueMissing(doc, missingValue);
-
-        if (bottom > v2) {
-            return 1;
-        } else if (bottom < v2) {
-            return -1;
-        } else {
-            return 0;
-        }
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public void copy(int slot, int doc) throws IOException {
-        values[slot] = readerValues.getValueMissing(doc, missingValue);
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public FieldComparator<Byte> setNextReader(AtomicReaderContext context) throws IOException {
-        this.readerValues = indexFieldData.load(context).getByteValues();
-        return this;
+        ByteValues readerValues = indexFieldData.load(context).getByteValues();
+        if (readerValues.isMultiValued()) {
+            return new MV(readerValues);
+        } else {
+            return new SV(readerValues);
+        }
     }
 
     @Override
@@ -92,14 +89,139 @@ public class ByteValuesComparator extends FieldComparator<Byte> {
 
     @Override
     public int compareDocToValue(int doc, Byte valueObj) throws IOException {
-        final byte value = valueObj.byteValue();
-        byte docValue = readerValues.getValueMissing(doc, missingValue);
-        if (docValue < value) {
-            return -1;
-        } else if (docValue > value) {
-            return 1;
-        } else {
-            return 0;
+        throw new UnsupportedOperationException();
+    }
+
+    private abstract class PerSegment extends FieldComparator<Byte> {
+
+        protected final ByteValues readerValues;
+
+        protected PerSegment(ByteValues readerValues) {
+            this.readerValues = readerValues;
+        }
+
+        @Override
+        public int compare(int slot1, int slot2) {
+            return ByteValuesComparator.this.compare(slot1, slot2);
+        }
+
+        @Override
+        public void setBottom(int slot) {
+            ByteValuesComparator.this.setBottom(slot);
+        }
+
+        @Override
+        public FieldComparator<Byte> setNextReader(AtomicReaderContext context) throws IOException {
+            return ByteValuesComparator.this.setNextReader(context);
+        }
+
+        @Override
+        public Byte value(int slot) {
+            return ByteValuesComparator.this.value(slot);
         }
     }
+
+    private class SV extends PerSegment {
+
+        private SV(ByteValues readerValues) {
+            super(readerValues);
+        }
+
+        @Override
+        public int compareBottom(int doc) throws IOException {
+            byte v2 = readerValues.getValueMissing(doc, missingValue);
+
+            if (bottom > v2) {
+                return 1;
+            } else if (bottom < v2) {
+                return -1;
+            } else {
+                return 0;
+            }
+        }
+
+        @Override
+        public void copy(int slot, int doc) throws IOException {
+            values[slot] = readerValues.getValueMissing(doc, missingValue);
+        }
+
+        @Override
+        public int compareDocToValue(int doc, Byte valueObj) throws IOException {
+            final byte value = valueObj.byteValue();
+            byte docValue = readerValues.getValueMissing(doc, missingValue);
+            if (docValue < value) {
+                return -1;
+            } else if (docValue > value) {
+                return 1;
+            } else {
+                return 0;
+            }
+        }
+    }
+
+    private class MV extends PerSegment {
+
+        private MV(ByteValues readerValues) {
+            super(readerValues);
+        }
+
+        @Override
+        public int compareBottom(int doc) throws IOException {
+            byte v2 = getRelevantValue(readerValues, doc, missingValue, reversed);
+
+            if (bottom > v2) {
+                return 1;
+            } else if (bottom < v2) {
+                return -1;
+            } else {
+                return 0;
+            }
+        }
+
+        @Override
+        public void copy(int slot, int doc) throws IOException {
+            values[slot] = getRelevantValue(readerValues, doc, missingValue, reversed);
+        }
+
+        @Override
+        public int compareDocToValue(int doc, Byte valueObj) throws IOException {
+            final byte value = valueObj.byteValue();
+            byte docValue = getRelevantValue(readerValues, doc, missingValue, reversed);
+            if (docValue < value) {
+                return -1;
+            } else if (docValue > value) {
+                return 1;
+            } else {
+                return 0;
+            }
+        }
+
+    }
+
+    static byte getRelevantValue(ByteValues readerValues, int docId, byte missing, boolean reversed) {
+        ByteValues.Iter iter = readerValues.getIter(docId);
+        if (!iter.hasNext()) {
+            return missing;
+        }
+
+        byte currentVal = iter.next();
+        byte relevantVal = currentVal;
+        while (true) {
+            if (reversed) {
+                if (currentVal > relevantVal) {
+                    relevantVal = currentVal;
+                }
+            } else {
+                if (currentVal < relevantVal) {
+                    relevantVal = currentVal;
+                }
+            }
+            if (!iter.hasNext()) {
+                break;
+            }
+            currentVal = iter.next();
+        }
+        return relevantVal;
+    }
+
 }

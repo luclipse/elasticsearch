@@ -32,14 +32,15 @@ public class IntValuesComparator extends FieldComparator<Integer> {
 
     private final IndexNumericFieldData indexFieldData;
     private final int missingValue;
+    private final boolean reversed;
 
-    protected final int[] values;
+    private final int[] values;
     private int bottom;
-    private IntValues readerValues;
 
-    public IntValuesComparator(IndexNumericFieldData indexFieldData, int missingValue, int numHits) {
+    public IntValuesComparator(IndexNumericFieldData indexFieldData, int missingValue, int numHits, boolean reversed) {
         this.indexFieldData = indexFieldData;
         this.missingValue = missingValue;
+        this.reversed = reversed;
         this.values = new int[numHits];
     }
 
@@ -63,26 +64,22 @@ public class IntValuesComparator extends FieldComparator<Integer> {
 
     @Override
     public int compareBottom(int doc) throws IOException {
-        int v2 = readerValues.getValueMissing(doc, missingValue);
-
-        if (bottom > v2) {
-            return 1;
-        } else if (bottom < v2) {
-            return -1;
-        } else {
-            return 0;
-        }
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public void copy(int slot, int doc) throws IOException {
-        values[slot] = readerValues.getValueMissing(doc, missingValue);
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public FieldComparator<Integer> setNextReader(AtomicReaderContext context) throws IOException {
-        this.readerValues = indexFieldData.load(context).getIntValues();
-        return this;
+        IntValues readerValues = indexFieldData.load(context).getIntValues();
+        if (readerValues.isMultiValued()) {
+            return new MV(readerValues);
+        } else {
+            return new SV(readerValues);
+        }
     }
 
     @Override
@@ -91,15 +88,140 @@ public class IntValuesComparator extends FieldComparator<Integer> {
     }
 
     @Override
-    public int compareDocToValue(int doc, Integer valueObj) throws IOException {
-        final int value = valueObj.intValue();
-        int docValue = readerValues.getValueMissing(doc, missingValue);
-        if (docValue < value) {
-            return -1;
-        } else if (docValue > value) {
-            return 1;
-        } else {
-            return 0;
+    public int compareDocToValue(int doc, Integer value) throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    private abstract class PerSegment extends FieldComparator<Integer> {
+
+        protected final IntValues readerValues;
+
+        protected PerSegment(IntValues readerValues) {
+            this.readerValues = readerValues;
+        }
+
+        @Override
+        public int compare(int slot1, int slot2) {
+            return IntValuesComparator.this.compare(slot1, slot2);
+        }
+
+        @Override
+        public void setBottom(int slot) {
+            IntValuesComparator.this.setBottom(slot);
+        }
+
+        @Override
+        public FieldComparator<Integer> setNextReader(AtomicReaderContext context) throws IOException {
+            return IntValuesComparator.this.setNextReader(context);
+        }
+
+        @Override
+        public Integer value(int slot) {
+            return IntValuesComparator.this.value(slot);
         }
     }
+
+    private class SV extends PerSegment {
+
+        private SV(IntValues readerValues) {
+            super(readerValues);
+        }
+
+        @Override
+        public int compareBottom(int doc) throws IOException {
+            int v2 = readerValues.getValueMissing(doc, missingValue);
+
+            if (bottom > v2) {
+                return 1;
+            } else if (bottom < v2) {
+                return -1;
+            } else {
+                return 0;
+            }
+        }
+
+        @Override
+        public void copy(int slot, int doc) throws IOException {
+            values[slot] = readerValues.getValueMissing(doc, missingValue);
+        }
+
+        @Override
+        public int compareDocToValue(int doc, Integer valueObj) throws IOException {
+            final int value = valueObj.intValue();
+            int docValue = readerValues.getValueMissing(doc, missingValue);
+            if (docValue < value) {
+                return -1;
+            } else if (docValue > value) {
+                return 1;
+            } else {
+                return 0;
+            }
+        }
+    }
+
+    private class MV extends PerSegment {
+
+        private MV(IntValues readerValues) {
+            super(readerValues);
+        }
+
+        @Override
+        public int compareBottom(int doc) throws IOException {
+            int v2 = getRelevantValue(readerValues, doc, missingValue, reversed);
+
+            if (bottom > v2) {
+                return 1;
+            } else if (bottom < v2) {
+                return -1;
+            } else {
+                return 0;
+            }
+        }
+
+        @Override
+        public void copy(int slot, int doc) throws IOException {
+            values[slot] = getRelevantValue(readerValues, doc, missingValue, reversed);
+        }
+
+        @Override
+        public int compareDocToValue(int doc, Integer valueObj) throws IOException {
+            final int value = valueObj.intValue();
+            int docValue = getRelevantValue(readerValues, doc, missingValue, reversed);
+            if (docValue < value) {
+                return -1;
+            } else if (docValue > value) {
+                return 1;
+            } else {
+                return 0;
+            }
+        }
+
+    }
+
+    static int getRelevantValue(IntValues readerValues, int docId, int missing, boolean reversed) {
+        IntValues.Iter iter = readerValues.getIter(docId);
+        if (!iter.hasNext()) {
+            return missing;
+        }
+
+        int currentVal = iter.next();
+        int relevantVal = currentVal;
+        while (true) {
+            if (reversed) {
+                if (currentVal > relevantVal) {
+                    relevantVal = currentVal;
+                }
+            } else {
+                if (currentVal < relevantVal) {
+                    relevantVal = currentVal;
+                }
+            }
+            if (!iter.hasNext()) {
+                break;
+            }
+            currentVal = iter.next();
+        }
+        return relevantVal;
+    }
+
 }

@@ -32,14 +32,15 @@ public class ShortValuesComparator extends FieldComparator<Short> {
 
     private final IndexNumericFieldData indexFieldData;
     private final short missingValue;
+    private final boolean reversed;
 
     protected final short[] values;
     private short bottom;
-    private ShortValues readerValues;
 
-    public ShortValuesComparator(IndexNumericFieldData indexFieldData, short missingValue, int numHits) {
+    public ShortValuesComparator(IndexNumericFieldData indexFieldData, short missingValue, int numHits, boolean reversed) {
         this.indexFieldData = indexFieldData;
         this.missingValue = missingValue;
+        this.reversed = reversed;
         this.values = new short[numHits];
     }
 
@@ -63,26 +64,22 @@ public class ShortValuesComparator extends FieldComparator<Short> {
 
     @Override
     public int compareBottom(int doc) throws IOException {
-        short v2 = readerValues.getValueMissing(doc, missingValue);
-
-        if (bottom > v2) {
-            return 1;
-        } else if (bottom < v2) {
-            return -1;
-        } else {
-            return 0;
-        }
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public void copy(int slot, int doc) throws IOException {
-        values[slot] = readerValues.getValueMissing(doc, missingValue);
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public FieldComparator<Short> setNextReader(AtomicReaderContext context) throws IOException {
-        this.readerValues = indexFieldData.load(context).getShortValues();
-        return this;
+        ShortValues readerValues = indexFieldData.load(context).getShortValues();
+        if (readerValues.isMultiValued()) {
+            return new MV(readerValues);
+        } else {
+            return new SV(readerValues);
+        }
     }
 
     @Override
@@ -92,14 +89,138 @@ public class ShortValuesComparator extends FieldComparator<Short> {
 
     @Override
     public int compareDocToValue(int doc, Short valueObj) throws IOException {
-        final short value = valueObj.shortValue();
-        short docValue = readerValues.getValueMissing(doc, missingValue);
-        if (docValue < value) {
-            return -1;
-        } else if (docValue > value) {
-            return 1;
-        } else {
-            return 0;
+        throw new UnsupportedOperationException();
+    }
+
+    private abstract class PerSegment extends FieldComparator<Short> {
+
+        protected final ShortValues readerValues;
+
+        protected PerSegment(ShortValues readerValues) {
+            this.readerValues = readerValues;
+        }
+
+        @Override
+        public int compare(int slot1, int slot2) {
+            return ShortValuesComparator.this.compare(slot1, slot2);
+        }
+
+        @Override
+        public void setBottom(int slot) {
+            ShortValuesComparator.this.setBottom(slot);
+        }
+
+        @Override
+        public FieldComparator<Short> setNextReader(AtomicReaderContext context) throws IOException {
+            return ShortValuesComparator.this.setNextReader(context);
+        }
+
+        @Override
+        public Short value(int slot) {
+            return ShortValuesComparator.this.value(slot);
         }
     }
+
+    private class SV extends PerSegment {
+
+        private SV(ShortValues readerValues) {
+            super(readerValues);
+        }
+
+        @Override
+        public int compareBottom(int doc) throws IOException {
+            short v2 = readerValues.getValueMissing(doc, missingValue);
+
+            if (bottom > v2) {
+                return 1;
+            } else if (bottom < v2) {
+                return -1;
+            } else {
+                return 0;
+            }
+        }
+
+        @Override
+        public void copy(int slot, int doc) throws IOException {
+            values[slot] = readerValues.getValueMissing(doc, missingValue);
+        }
+
+        @Override
+        public int compareDocToValue(int doc, Short valueObj) throws IOException {
+            final short value = valueObj.shortValue();
+            short docValue = readerValues.getValueMissing(doc, missingValue);
+            if (docValue < value) {
+                return -1;
+            } else if (docValue > value) {
+                return 1;
+            } else {
+                return 0;
+            }
+        }
+    }
+
+    private class MV extends PerSegment {
+
+        private MV(ShortValues readerValues) {
+            super(readerValues);
+        }
+
+        @Override
+        public int compareBottom(int doc) throws IOException {
+            short v2 = getRelevantValue(readerValues, doc, missingValue, reversed);
+
+            if (bottom > v2) {
+                return 1;
+            } else if (bottom < v2) {
+                return -1;
+            } else {
+                return 0;
+            }
+        }
+
+        @Override
+        public void copy(int slot, int doc) throws IOException {
+            values[slot] = getRelevantValue(readerValues, doc, missingValue, reversed);
+        }
+
+        @Override
+        public int compareDocToValue(int doc, Short valueObj) throws IOException {
+            final short value = valueObj.shortValue();
+            short docValue = getRelevantValue(readerValues, doc, missingValue, reversed);
+            if (docValue < value) {
+                return -1;
+            } else if (docValue > value) {
+                return 1;
+            } else {
+                return 0;
+            }
+        }
+    }
+
+    static short getRelevantValue(ShortValues readerValues, int docId, short missing, boolean reversed) {
+        ShortValues.Iter iter = readerValues.getIter(docId);
+        if (!iter.hasNext()) {
+            return missing;
+        }
+
+        short currentVal = iter.next();
+        short relevantVal = currentVal;
+        while (true) {
+            if (reversed) {
+                if (currentVal > relevantVal) {
+                    relevantVal = currentVal;
+                }
+            } else {
+                if (currentVal < relevantVal) {
+                    relevantVal = currentVal;
+                }
+            }
+            if (!iter.hasNext()) {
+                break;
+            }
+            currentVal = iter.next();
+        }
+        return relevantVal;
+    }
+
 }
