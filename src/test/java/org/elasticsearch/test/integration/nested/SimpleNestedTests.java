@@ -30,6 +30,8 @@ import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.facet.FacetBuilders;
 import org.elasticsearch.search.facet.termsstats.TermsStatsFacet;
+import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -568,6 +570,60 @@ public class SimpleNestedTests extends AbstractNodesTests {
 //        assertThat(explanation.getDetails()[0].getDescription(), equalTo("Child[0]"));
 //        assertThat(explanation.getDetails()[1].getValue(), equalTo(1f));
 //        assertThat(explanation.getDetails()[1].getDescription(), equalTo("Child[1]"));
+    }
+
+    @Test
+    public void testNestedSorting() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+        client.admin().indices().prepareCreate("test")
+                .setSettings(settingsBuilder().put("index.number_of_shards", 1).put("index.referesh_interval", -1).build())
+                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("nested1")
+                        .field("type", "nested")
+                        .endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        int maxDoc = 3;
+        int val1 = 0;
+        int val2 = maxDoc;
+        for (int doc = 0; doc < maxDoc; doc++) {
+            client.prepareIndex("test", "type1", Integer.toString(doc)).setSource(jsonBuilder().startObject()
+                    .field("field1", doc)
+                    .startArray("nested1")
+                    .startObject()
+                    .field("field1", val1++)
+                    .endObject()
+                    .startObject()
+                    .field("field1", val2--)
+                    .endObject()
+                    .endArray()
+                    .endObject()).execute().actionGet();
+        }
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        SearchResponse searchResponse = client.prepareSearch("test")
+                .setTypes("type1")
+                .setQuery(QueryBuilders.matchAllQuery())
+                .addSort(SortBuilders.fieldSort("nested1.field1").order(SortOrder.ASC))
+                .execute().actionGet();
+
+        assertThat(searchResponse.hits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.hits().hits()[0].id(), equalTo("2"));
+        assertThat(searchResponse.hits().hits()[1].id(), equalTo("1"));
+        assertThat(searchResponse.hits().hits()[2].id(), equalTo("0"));
+
+        searchResponse = client.prepareSearch("test")
+                .setTypes("type1")
+                .setQuery(QueryBuilders.matchAllQuery())
+                .addSort(SortBuilders.fieldSort("nested1.field1").order(SortOrder.ASC).setNestedOrder("last"))
+                .execute().actionGet();
+
+        assertThat(searchResponse.hits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.hits().hits()[0].id(), equalTo("0"));
+        assertThat(searchResponse.hits().hits()[1].id(), equalTo("1"));
+        assertThat(searchResponse.hits().hits()[2].id(), equalTo("2"));
     }
 
 }

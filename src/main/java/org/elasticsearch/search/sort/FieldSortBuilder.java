@@ -36,6 +36,8 @@ public class FieldSortBuilder extends SortBuilder {
 
     private Boolean ignoreUnampped;
 
+    private String nestedOrder;
+
     /**
      * Constructs a new sort based on a document field.
      *
@@ -73,6 +75,14 @@ public class FieldSortBuilder extends SortBuilder {
         return this;
     }
 
+    /**
+     * Sets the order in which the nested objects should be taking into account during sorting.
+     */
+    public FieldSortBuilder setNestedOrder(String nestedOrder) {
+        this.nestedOrder = nestedOrder;
+        return this;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(fieldName);
@@ -84,6 +94,9 @@ public class FieldSortBuilder extends SortBuilder {
         }
         if (ignoreUnampped != null) {
             builder.field("ignore_unmapped", ignoreUnampped);
+        }
+        if (nestedOrder != null) {
+            builder.field("nested_order", nestedOrder);
         }
         builder.endObject();
         return builder;
