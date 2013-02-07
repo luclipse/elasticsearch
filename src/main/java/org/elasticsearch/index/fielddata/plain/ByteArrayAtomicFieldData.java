@@ -328,6 +328,28 @@ public abstract class ByteArrayAtomicFieldData implements AtomicNumericFieldData
             }
 
             @Override
+            public long getMaxValue(int docId) {
+                Ordinals.Docs.Iter iter = ordinals.getIter(docId);
+                int currentOrd = iter.next();
+                if (currentOrd == 0) {
+                    return values[0];
+                }
+
+                return Helper.getLargest(this.iter.reset(iter, currentOrd));
+            }
+
+            @Override
+            public long getMinValue(int docId) {
+                Ordinals.Docs.Iter iter = ordinals.getIter(docId);
+                int currentOrd = iter.next();
+                if (currentOrd == 0) {
+                    return values[0];
+                }
+
+                return Helper.getSmallest(this.iter.reset(iter, currentOrd));
+            }
+
+            @Override
             public long getValueMissing(int docId, long missingValue) {
                 int ord = ordinals.getOrd(docId);
                 if (ord == 0) {
@@ -335,6 +357,28 @@ public abstract class ByteArrayAtomicFieldData implements AtomicNumericFieldData
                 } else {
                     return (long) values[ord];
                 }
+            }
+
+            @Override
+            public long getMaxValueMissing(int docId, long missingValue) {
+                Ordinals.Docs.Iter iter = ordinals.getIter(docId);
+                int currentOrd = iter.next();
+                if (currentOrd == 0) {
+                    return missingValue;
+                }
+
+                return Helper.getLargest(this.iter.reset(iter, currentOrd));
+            }
+
+            @Override
+            public long getMinValueMissing(int docId, long missingValue) {
+                Ordinals.Docs.Iter iter = ordinals.getIter(docId);
+                int currentOrd = iter.next();
+                if (currentOrd == 0) {
+                    return missingValue;
+                }
+
+                return Helper.getSmallest(this.iter.reset(iter, currentOrd));
             }
 
             @Override
@@ -384,6 +428,12 @@ public abstract class ByteArrayAtomicFieldData implements AtomicNumericFieldData
                     return this;
                 }
 
+                public Iter reset(Ordinals.Docs.Iter iter, int currentOrd) {
+                    this.ordsIter = iter;
+                    this.ord = currentOrd;
+                    return this;
+                }
+
                 @Override
                 public boolean hasNext() {
                     return ord != 0;
@@ -395,6 +445,7 @@ public abstract class ByteArrayAtomicFieldData implements AtomicNumericFieldData
                     ord = ordsIter.next();
                     return (long) value;
                 }
+
             }
         }
 
@@ -673,7 +724,35 @@ public abstract class ByteArrayAtomicFieldData implements AtomicNumericFieldData
             }
 
             @Override
+            public long getMaxValue(int docId) {
+                return (long) values[docId];
+            }
+
+            @Override
+            public long getMinValue(int docId) {
+                return (long) values[docId];
+            }
+
+            @Override
             public long getValueMissing(int docId, long missingValue) {
+                if (set.get(docId)) {
+                    return (long) values[docId];
+                } else {
+                    return missingValue;
+                }
+            }
+
+            @Override
+            public long getMinValueMissing(int docId, long missingValue) {
+                if (set.get(docId)) {
+                    return (long) values[docId];
+                } else {
+                    return missingValue;
+                }
+            }
+
+            @Override
+            public long getMaxValueMissing(int docId, long missingValue) {
                 if (set.get(docId)) {
                     return (long) values[docId];
                 } else {
@@ -930,7 +1009,27 @@ public abstract class ByteArrayAtomicFieldData implements AtomicNumericFieldData
             }
 
             @Override
+            public long getMaxValue(int docId) {
+                return (long) values[docId];
+            }
+
+            @Override
+            public long getMinValue(int docId) {
+                return (long) values[docId];
+            }
+
+            @Override
             public long getValueMissing(int docId, long missingValue) {
+                return (long) values[docId];
+            }
+
+            @Override
+            public long getMinValueMissing(int docId, long missingValue) {
+                return (long) values[docId];
+            }
+
+            @Override
+            public long getMaxValueMissing(int docId, long missingValue) {
                 return (long) values[docId];
             }
 

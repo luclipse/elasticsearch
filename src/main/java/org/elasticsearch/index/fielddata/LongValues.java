@@ -20,7 +20,6 @@
 package org.elasticsearch.index.fielddata;
 
 import org.elasticsearch.ElasticSearchIllegalStateException;
-import org.elasticsearch.index.fielddata.util.IntArrayRef;
 import org.elasticsearch.index.fielddata.util.LongArrayRef;
 
 /**
@@ -41,7 +40,15 @@ public interface LongValues {
 
     long getValue(int docId);
 
+    long getMinValue(int docId);
+
+    long getMaxValue(int docId);
+
     long getValueMissing(int docId, long missingValue);
+
+    long getMinValueMissing(int docId, long missingValue);
+
+    long getMaxValueMissing(int docId, long missingValue);
 
     LongArrayRef getValues(int docId);
 
@@ -119,6 +126,26 @@ public interface LongValues {
         }
 
         @Override
+        public long getMinValue(int docId) {
+            throw new ElasticSearchIllegalStateException("Can't retrieve a value from an empty LongValues");
+        }
+
+        @Override
+        public long getMaxValue(int docId) {
+            throw new ElasticSearchIllegalStateException("Can't retrieve a value from an empty LongValues");
+        }
+
+        @Override
+        public long getMinValueMissing(int docId, long missingValue) {
+            throw new ElasticSearchIllegalStateException("Can't retrieve a value from an empty LongValues");
+        }
+
+        @Override
+        public long getMaxValueMissing(int docId, long missingValue) {
+            throw new ElasticSearchIllegalStateException("Can't retrieve a value from an empty LongValues");
+        }
+
+        @Override
         public long getValueMissing(int docId, long missingValue) {
             return missingValue;
         }
@@ -137,6 +164,42 @@ public interface LongValues {
         public void forEachValueInDoc(int docId, ValueInDocProc proc) {
             proc.onMissing(docId);
         }
+    }
+
+    public static final class Helper {
+
+        public static long getLargest(LongValues.Iter iter) {
+            long currentVal = iter.next();
+            long relevantVal = currentVal;
+            while (true) {
+                if (currentVal > relevantVal) {
+                    relevantVal = currentVal;
+                }
+                if (!iter.hasNext()) {
+                    break;
+                }
+                currentVal = iter.next();
+
+            }
+            return relevantVal;
+        }
+
+        public static long getSmallest(LongValues.Iter valuesIter) {
+            long currentVal = valuesIter.next();
+            long relevantVal = currentVal;
+            while (true) {
+                if (currentVal < relevantVal) {
+                    relevantVal = currentVal;
+                }
+                if (!valuesIter.hasNext()) {
+                    break;
+                }
+                currentVal = valuesIter.next();
+
+            }
+            return relevantVal;
+        }
+
     }
 
 }
