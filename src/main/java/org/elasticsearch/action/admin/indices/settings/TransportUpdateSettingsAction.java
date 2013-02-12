@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -71,9 +72,11 @@ public class TransportUpdateSettingsAction extends TransportMasterNodeOperationA
         final AtomicReference<Throwable> failureRef = new AtomicReference<Throwable>();
         final CountDownLatch latch = new CountDownLatch(1);
 
+        final UpdateSettingsResponse response = new UpdateSettingsResponse();
         updateSettingsService.updateSettings(request.settings(), request.indices(), new MetaDataUpdateSettingsService.Listener() {
             @Override
-            public void onSuccess() {
+            public void onSuccess(Map<String, Settings> updatedSettings) {
+                response.setUpdateSettings(updatedSettings);
                 latch.countDown();
             }
 
@@ -98,6 +101,6 @@ public class TransportUpdateSettingsAction extends TransportMasterNodeOperationA
             }
         }
 
-        return new UpdateSettingsResponse();
+        return response;
     }
 }

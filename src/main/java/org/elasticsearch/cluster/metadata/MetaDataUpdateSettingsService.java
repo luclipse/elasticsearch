@@ -33,6 +33,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -98,7 +99,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                         Settings settings = ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, fNumberOfReplicas).build();
                         updateSettings(settings, new String[]{indexMetaData.index()}, new Listener() {
                             @Override
-                            public void onSuccess() {
+                            public void onSuccess(Map<String, Settings> updatedSettings) {
                                 logger.info("[{}] auto expanded replicas to [{}]", indexMetaData.index(), fNumberOfReplicas);
                             }
 
@@ -150,6 +151,8 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
         }
         final Settings openSettings = updatedSettingsBuilder.build();
 
+        final Set<String> openIndices = Sets.newHashSet();
+        final Set<String> closeIndices = Sets.newHashSet();
         clusterService.submitStateUpdateTask("update-settings", Priority.URGENT, new ProcessedClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -211,8 +214,6 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
                     // allow to change any settings to a close index, and only allow dynamic settings to be changed
                     // on an open index
-                    Set<String> openIndices = Sets.newHashSet();
-                    Set<String> closeIndices = Sets.newHashSet();
                     for (String index : actualIndices) {
                         if (currentState.metaData().index(index).state() == IndexMetaData.State.OPEN) {
                             openIndices.add(index);
@@ -250,13 +251,21 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
             @Override
             public void clusterStateProcessed(ClusterState clusterState) {
-                listener.onSuccess();
+                Map<String, Settings> updatedSettings = new HashMap<String, Settings>(closeIndices.size() + openIndices.size());
+                for (String closedIndex : closeIndices) {
+                    updatedSettings.put(closedIndex, closeSettings);
+                }
+                for (String openIndex : openIndices) {
+                    updatedSettings.put(openIndex, openSettings);
+                }
+                listener.onSuccess(updatedSettings);
             }
         });
     }
 
     public static interface Listener {
-        void onSuccess();
+
+        void onSuccess(Map<String, Settings> updatedSettings);
 
         void onFailure(Throwable t);
     }

@@ -95,7 +95,15 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject()
                             .field("ok", true)
-                            .endObject();
+                            .startObject("applied-settings");
+                    for (Map.Entry<String, Settings> entry : updateSettingsResponse.getUpdatedSettings().entrySet()) {
+                        builder.startObject(entry.getKey());
+                        for (Map.Entry<String, String> entry1 : entry.getValue().getAsMap().entrySet()) {
+                            builder.field(entry1.getKey(), entry1.getValue());
+                        }
+                        builder.endObject();
+                    }
+                    builder.endObject().endObject();
                     channel.sendResponse(new XContentRestResponse(request, OK, builder));
                 } catch (Exception e) {
                     onFailure(e);
