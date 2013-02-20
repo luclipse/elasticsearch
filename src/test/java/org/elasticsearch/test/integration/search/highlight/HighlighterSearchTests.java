@@ -210,7 +210,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
             client.prepareIndex("test", "type1", Integer.toString(i))
                     .setSource(XContentFactory.jsonBuilder().startObject()
                             .field("title", "This is a test on the highlighting bug present in elasticsearch. An arbitary sentence. Another bug in this sentence.")
-                            .startArray("attachments").startObject().field("body", "attachment 1").endObject().startObject().field("body", "attachment 2").endObject().endArray()
+                            .startArray("attachments").startObject().field("body", "attachment 1 fox bla").endObject().startObject().field("body", "bla jumps attachment 2").endObject().endArray()
                             .endObject())
                     .setRefresh(true).execute().actionGet();
         }
@@ -240,18 +240,14 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         assertThat(search.getHits().hits().length, equalTo(5));
 
         for (SearchHit hit : search.getHits()) {
-            assertThat(hit.highlightFields().get("attachments.body").fragments()[0].string(), equalTo("<em>attachment</em> 1"));
-            assertThat(hit.highlightFields().get("attachments.body").fragments()[1].string(), equalTo("<em>attachment</em> 2"));
+            assertThat(hit.highlightFields().get("attachments.body").fragments()[0].string(), equalTo("<em>attachment</em> 1 fox bla"));
+            assertThat(hit.highlightFields().get("attachments.body").fragments()[1].string(), equalTo("bla jumps <em>attachment</em> 2"));
         }
     }
 
     @Test
     public void testPostingsHighlighter() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (IndexMissingException e) {
-            // its ok
-        }
+        client.admin().indices().prepareDelete().execute().actionGet();
         client.admin().indices().prepareCreate("test").addMapping("type1", type1PostingsMapping()).execute().actionGet();
         client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
@@ -266,6 +262,20 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .highlight(highlight().field("field1", 100, 0).order("score").preTags("<xxx>").postTags("</xxx>"));
 
         SearchResponse searchResponse = client.search(searchRequest("test").setSource(source).setSearchType(QUERY_THEN_FETCH).setScroll(timeValueMinutes(10))).actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+
+        assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field1").fragments()[0].string(), equalTo("this is a <xxx>test</xxx>"));
+
+        logger.info("--> highlighting and searching on field1 using type with search request");
+        source = searchSource()
+                .query(termQuery("field1", "test"))
+                .from(0).size(60).explain(true)
+                .highlight(highlight().field("field1", 100, 0).order("score").preTags("<xxx>").postTags("</xxx>"));
+
+        searchResponse = client.search(searchRequest("test")
+                .setTypes("type1")
+                .setSource(source).setSearchType(QUERY_THEN_FETCH).setScroll(timeValueMinutes(10))).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
@@ -341,7 +351,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         searchResponse = client.search(searchRequest("test").setSource(source)).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
-        assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field2").fragments().length, equalTo(0));
+        assertThat(searchResponse.getHits().getAt(0).highlightFields().isEmpty(), equalTo(true));
 
         logger.info("--> searching on field1, highlighting on field2");
         source = searchSource()
@@ -353,6 +363,17 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field2").fragments()[0].string(), equalTo("<em>cool</em> easier <em>bonsai</em>"));
+
+        logger.info("--> searching on _all, highlighting on field1 and field2");
+        source = searchSource()
+                .query(matchQuery("_all", "easier"))
+                .highlight(highlight().field("field1").field("field2"));
+
+        searchResponse = client.search(searchRequest("test").setSource(source).setSearchType(QUERY_THEN_FETCH).setScroll(timeValueMinutes(10))).actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field1").fragments()[0].string(), equalTo("This should be <em>easier</em>, we declared, and cool, bonsai cool"));
+        assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field2").fragments()[0].string(), equalTo("cool <em>easier</em> bonsai"));
     }
 
     @Test
@@ -1191,16 +1212,16 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         builder.putArray("index.analysis.analyzer.synonym.filter", "synonym", "lowercase");
         builder.put("index.analysis.filter.synonym.type", "synonym");
         builder.putArray("index.analysis.filter.synonym.synonyms", "quick => fast");
-        
+
         XContentBuilder type2Mapping = XContentFactory.jsonBuilder().startObject().startObject("type2")
-        .startObject("_all").field("store", "yes").field("termVector", "with_positions_offsets").endObject()
-        .startObject("properties")
-        .startObject("field4").field("type", "string").field("termVector", "with_positions_offsets").field("analyzer", "synonym").endObject()
-        .startObject("field3").field("type", "string").field("analyzer", "synonym").endObject()
-        .endObject()
-        .endObject().endObject();
-        
-        
+                .startObject("_all").field("store", "yes").field("termVector", "with_positions_offsets").endObject()
+                .startObject("properties")
+                .startObject("field4").field("type", "string").field("termVector", "with_positions_offsets").field("analyzer", "synonym").endObject()
+                .startObject("field3").field("type", "string").field("analyzer", "synonym").endObject()
+                .endObject()
+                .endObject().endObject();
+
+
         client.admin().indices().prepareCreate("test").setSettings(builder.build()).addMapping("type1", type1TermVectorMapping()).addMapping("type2", type2Mapping).execute().actionGet();
         client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
@@ -1208,11 +1229,11 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .setSource("field0", "The quick brown fox jumps over the lazy dog", "field1", "The quick brown fox jumps over the lazy dog")
                 .setRefresh(true).execute().actionGet();
         client.prepareIndex("test", "type1", "1")
-        .setSource("field1", "The quick browse button is a fancy thing, right bro?")
-        .setRefresh(true).execute().actionGet();
+                .setSource("field1", "The quick browse button is a fancy thing, right bro?")
+                .setRefresh(true).execute().actionGet();
         logger.info("--> highlighting and searching on field0");
         SearchSourceBuilder source = searchSource()
-                .query(matchPhrasePrefixQuery("field0", "quick bro" ))
+                .query(matchPhrasePrefixQuery("field0", "quick bro"))
                 .from(0).size(60).explain(true)
                 .highlight(highlight().field("field0").order("score").preTags("<x>").postTags("</x>"));
 
@@ -1221,10 +1242,10 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
         assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field0").fragments()[0].string(), equalTo("The <x>quick</x> <x>brown</x> fox jumps over the lazy dog"));
-        
+
         logger.info("--> highlighting and searching on field1");
         source = searchSource()
-                .query(matchPhrasePrefixQuery("field1","quick bro" ))
+                .query(matchPhrasePrefixQuery("field1", "quick bro"))
                 .from(0).size(60).explain(true)
                 .highlight(highlight().field("field1").order("score").preTags("<x>").postTags("</x>"));
 
@@ -1234,17 +1255,17 @@ public class HighlighterSearchTests extends AbstractNodesTests {
 
         assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field1").fragments()[0].string(), equalTo("The <x>quick browse</x> button is a fancy thing, right bro?"));
         assertThat(searchResponse.getHits().getAt(1).highlightFields().get("field1").fragments()[0].string(), equalTo("The <x>quick brown</x> fox jumps over the lazy dog"));
-        
+
         // with synonyms
         client.prepareIndex("test", "type2", "0")
-        .setSource("field4", "The quick brown fox jumps over the lazy dog", "field3", "The quick brown fox jumps over the lazy dog")
-        .setRefresh(true).execute().actionGet();
+                .setSource("field4", "The quick brown fox jumps over the lazy dog", "field3", "The quick brown fox jumps over the lazy dog")
+                .setRefresh(true).execute().actionGet();
         client.prepareIndex("test", "type2", "1")
-        .setSource("field4", "The quick browse button is a fancy thing, right bro?").setRefresh(true).execute().actionGet();
+                .setSource("field4", "The quick browse button is a fancy thing, right bro?").setRefresh(true).execute().actionGet();
         client.prepareIndex("test", "type2", "2")
-        .setSource("field4", "a quick fast blue car")
-        .setRefresh(true).execute().actionGet();
-        
+                .setSource("field4", "a quick fast blue car")
+                .setRefresh(true).execute().actionGet();
+
         source = searchSource().filter(FilterBuilders.typeFilter("type2")).query(matchPhrasePrefixQuery("field3", "fast bro")).from(0).size(60).explain(true)
                 .highlight(highlight().field("field3").order("score").preTags("<x>").postTags("</x>"));
 
@@ -1267,7 +1288,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 equalTo("<x>The quick browse</x> button is a fancy thing, right bro?"));
         assertThat(searchResponse.getHits().getAt(1).highlightFields().get("field4").fragments()[0].string(),
                 equalTo("<x>The quick brown</x> fox jumps over the lazy dog"));
-        
+
         logger.info("--> highlighting and searching on field4");
         source = searchSource().filter(FilterBuilders.typeFilter("type2")).query(matchPhrasePrefixQuery("field4", "a fast quick blue ca")).from(0).size(60).explain(true)
                 .highlight(highlight().field("field4").order("score").preTags("<x>").postTags("</x>"));
@@ -1278,7 +1299,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
 
         assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field4").fragments()[0].string(),
                 equalTo("<x>a quick fast blue car</x>"));
-        
+
     }
 
     @Test

@@ -102,7 +102,7 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
     @Override
     public void hitExecute(SearchContext context, HitContext hitContext) throws ElasticSearchException {
         // we use a cache to cache heavy things, mainly the rewrite in FieldQuery for FVH or PH
-        HighlighterEntry cache = (HighlighterEntry) hitContext.cache().get("highlight");
+        HighlighterEntry cache = null;//(HighlighterEntry) hitContext.cache().get("highlight");
         if (cache == null) {
             cache = new HighlighterEntry();
             hitContext.cache().put("highlight", cache);
@@ -185,8 +185,9 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
 
                     String hlField = mapper.names().indexName();
                     Query unwrittenQuery = context.parsedQuery().query();
-                    IndexSearcher searcher = context.searcher();
                     int numberOfFragments = field.numberOfFragments();
+                    // Use a searcher that only operates on the context's segment that we are processing.
+                    IndexSearcher searcher = new IndexSearcher(hitContext.reader());
 
                     CustomPassageFormatter formatter;
                     if (entry.ph == null) {
@@ -207,7 +208,7 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                         entry.ph.setHitContext(hitContext);
                         entry.ph.highlight(hlField, unwrittenQuery, searcher, CustomPostingsHighlighter.topDocs(hitContext.docId()), numberOfFragments);
                         String[] snippets = formatter.getPassages();
-                        if (snippets != null) {
+                        if (snippets != null && snippets.length > 0) {
                             HighlightField highlightField = new HighlightField(fieldName, StringText.convertFromStringArray(snippets));
                             highlightFields.put(highlightField.name(), highlightField);
                         }
