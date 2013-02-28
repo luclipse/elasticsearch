@@ -86,6 +86,8 @@ public class InternalSearchHit implements SearchHit {
     private Map<String, Object> sourceAsMap;
     private byte[] sourceAsBytes;
 
+    private Text group;
+
     private InternalSearchHit() {
 
     }
@@ -359,12 +361,21 @@ public class InternalSearchHit implements SearchHit {
         return this.matchedFilters;
     }
 
+    public void group(Text group) {
+        this.group = group;
+    }
+
+    public Text group() {
+        return group;
+    }
+
     public static class Fields {
         static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
         static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
         static final XContentBuilderString _ID = new XContentBuilderString("_id");
         static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
         static final XContentBuilderString _SCORE = new XContentBuilderString("_score");
+        static final XContentBuilderString _GROUP = new XContentBuilderString("_group");
         static final XContentBuilderString FIELDS = new XContentBuilderString("fields");
         static final XContentBuilderString HIGHLIGHT = new XContentBuilderString("highlight");
         static final XContentBuilderString SORT = new XContentBuilderString("sort");
@@ -392,6 +403,9 @@ public class InternalSearchHit implements SearchHit {
             builder.nullField(Fields._SCORE);
         } else {
             builder.field(Fields._SCORE, score);
+        }
+        if (group != null) {
+            builder.field(Fields._GROUP, group);
         }
         if (source != null) {
             RestXContentBuilder.restDocumentSource(source, builder, params);
@@ -485,6 +499,7 @@ public class InternalSearchHit implements SearchHit {
         type = in.readSharedText();
         version = in.readLong();
         source = in.readBytesReference();
+        group = in.readOptionalText();
         if (source.length() == 0) {
             source = null;
         }
@@ -620,6 +635,7 @@ public class InternalSearchHit implements SearchHit {
         out.writeSharedText(type);
         out.writeLong(version);
         out.writeBytesReference(source);
+        out.writeOptionalText(group);
         if (explanation == null) {
             out.writeBoolean(false);
         } else {

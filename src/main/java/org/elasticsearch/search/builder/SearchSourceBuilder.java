@@ -37,6 +37,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.facet.FacetBuilder;
+import org.elasticsearch.search.grouping.GroupingBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -108,6 +109,8 @@ public class SearchSourceBuilder implements ToXContent {
     private SuggestBuilder suggestBuilder;
 
     private RescoreBuilder rescoreBuilder;
+
+    private GroupingBuilder groupingBuilder;
 
     private TObjectFloatHashMap<String> indexBoost = null;
 
@@ -418,6 +421,13 @@ public class SearchSourceBuilder implements ToXContent {
             rescoreBuilder = new RescoreBuilder();
         }
         return rescoreBuilder;
+    }
+
+    public GroupingBuilder grouping() {
+        if (groupingBuilder == null) {
+            groupingBuilder = new GroupingBuilder();
+        }
+        return groupingBuilder;
     }
 
     /**
@@ -735,6 +745,10 @@ public class SearchSourceBuilder implements ToXContent {
 
         if (rescoreBuilder != null) {
             rescoreBuilder.toXContent(builder, params);
+        }
+
+        if (groupingBuilder != null) {
+            groupingBuilder.toXContent(builder, params);
         }
 
         if (stats != null) {

@@ -34,6 +34,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.facet.FacetBuilder;
+import org.elasticsearch.search.grouping.GroupingBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -674,6 +675,16 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         return this;
     }
 
+    public SearchRequestBuilder groupByField(String groupField) {
+        groupingBuilder().setGroupField(groupField);
+        return this;
+    }
+
+    public SearchRequestBuilder sortWithinGroup(SortBuilder sortBuilder) {
+        groupingBuilder().setSortWithinGroup(sortBuilder);
+        return this;
+    }
+
     /**
      * Sets the source of the request as a json string. Note, settings anything other
      * than the search type will cause this source to be overridden, consider using
@@ -853,6 +864,10 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     private RescoreBuilder rescoreBuilder() {
         return sourceBuilder().rescore();
+    }
+
+    private GroupingBuilder groupingBuilder() {
+        return sourceBuilder().grouping();
     }
 
 }

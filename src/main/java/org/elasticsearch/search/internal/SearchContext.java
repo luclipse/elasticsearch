@@ -56,6 +56,9 @@ import org.elasticsearch.search.facet.SearchContextFacets;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.partial.PartialFieldsContext;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
+import org.elasticsearch.search.grouping.AggregatedGroups;
+import org.elasticsearch.search.grouping.DistributedGroupResult;
+import org.elasticsearch.search.grouping.GroupContext;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -114,6 +117,10 @@ public class SearchContext implements Releasable {
 
     private final DfsSearchResult dfsResult;
 
+    private final DistributedGroupResult groupResult;
+
+    private AggregatedGroups aggregatedGroups;
+
     private final QuerySearchResult queryResult;
 
     private final FetchSearchResult fetchResult;
@@ -171,6 +178,8 @@ public class SearchContext implements Releasable {
 
     private RescoreSearchContext rescore;
 
+    private GroupContext group;
+
     private SearchLookup searchLookup;
 
     private boolean queryRewritten;
@@ -193,6 +202,7 @@ public class SearchContext implements Releasable {
         this.dfsResult = new DfsSearchResult(id, shardTarget);
         this.queryResult = new QuerySearchResult(id, shardTarget);
         this.fetchResult = new FetchSearchResult(id, shardTarget);
+        this.groupResult = new DistributedGroupResult(id, shardTarget);
         this.indexShard = indexShard;
         this.indexService = indexService;
 
@@ -326,6 +336,22 @@ public class SearchContext implements Releasable {
 
     public void rescore(RescoreSearchContext rescore) {
         this.rescore = rescore;
+    }
+
+    public void group(GroupContext groupContext) {
+        this.group = groupContext;
+    }
+
+    public GroupContext group() {
+        return group;
+    }
+
+    public void aggregatedGroups(AggregatedGroups groups) {
+        this.aggregatedGroups = groups;
+    }
+
+    public AggregatedGroups aggregatedGroups() {
+        return aggregatedGroups;
     }
 
     public boolean hasScriptFields() {
@@ -579,6 +605,10 @@ public class SearchContext implements Releasable {
 
     public DfsSearchResult dfsResult() {
         return dfsResult;
+    }
+
+    public DistributedGroupResult groupResult() {
+        return groupResult;
     }
 
     public QuerySearchResult queryResult() {

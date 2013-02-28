@@ -24,6 +24,7 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
+import org.elasticsearch.search.grouping.DistributedGroupResult;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
 
 import java.util.Collection;
@@ -36,6 +37,8 @@ import java.util.Queue;
 public class TransportSearchCache {
 
     private final Queue<Collection<DfsSearchResult>> cacheDfsResults = ConcurrentCollections.newQueue();
+
+    private final Queue<Collection<DistributedGroupResult>> cacheDistributedGroupingResults = ConcurrentCollections.newQueue();
 
     private final Queue<Map<SearchShardTarget, QuerySearchResultProvider>> cacheQueryResults = ConcurrentCollections.newQueue();
 
@@ -56,6 +59,20 @@ public class TransportSearchCache {
     public void releaseDfsResults(Collection<DfsSearchResult> dfsResults) {
         dfsResults.clear();
         cacheDfsResults.offer(dfsResults);
+    }
+
+    public Collection<DistributedGroupResult> obtainDistributedGroupingResults() {
+        Collection<DistributedGroupResult> distributedGroupingResults;
+        while ((distributedGroupingResults = cacheDistributedGroupingResults.poll()) == null) {
+            Queue<DistributedGroupResult> offer = ConcurrentCollections.newQueue();
+            cacheDistributedGroupingResults.offer(offer);
+        }
+        return distributedGroupingResults;
+    }
+
+    public void releaseDistributedGroupingResults(Collection<DistributedGroupResult> distributedGroupingResults) {
+        distributedGroupingResults.clear();
+        cacheDistributedGroupingResults.offer(distributedGroupingResults);
     }
 
     public Map<SearchShardTarget, QuerySearchResultProvider> obtainQueryResults() {

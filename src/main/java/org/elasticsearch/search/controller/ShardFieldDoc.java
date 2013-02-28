@@ -20,6 +20,7 @@
 package org.elasticsearch.search.controller;
 
 import org.apache.lucene.search.FieldDoc;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.search.SearchShardTarget;
 
 /**
@@ -27,16 +28,17 @@ import org.elasticsearch.search.SearchShardTarget;
  */
 public class ShardFieldDoc extends FieldDoc implements ShardDoc {
 
+    private final Text group;
     private final SearchShardTarget shardTarget;
 
-    public ShardFieldDoc(SearchShardTarget shardTarget, int doc, float score) {
-        super(doc, score);
-        this.shardTarget = shardTarget;
+    public ShardFieldDoc(SearchShardTarget shardTarget, int doc, float score, Object[] fields) {
+        this(shardTarget, doc, score, fields, null);
     }
 
-    public ShardFieldDoc(SearchShardTarget shardTarget, int doc, float score, Object[] fields) {
-        super(doc, score, fields);
+    public ShardFieldDoc(SearchShardTarget shardTarget, int doc, float score, Object[] fields, Text group) {
+        super(doc, score, fields, shardTarget.shardId());
         this.shardTarget = shardTarget;
+        this.group = group;
     }
 
     @Override
@@ -52,5 +54,10 @@ public class ShardFieldDoc extends FieldDoc implements ShardDoc {
     @Override
     public float score() {
         return score;
+    }
+
+    @Override
+    public Text group() {
+        return group;
     }
 }

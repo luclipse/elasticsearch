@@ -109,6 +109,12 @@
             <version>${lucene.version}</version>
             <scope>compile</scope>
         </dependency>
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-grouping</artifactId>
+            <version>${lucene.version}</version>
+            <scope>compile</scope>
+        </dependency>
         <!-- Lucene spatial, make sure when upgrading to work with latest version of jts/spatial4j dependencies -->
         <dependency>
             <groupId>org.apache.lucene</groupId>

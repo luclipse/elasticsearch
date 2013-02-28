@@ -27,12 +27,20 @@ import gnu.trove.impl.Constants;
 import gnu.trove.map.TMap;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
+import org.apache.lucene.search.grouping.GroupDocs;
+import org.apache.lucene.search.grouping.SearchGroup;
+import org.apache.lucene.search.grouping.TopGroups;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.ShardFieldDocSortedHitQueue;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.text.BytesText;
+import org.elasticsearch.common.text.StringText;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.trove.ExtTHashMap;
 import org.elasticsearch.common.trove.ExtTIntArrayList;
 import org.elasticsearch.search.SearchShardTarget;
@@ -43,6 +51,8 @@ import org.elasticsearch.search.facet.InternalFacet;
 import org.elasticsearch.search.facet.InternalFacets;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResultProvider;
+import org.elasticsearch.search.grouping.AggregatedGroups;
+import org.elasticsearch.search.grouping.DistributedGroupResult;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
@@ -53,6 +63,7 @@ import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -120,6 +131,66 @@ public class SearchPhaseController extends AbstractComponent {
             aggMaxDoc += result.maxDoc();
         }
         return new AggregatedDfs(termStatistics, fieldStatistics, aggMaxDoc);
+    }
+
+    public AggregatedGroups aggregateGroups(Collection<DistributedGroupResult> results) throws IOException {
+        int groupOffset = -1;
+        int groupSize = -1;
+        Sort groupSort = null;
+        List<Collection<SearchGroup>> searchGroups = new ArrayList<Collection<SearchGroup>>();
+        for (DistributedGroupResult result : results) {
+            groupOffset = result.groupOffset();
+            groupSize = result.groupSize();
+            groupSort = result.groupSort();
+            searchGroups.add(result.searchGroups());
+        }
+        Collection<SearchGroup> mergedSg = SearchGroup.merge((List) searchGroups, groupOffset, groupSize, groupSort);
+        return new AggregatedGroups(mergedSg);
+    }
+
+    public ShardDoc[] sortGroupedDocs(Collection<QuerySearchResultProvider> input) throws IOException {
+        if (input.isEmpty()) {
+            return EMPTY;
+        }
+
+        List<? extends QuerySearchResultProvider> results = QUERY_RESULT_ORDERING.sortedCopy(input);
+        Sort groupSort = results.get(0).queryResult().groupSort();
+        Sort sortWithinGroup = results.get(0).queryResult().sortWithinGroup();
+        TopGroups[] topGroups = new TopGroups[results.size()];
+        int offsetInGroup = results.get(0).queryResult().offsetWithinGroup();
+        int sizeInGroup = results.get(0).queryResult().sizeWithinGroup();
+
+        // argh... converting...
+        for (int i = 0; i < results.size(); i++) {
+            QuerySearchResultProvider result = results.get(i);
+            topGroups[i] = result.queryResult().topGroups();
+            for (GroupDocs group : topGroups[i].groups) {
+                Text groupValue;
+                if (group.groupValue instanceof BytesRef) {
+                    groupValue = new BytesText(new BytesArray((BytesRef) group.groupValue));
+                } else {
+                    groupValue = new StringText(group.groupValue.toString());
+                }
+                for (int j = 0; j < group.scoreDocs.length; j++) {
+                    ScoreDoc scoreDoc = group.scoreDocs[j];
+                    if (scoreDoc instanceof FieldDoc) {
+                        FieldDoc fieldDoc = (FieldDoc) scoreDoc;
+                        group.scoreDocs[j] = new ShardFieldDoc(result.shardTarget(), fieldDoc.doc, fieldDoc.score, fieldDoc.fields, groupValue);
+                    } else {
+                        group.scoreDocs[j] = new ShardScoreDoc(result.shardTarget(), scoreDoc.doc, scoreDoc.score, groupValue);
+                    }
+                }
+            }
+        }
+
+        TopGroups<Object> merged = TopGroups.<Object>merge(topGroups, groupSort, sortWithinGroup, offsetInGroup, sizeInGroup, TopGroups.ScoreMergeMode.None);
+        List<ShardDoc> shardDocs = new ArrayList<ShardDoc>();
+        for (GroupDocs group : merged.groups) {
+            for (ScoreDoc scoreDoc : group.scoreDocs) {
+                shardDocs.add((ShardDoc) scoreDoc);
+            }
+        }
+        return shardDocs.toArray(new ShardDoc[shardDocs.size()]);
     }
 
     public ShardDoc[] sortDocs(Collection<? extends QuerySearchResultProvider> results1) {
@@ -299,6 +370,14 @@ public class SearchPhaseController extends AbstractComponent {
                     sortScoreIndex = i;
                 }
             }
+        } else if (querySearchResult.topGroups() != null) {
+            for (GroupDocs group : querySearchResult.topGroups().groups) {
+                for (ScoreDoc scoreDoc : group.scoreDocs) {
+                    if (scoreDoc instanceof FieldDoc) {
+                        sorted = true;
+                    }
+                }
+            }
         }
 
         // merge facets
@@ -335,9 +414,18 @@ public class SearchPhaseController extends AbstractComponent {
             if (queryResultProvider.queryResult().searchTimedOut()) {
                 timedOut = true;
             }
-            totalHits += queryResultProvider.queryResult().topDocs().totalHits;
-            if (!Float.isNaN(queryResultProvider.queryResult().topDocs().getMaxScore())) {
-                maxScore = Math.max(maxScore, queryResultProvider.queryResult().topDocs().getMaxScore());
+            if (queryResultProvider.queryResult().topDocs() != null) {
+                totalHits += queryResultProvider.queryResult().topDocs().totalHits;
+                if (!Float.isNaN(queryResultProvider.queryResult().topDocs().getMaxScore())) {
+                    maxScore = Math.max(maxScore, queryResultProvider.queryResult().topDocs().getMaxScore());
+                }
+            } else if (queryResultProvider.queryResult().topGroups() != null) {
+                totalHits += queryResultProvider.queryResult().topGroups().totalHitCount;
+                if (!Float.isNaN(queryResultProvider.queryResult().topGroups().maxScore)) {
+                    maxScore = Math.max(maxScore, queryResultProvider.queryResult().topDocs().getMaxScore());
+                }
+            } else {
+                throw new RuntimeException("bleh");
             }
         }
         if (Float.isInfinite(maxScore)) {
@@ -370,6 +458,10 @@ public class SearchPhaseController extends AbstractComponent {
                         if (sortScoreIndex != -1) {
                             searchHit.score(((Number) fieldDoc.fields[sortScoreIndex]).floatValue());
                         }
+                    }
+
+                    if (shardDoc.group() != null) {
+                        searchHit.group(shardDoc.group());
                     }
 
                     hits.add(searchHit);
@@ -412,4 +504,5 @@ public class SearchPhaseController extends AbstractComponent {
         InternalSearchHits searchHits = new InternalSearchHits(hits.toArray(new InternalSearchHit[hits.size()]), totalHits, maxScore);
         return new InternalSearchResponse(searchHits, facets, suggest, timedOut);
     }
+
 }

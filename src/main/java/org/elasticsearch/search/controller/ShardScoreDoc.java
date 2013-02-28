@@ -20,6 +20,7 @@
 package org.elasticsearch.search.controller;
 
 import org.apache.lucene.search.ScoreDoc;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.search.SearchShardTarget;
 
 /**
@@ -28,10 +29,16 @@ import org.elasticsearch.search.SearchShardTarget;
 public class ShardScoreDoc extends ScoreDoc implements ShardDoc {
 
     private final SearchShardTarget shardTarget;
+    private final Text group;
 
     public ShardScoreDoc(SearchShardTarget shardTarget, int doc, float score) {
-        super(doc, score);
+        this(shardTarget, doc, score, null);
+    }
+
+    public ShardScoreDoc(SearchShardTarget shardTarget, int doc, float score, Text group) {
+        super(doc, score, shardTarget.shardId());
         this.shardTarget = shardTarget;
+        this.group = group;
     }
 
     @Override
@@ -47,5 +54,10 @@ public class ShardScoreDoc extends ScoreDoc implements ShardDoc {
     @Override
     public float score() {
         return score;
+    }
+
+    @Override
+    public Text group() {
+        return group;
     }
 }

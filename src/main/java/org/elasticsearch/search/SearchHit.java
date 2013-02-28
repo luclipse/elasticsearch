@@ -23,6 +23,7 @@ import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.highlight.HighlightField;
 
@@ -192,4 +193,7 @@ public interface SearchHit extends Streamable, ToXContent, Iterable<SearchHitFie
      * The shard of the search hit.
      */
     SearchShardTarget getShard();
+
+    Text group();
+
 }

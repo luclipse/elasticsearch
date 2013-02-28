@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.controller;
 
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.search.SearchShardTarget;
 
 /**
@@ -31,4 +32,7 @@ public interface ShardDoc {
     int docId();
 
     float score();
+
+    Text group();
+
 }

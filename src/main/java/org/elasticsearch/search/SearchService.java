@@ -50,6 +50,8 @@ import org.elasticsearch.search.dfs.CachedDfSource;
 import org.elasticsearch.search.dfs.DfsPhase;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.*;
+import org.elasticsearch.search.grouping.DistributedGroupPhase;
+import org.elasticsearch.search.grouping.DistributedGroupResult;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -82,6 +84,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
     private final DfsPhase dfsPhase;
 
+    private final DistributedGroupPhase distributedGroupPhase;
+
     private final QueryPhase queryPhase;
 
     private final FetchPhase fetchPhase;
@@ -102,7 +106,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
     @Inject
     public SearchService(Settings settings, ClusterService clusterService, IndicesService indicesService, IndicesLifecycle indicesLifecycle, IndicesWarmer indicesWarmer, ThreadPool threadPool,
-                         ScriptService scriptService, DfsPhase dfsPhase, QueryPhase queryPhase, FetchPhase fetchPhase) {
+                         ScriptService scriptService, DfsPhase dfsPhase, DistributedGroupPhase distributedGroupPhase, QueryPhase queryPhase, FetchPhase fetchPhase) {
         super(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
@@ -110,6 +114,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         this.indicesWarmer = indicesWarmer;
         this.scriptService = scriptService;
         this.dfsPhase = dfsPhase;
+        this.distributedGroupPhase = distributedGroupPhase;
         this.queryPhase = queryPhase;
         this.fetchPhase = fetchPhase;
 
@@ -161,6 +166,23 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             if (context.shardTarget().index().equals(shardId.index().name()) && context.shardTarget().shardId() == shardId.id()) {
                 freeContext(context);
             }
+        }
+    }
+
+    public DistributedGroupResult executeDistributedGroupingPhase(ShardSearchRequest request) throws ElasticSearchException {
+        SearchContext context = createContext(request);
+        activeContexts.put(context.id(), context);
+        try {
+            contextProcessing(context);
+            distributedGroupPhase.execute(context);
+            contextProcessedSuccessfully(context);
+            return context.groupResult();
+        } catch (RuntimeException e) {
+            logger.trace("Distributed grouping phase failed", e);
+            freeContext(context);
+            throw e;
+        } finally {
+            cleanContext(context);
         }
     }
 
@@ -282,7 +304,11 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         SearchContext context = findContext(request.id());
         contextProcessing(context);
         try {
-            context.searcher().dfSource(new CachedDfSource(context.searcher().getIndexReader(), request.dfs(), context.similarityService().similarity()));
+            if (request.dfs() != null) {
+                context.searcher().dfSource(new CachedDfSource(context.searcher().getIndexReader(), request.dfs(), context.similarityService().similarity()));
+            } else if (request.groups() != null) {
+                context.aggregatedGroups(request.groups());
+            }
         } catch (IOException e) {
             freeContext(context);
             cleanContext(context);

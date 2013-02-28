@@ -21,22 +21,30 @@ package org.elasticsearch.search.query;
 
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHitCountCollector;
+import org.apache.lucene.search.grouping.TopGroups;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.search.grouping.XTermFirstPassGroupingCollector;
+import org.elasticsearch.index.search.grouping.XTermSecondPassGroupingCollector;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.facet.FacetPhase;
+import org.elasticsearch.search.grouping.GroupContext;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rescore.RescorePhase;
-import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.sort.SortParseElement;
 import org.elasticsearch.search.sort.TrackScoresParseElement;
 import org.elasticsearch.search.suggest.SuggestPhase;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -74,6 +82,7 @@ public class QueryPhase implements SearchPhase {
                 .put("min_score", new MinScoreParseElement())
                 .put("minScore", new MinScoreParseElement())
                 .put("timeout", new TimeoutParseElement())
+                .put("group", new GroupParseElement())
                 .putAll(facetPhase.parseElements())
                 .putAll(suggestPhase.parseElements())
                 .putAll(rescorePhase.parseElements());
@@ -112,29 +121,59 @@ public class QueryPhase implements SearchPhase {
             Query query = searchContext.query();
 
             TopDocs topDocs;
-            int numDocs = searchContext.from() + searchContext.size() ;
+            int numDocs = searchContext.from() + searchContext.size();
             if (numDocs == 0) {
                 // if 0 was asked, change it to 1 since 0 is not allowed
                 numDocs = 1;
             }
 
-            if (searchContext.searchType() == SearchType.COUNT) {
-                TotalHitCountCollector collector = new TotalHitCountCollector();
-                searchContext.searcher().search(query, collector);
-                topDocs = new TopDocs(collector.getTotalHits(), Lucene.EMPTY_SCORE_DOCS, 0);
-            } else if (searchContext.searchType() == SearchType.SCAN) {
-                topDocs = searchContext.scanContext().execute(searchContext);
-            } else if (searchContext.sort() != null) {
-                topDocs = searchContext.searcher().search(query, null, numDocs, searchContext.sort(),
-                        searchContext.trackScores(), searchContext.trackScores());
-            } else {
-                if (searchContext.rescore() != null) {
-                    rescore = true;
-                    numDocs = Math.max(searchContext.rescore().window(), numDocs);
+            GroupContext groupContext = searchContext.group();
+            if (groupContext != null) {
+                FieldMapper groupField = searchContext.mapperService().smartNameFieldMapper(groupContext.groupField());
+                IndexFieldData.WithOrdinals groupFieldData = searchContext.fieldData().getForField(groupField);
+                // nopush --> generic hell
+                Collection searchGroups = searchContext.aggregatedGroups().searchGroups();
+                Sort groupSort = searchContext.sort();
+                if (groupSort == null) {
+                    groupSort = Sort.RELEVANCE;
                 }
-                topDocs = searchContext.searcher().search(query, numDocs);
+                if (searchGroups == null) { // In the case we search in only one shard
+                    XTermFirstPassGroupingCollector firstPass = new XTermFirstPassGroupingCollector(
+                            groupSort, numDocs, groupFieldData
+                    );
+                    searchContext.searcher().search(query, firstPass);
+                    searchGroups = firstPass.getTopGroups(numDocs, false);
+                }
+                XTermSecondPassGroupingCollector secondPass = new XTermSecondPassGroupingCollector(
+                        searchGroups, groupSort, groupContext.sortWithinGroup(), groupContext.sizeWithinGroup(),
+                        searchContext.trackScores(), searchContext.trackScores(), true, groupFieldData
+                );
+                searchContext.searcher().search(query, secondPass);
+                TopGroups<BytesRef> topGroups = secondPass.getTopGroups(groupContext.offsetWithinGroup());
+                searchContext.queryResult().groupSort(groupSort);
+                searchContext.queryResult().sortWithinGroup(groupContext.sortWithinGroup());
+                searchContext.queryResult().offsetWithinGroup(groupContext.offsetWithinGroup());
+                searchContext.queryResult().sizeWithinGroup(groupContext.sizeWithinGroup());
+                searchContext.queryResult().topGroups(topGroups);
+            } else {
+                if (searchContext.searchType() == SearchType.COUNT) {
+                    TotalHitCountCollector collector = new TotalHitCountCollector();
+                    searchContext.searcher().search(query, collector);
+                    topDocs = new TopDocs(collector.getTotalHits(), Lucene.EMPTY_SCORE_DOCS, 0);
+                } else if (searchContext.searchType() == SearchType.SCAN) {
+                    topDocs = searchContext.scanContext().execute(searchContext);
+                } else if (searchContext.sort() != null) {
+                    topDocs = searchContext.searcher().search(query, null, numDocs, searchContext.sort(),
+                            searchContext.trackScores(), searchContext.trackScores());
+                } else {
+                    if (searchContext.rescore() != null) {
+                        rescore = true;
+                        numDocs = Math.max(searchContext.rescore().window(), numDocs);
+                    }
+                    topDocs = searchContext.searcher().search(query, numDocs);
+                }
+                searchContext.queryResult().topDocs(topDocs);
             }
-            searchContext.queryResult().topDocs(topDocs);
         } catch (Exception e) {
             throw new QueryPhaseExecutionException(searchContext, "Failed to execute main query", e);
         } finally {

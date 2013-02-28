@@ -103,6 +103,24 @@ public class SortParseElement implements SearchParseElement {
         }
     }
 
+    public List<SortField> retrieveSortFields(XContentParser parser, SearchContext context) throws Exception {
+        XContentParser.Token token = parser.currentToken();
+        List<SortField> sortFields = Lists.newArrayListWithCapacity(2);
+        if (token == XContentParser.Token.START_ARRAY) {
+            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                if (token == XContentParser.Token.START_OBJECT) {
+                    addCompoundSortField(parser, context, sortFields);
+                } else if (token == XContentParser.Token.VALUE_STRING) {
+                    addSortField(context, sortFields, parser.text(), false, false, null, null, null, null);
+                }
+            }
+        } else {
+            addCompoundSortField(parser, context, sortFields);
+        }
+        return sortFields;
+    }
+
+
     private void addCompoundSortField(XContentParser parser, SearchContext context, List<SortField> sortFields) throws Exception {
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {

@@ -23,6 +23,9 @@ import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
+import org.apache.lucene.search.grouping.GroupDocs;
+import org.apache.lucene.search.grouping.SearchGroup;
+import org.apache.lucene.search.grouping.TopGroups;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
@@ -36,6 +39,9 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 
 /**
  *
@@ -96,7 +102,7 @@ public class Lucene {
         sis.read(directory);
         return sis;
     }
-    
+
     public static long count(IndexSearcher searcher, Query query) throws IOException {
         TotalHitCountCollector countCollector = new TotalHitCountCollector();
         // we don't need scores, so wrap it in a constant score query
@@ -314,6 +320,199 @@ public class Lucene {
                 writeExplanation(out, subExp);
             }
         }
+    }
+
+    public static <T> Collection<SearchGroup<T>> readSearchGroups(StreamInput in) throws IOException {
+        int size = in.readVInt();
+        List<SearchGroup<T>> searchGroups = new ArrayList<SearchGroup<T>>(size);
+        for (int i = 0; i < size; i++) {
+            SearchGroup<T> sg = new SearchGroup<T>();
+            sg.groupValue = (T) readSortValue(in);
+            int sortSize = in.readVInt();
+            sg.sortValues = new Object[sortSize];
+            for (int j = 0; j < sortSize; j++) {
+                sg.sortValues[j] = readSortValue(in);
+            }
+            searchGroups.add(sg);
+        }
+        return searchGroups;
+    }
+
+    public static <T> void writeSearchGroups(Collection<SearchGroup<T>> searchGroups, StreamOutput out) throws IOException {
+        out.writeVInt(searchGroups.size());
+        for (SearchGroup<T> searchGroup : searchGroups) {
+            writeSortValue(searchGroup.groupValue, out);
+            out.writeVInt(searchGroup.sortValues.length);
+            for (Object sortValue : searchGroup.sortValues) {
+                writeSortValue(sortValue, out);
+            }
+        }
+    }
+
+    public static <T> void writeTopGroups(TopGroups<T> topGroups, StreamOutput out) throws IOException {
+        out.writeVInt(topGroups.totalHitCount);
+        out.writeFloat(topGroups.maxScore);
+        out.writeVInt(topGroups.groups.length);
+        for (GroupDocs<T> group : topGroups.groups) {
+            writeSortValue(group.groupValue, out);
+            out.writeVInt(group.totalHits);
+            out.writeFloat(group.maxScore);
+
+            out.writeVInt(group.groupSortValues.length);
+            for (Object groupSortValue : group.groupSortValues) {
+                writeSortValue(groupSortValue, out);
+            }
+
+            out.writeVInt(group.scoreDocs.length);
+            for (ScoreDoc doc : group.scoreDocs) {
+                out.writeVInt(doc.doc);
+                out.writeFloat(doc.score);
+                if (doc instanceof FieldDoc) {
+                    out.writeBoolean(true);
+                    FieldDoc fieldDoc = (FieldDoc) doc;
+                    out.writeVInt(fieldDoc.fields.length);
+                    for (Object field : fieldDoc.fields) {
+                        writeSortValue(field, out);
+                    }
+                } else {
+                    out.writeBoolean(false);
+                }
+            }
+        }
+    }
+
+    public static <T> TopGroups<T> readTopGroups(StreamInput in) throws IOException {
+        int totalHitCount = in.readVInt();
+        float maxScore = in.readFloat();
+        int groupSize = in.readVInt();
+        GroupDocs[] groups = new GroupDocs[groupSize];
+        for (int i = 0; i < groupSize; i++) {
+            Object groupValue = readSortValue(in);
+            int totalHits = in.readVInt();
+            float groupMaxScore = in.readFloat();
+
+            int groupSortSize = in.readVInt();
+            Object[] groupSortValues = new Object[groupSortSize];
+            for (int j = 0; j < groupSortSize; j++) {
+                groupSortValues[j] = readSortValue(in);
+            }
+
+            int docsSize = in.readVInt();
+            ScoreDoc[] docs = new ScoreDoc[docsSize];
+            for (int j = 0; j < docsSize; j++) {
+                int docId = in.readVInt();
+                float score = in.readFloat();
+                if (in.readBoolean()) {
+                    int sortSize = in.readVInt();
+                    Object[] fields = new Object[sortSize];
+                    for (int k = 0; k < sortSize; k++) {
+                        fields[k] = readSortValue(in);
+                    }
+                    docs[j] = new FieldDoc(docId, score, fields);
+                } else {
+                    docs[j] = new ScoreDoc(docId, score);
+                }
+            }
+            groups[i] = new GroupDocs(Float.NaN, groupMaxScore, totalHits, docs, groupValue, groupSortValues);
+        }
+
+        return new TopGroups<T>(null, null, totalHitCount, -1, groups, maxScore);
+    }
+
+    private static void writeSortValue(Object value, StreamOutput out) throws IOException {
+        if (value == null) {
+            out.writeByte((byte) 0);
+        } else {
+            Class type = value.getClass();
+            if (type == String.class) {
+                out.writeByte((byte) 1);
+                out.writeString((String) value);
+            } else if (type == Integer.class) {
+                out.writeByte((byte) 2);
+                out.writeInt((Integer) value);
+            } else if (type == Long.class) {
+                out.writeByte((byte) 3);
+                out.writeLong((Long) value);
+            } else if (type == Float.class) {
+                out.writeByte((byte) 4);
+                out.writeFloat((Float) value);
+            } else if (type == Double.class) {
+                out.writeByte((byte) 5);
+                out.writeDouble((Double) value);
+            } else if (type == Byte.class) {
+                out.writeByte((byte) 6);
+                out.writeByte((Byte) value);
+            } else if (type == Short.class) {
+                out.writeByte((byte) 7);
+                out.writeShort((Short) value);
+            } else if (type == Boolean.class) {
+                out.writeByte((byte) 8);
+                out.writeBoolean((Boolean) value);
+            } else if (type == BytesRef.class) {
+                out.writeByte((byte) 9);
+                out.writeBytesRef((BytesRef) value);
+            } else {
+                throw new IOException("Can't handle sort field value of type [" + type + "]");
+            }
+        }
+    }
+
+    private static Object readSortValue(StreamInput in) throws IOException {
+        byte sortType = in.readByte();
+        switch (sortType) {
+            case 0:
+                return null;
+            case 1:
+                return in.readString();
+            case 2:
+                return in.readInt();
+            case 3:
+                return in.readLong();
+            case 4:
+                return in.readFloat();
+            case 5:
+                return in.readDouble();
+            case 6:
+                return in.readByte();
+            case 7:
+                return in.readShort();
+            case 8:
+                return in.readBoolean();
+            case 9:
+                return in.readBytesRef();
+            default:
+                throw new IOException("Can't match sort type");
+        }
+    }
+
+    public static void writeSort(Sort sort, StreamOutput out) throws IOException {
+        out.writeVInt(sort.getSort().length);
+        for (SortField sortField : sort.getSort()) {
+            if (sortField.getField() == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                out.writeString(sortField.getField());
+            }
+            if (sortField.getComparatorSource() != null) {
+                writeSortType(out, ((IndexFieldData.XFieldComparatorSource) sortField.getComparatorSource()).reducedType());
+            } else {
+                writeSortType(out, sortField.getType());
+            }
+            out.writeBoolean(sortField.getReverse());
+        }
+    }
+
+    public static Sort readSort(StreamInput in) throws IOException {
+        SortField[] fields = new SortField[in.readVInt()];
+        for (int i = 0; i < fields.length; i++) {
+            String field = null;
+            if (in.readBoolean()) {
+                field = in.readString();
+            }
+            fields[i] = new SortField(field, readSortType(in), in.readBoolean());
+        }
+        return new Sort(fields);
     }
 
     private static final Field segmentReaderSegmentInfoField;

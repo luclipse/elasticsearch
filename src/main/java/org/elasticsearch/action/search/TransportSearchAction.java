@@ -44,6 +44,8 @@ public class TransportSearchAction extends TransportAction<SearchRequest, Search
 
     private final ClusterService clusterService;
 
+    private final TransportSearchDistributedGroupingQueryThenFetchAction dgsQueryThenFetchAction;
+
     private final TransportSearchDfsQueryThenFetchAction dfsQueryThenFetchAction;
 
     private final TransportSearchQueryThenFetchAction queryThenFetchAction;
@@ -61,7 +63,7 @@ public class TransportSearchAction extends TransportAction<SearchRequest, Search
     @Inject
     public TransportSearchAction(Settings settings, ThreadPool threadPool,
                                  TransportService transportService, ClusterService clusterService,
-                                 TransportSearchDfsQueryThenFetchAction dfsQueryThenFetchAction,
+                                 TransportSearchDistributedGroupingQueryThenFetchAction dgsQueryThenFetchAction, TransportSearchDfsQueryThenFetchAction dfsQueryThenFetchAction,
                                  TransportSearchQueryThenFetchAction queryThenFetchAction,
                                  TransportSearchDfsQueryAndFetchAction dfsQueryAndFetchAction,
                                  TransportSearchQueryAndFetchAction queryAndFetchAction,
@@ -69,6 +71,7 @@ public class TransportSearchAction extends TransportAction<SearchRequest, Search
                                  TransportSearchCountAction countAction) {
         super(settings, threadPool);
         this.clusterService = clusterService;
+        this.dgsQueryThenFetchAction = dgsQueryThenFetchAction;
         this.dfsQueryThenFetchAction = dfsQueryThenFetchAction;
         this.queryThenFetchAction = queryThenFetchAction;
         this.dfsQueryAndFetchAction = dfsQueryAndFetchAction;
@@ -84,7 +87,7 @@ public class TransportSearchAction extends TransportAction<SearchRequest, Search
     @Override
     protected void doExecute(SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
         // optimize search type for cases where there is only one shard group to search on
-        if (optimizeSingleShard && searchRequest.searchType() != SCAN && searchRequest.searchType() != COUNT) {
+        if (optimizeSingleShard && searchRequest.searchType() != SCAN && searchRequest.searchType() != COUNT && searchRequest.searchType() != GROUPING) {
             try {
                 ClusterState clusterState = clusterService.state();
                 String[] concreteIndices = clusterState.metaData().concreteIndices(searchRequest.indices(), searchRequest.ignoreIndices(), true);
@@ -114,6 +117,8 @@ public class TransportSearchAction extends TransportAction<SearchRequest, Search
             scanAction.execute(searchRequest, listener);
         } else if (searchRequest.searchType() == SearchType.COUNT) {
             countAction.execute(searchRequest, listener);
+        } else if (searchRequest.searchType() == SearchType.GROUPING) {
+            dgsQueryThenFetchAction.execute(searchRequest, listener);
         }
     }
 

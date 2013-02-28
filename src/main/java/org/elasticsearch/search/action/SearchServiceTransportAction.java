@@ -34,6 +34,7 @@ import org.elasticsearch.search.fetch.FetchSearchRequest;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
+import org.elasticsearch.search.grouping.DistributedGroupResult;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
@@ -81,6 +82,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
         this.searchService = searchService;
 
         transportService.registerHandler(SearchFreeContextTransportHandler.ACTION, new SearchFreeContextTransportHandler());
+        transportService.registerHandler(SearchDistributedGroupingTransportHandler.ACTION, new SearchDistributedGroupingTransportHandler());
         transportService.registerHandler(SearchDfsTransportHandler.ACTION, new SearchDfsTransportHandler());
         transportService.registerHandler(SearchQueryTransportHandler.ACTION, new SearchQueryTransportHandler());
         transportService.registerHandler(SearchQueryByIdTransportHandler.ACTION, new SearchQueryByIdTransportHandler());
@@ -98,6 +100,40 @@ public class SearchServiceTransportAction extends AbstractComponent {
             searchService.freeContext(contextId);
         } else {
             transportService.sendRequest(node, SearchFreeContextTransportHandler.ACTION, new SearchFreeContextRequest(request, contextId), freeContextResponseHandler);
+        }
+    }
+
+    public void sendExecuteDistributedGrouping(DiscoveryNode node, ShardSearchRequest request, final SearchServiceListener<DistributedGroupResult> listener) {
+        if (clusterService.state().nodes().localNodeId().equals(node.id())) {
+            try {
+                DistributedGroupResult result = searchService.executeDistributedGroupingPhase(request);
+                listener.onResult(result);
+            } catch (Throwable t) {
+                listener.onFailure(t);
+            }
+        } else {
+            transportService.sendRequest(node, SearchDistributedGroupingTransportHandler.ACTION, request, new BaseTransportResponseHandler<DistributedGroupResult>() {
+
+                @Override
+                public DistributedGroupResult newInstance() {
+                    return new DistributedGroupResult();
+                }
+
+                @Override
+                public void handleResponse(DistributedGroupResult response) {
+                    listener.onResult(response);
+                }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    listener.onFailure(exp);
+                }
+
+                @Override
+                public String executor() {
+                    return ThreadPool.Names.SAME;
+                }
+            });
         }
     }
 
@@ -496,7 +532,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
 
     private class SearchDfsTransportHandler extends BaseTransportRequestHandler<ShardSearchRequest> {
 
-        static final String ACTION = "search/phase/dfs";
+        static final String ACTION = "search/phase/dgp";
 
         @Override
         public ShardSearchRequest newInstance() {
@@ -506,6 +542,27 @@ public class SearchServiceTransportAction extends AbstractComponent {
         @Override
         public void messageReceived(ShardSearchRequest request, TransportChannel channel) throws Exception {
             DfsSearchResult result = searchService.executeDfsPhase(request);
+            channel.sendResponse(result);
+        }
+
+        @Override
+        public String executor() {
+            return ThreadPool.Names.SEARCH;
+        }
+    }
+
+    private class SearchDistributedGroupingTransportHandler extends BaseTransportRequestHandler<ShardSearchRequest> {
+
+        static final String ACTION = "search/phase/dgs";
+
+        @Override
+        public ShardSearchRequest newInstance() {
+            return new ShardSearchRequest();
+        }
+
+        @Override
+        public void messageReceived(ShardSearchRequest request, TransportChannel channel) throws Exception {
+            DistributedGroupResult result = searchService.executeDistributedGroupingPhase(request);
             channel.sendResponse(result);
         }
 

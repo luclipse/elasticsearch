@@ -19,7 +19,11 @@
 
 package org.elasticsearch.search.query;
 
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.grouping.GroupDocs;
+import org.apache.lucene.search.grouping.TopGroups;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchShardTarget;
@@ -30,8 +34,7 @@ import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
-import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
+import static org.elasticsearch.common.lucene.Lucene.*;
 
 /**
  *
@@ -46,6 +49,12 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
     private InternalFacets facets;
     private Suggest suggest;
     private boolean searchTimedOut;
+
+    private TopGroups topGroups;
+    private Sort sortWithinGroup;
+    private Sort groupSort;
+    private int offsetWithinGroup;
+    private int sizeWithinGroup;
 
     public QuerySearchResult() {
 
@@ -77,6 +86,11 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
     @Override
     public void shardTarget(SearchShardTarget shardTarget) {
         this.shardTarget = shardTarget;
+        for (GroupDocs group : topGroups.groups) {
+            for (ScoreDoc scoreDoc : group.scoreDocs) {
+                scoreDoc.shardIndex = shardTarget.shardId();
+            }
+        }
     }
 
     public void searchTimedOut(boolean searchTimedOut) {
@@ -93,6 +107,14 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
 
     public void topDocs(TopDocs topDocs) {
         this.topDocs = topDocs;
+    }
+
+    public void topGroups(TopGroups topGroups) {
+        this.topGroups = topGroups;
+    }
+
+    public TopGroups topGroups() {
+        return topGroups;
     }
 
     public Facets facets() {
@@ -129,6 +151,38 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
         return this;
     }
 
+    public Sort sortWithinGroup() {
+        return sortWithinGroup;
+    }
+
+    public void sortWithinGroup(Sort sortWithinGroup) {
+        this.sortWithinGroup = sortWithinGroup;
+    }
+
+    public Sort groupSort() {
+        return groupSort;
+    }
+
+    public void groupSort(Sort groupSort) {
+        this.groupSort = groupSort;
+    }
+
+    public int offsetWithinGroup() {
+        return offsetWithinGroup;
+    }
+
+    public void offsetWithinGroup(int offsetWithinGroup) {
+        this.offsetWithinGroup = offsetWithinGroup;
+    }
+
+    public int sizeWithinGroup() {
+        return sizeWithinGroup;
+    }
+
+    public void sizeWithinGroup(int sizeWithinGroup) {
+        this.sizeWithinGroup = sizeWithinGroup;
+    }
+
     public static QuerySearchResult readQuerySearchResult(StreamInput in) throws IOException {
         QuerySearchResult result = new QuerySearchResult();
         result.readFrom(in);
@@ -142,7 +196,12 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
 //        shardTarget = readSearchShardTarget(in);
         from = in.readVInt();
         size = in.readVInt();
-        topDocs = readTopDocs(in);
+        if (in.readBoolean()) {
+            topDocs = readTopDocs(in);
+        }
+        if (in.readBoolean()) {
+            topGroups = readTopGroups(in);
+        }
         if (in.readBoolean()) {
             facets = InternalFacets.readFacets(in);
         }
@@ -150,6 +209,11 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
             suggest = Suggest.readSuggest(in);
         }
         searchTimedOut = in.readBoolean();
+
+        sortWithinGroup = readSort(in);
+        groupSort = readSort(in);
+        offsetWithinGroup = in.readVInt();
+        sizeWithinGroup = in.readVInt();
     }
 
     @Override
@@ -159,13 +223,27 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
 //        shardTarget.writeTo(out);
         out.writeVInt(from);
         out.writeVInt(size);
-        writeTopDocs(out, topDocs, 0);
+        if (topDocs != null) {
+            out.writeBoolean(true);
+            writeTopDocs(out, topDocs, 0);
+        } else {
+            out.writeBoolean(false);
+        }
+
+        if (topGroups != null) {
+            out.writeBoolean(true);
+            writeTopGroups(topGroups, out);
+        } else {
+            out.writeBoolean(false);
+        }
+
         if (facets == null) {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
             facets.writeTo(out);
         }
+
         if (suggest == null) {
             out.writeBoolean(false);
         } else {
@@ -173,5 +251,10 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
             suggest.writeTo(out);
         }
         out.writeBoolean(searchTimedOut);
+
+        writeSort(sortWithinGroup, out);
+        writeSort(groupSort, out);
+        out.writeVInt(offsetWithinGroup);
+        out.writeVInt(sizeWithinGroup);
     }
 }
