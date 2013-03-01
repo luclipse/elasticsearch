@@ -41,6 +41,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.cache.IndexCache;
+import org.elasticsearch.index.cache.id.IdCache;
 import org.elasticsearch.index.engine.*;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
@@ -51,6 +52,7 @@ import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.query.IndexQueryParserService;
+import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.index.search.stats.SearchStats;
@@ -66,11 +68,15 @@ import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.InternalIndicesLifecycle;
 import org.elasticsearch.indices.recovery.RecoveryStatus;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
+import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.query.QueryPhaseExecutionException;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.channels.ClosedByInterruptException;
+import java.util.List;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -366,7 +372,39 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         if (types == null) {
             types = Strings.EMPTY_ARRAY;
         }
-        Query query = queryParserService.parse(querySource).query();
+
+        Engine.Searcher engineSearcher = searcher();
+        SearchContext context = new SearchContext(engineSearcher, types) {
+
+            @Override
+            public IdCache idCache() {
+                return indexCache.idCache();
+            }
+
+        };
+        SearchContext.setCurrent(context);
+        Query query;
+        try {
+            ParsedQuery parsedQuery = queryParserService.parse(querySource);
+            context.parsedQuery(parsedQuery);
+            query = parsedQuery.query();
+            List<SearchContext.Rewrite> rewrites = context.rewrites();
+            if (rewrites != null) {
+                try {
+                    context.searcher().inStage(ContextIndexSearcher.Stage.REWRITE);
+                    for (SearchContext.Rewrite rewrite : rewrites) {
+                        rewrite.contextRewrite(context);
+                    }
+                } catch (Exception e) {
+                    throw new QueryPhaseExecutionException(context, "failed to execute context rewrite", e);
+                } finally {
+                    context.searcher().finishStage(ContextIndexSearcher.Stage.REWRITE);
+                }
+            }
+        } finally {
+            SearchContext.removeCurrent();
+            engineSearcher.release();
+        }
         query = filterQueryIfNeeded(query, types);
 
         Filter aliasFilter = indexAliasesService.aliasFilter(filteringAliases);
