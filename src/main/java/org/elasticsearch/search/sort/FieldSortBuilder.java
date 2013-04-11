@@ -19,9 +19,9 @@
 
 package org.elasticsearch.search.sort;
 
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.FilterBuilder;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
 
 import java.io.IOException;
 
@@ -43,6 +43,10 @@ public class FieldSortBuilder extends SortBuilder {
     private FilterBuilder nestedFilter;
 
     private String nestedPath;
+
+    private String childType;
+
+    private FilterBuilder childFilter;
 
     /**
      * Constructs a new sort based on a document field.
@@ -114,6 +118,16 @@ public class FieldSortBuilder extends SortBuilder {
         return this;
     }
 
+    public FieldSortBuilder setChildType(String childType) {
+        this.childType = childType;
+        return this;
+    }
+
+    public FieldSortBuilder setChildFilter(FilterBuilder childFilter) {
+        this.childFilter = childFilter;
+        return this;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(fieldName);
@@ -134,6 +148,12 @@ public class FieldSortBuilder extends SortBuilder {
         }
         if (nestedPath != null) {
             builder.field("nested_path", nestedPath);
+        }
+        if (childType != null) {
+            builder.field("child_type", childType);
+        }
+        if (childFilter != null) {
+            builder.field("child_filter", childFilter, params);
         }
         builder.endObject();
         return builder;

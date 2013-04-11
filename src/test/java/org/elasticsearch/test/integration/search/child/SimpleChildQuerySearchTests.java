@@ -27,6 +27,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.facet.terms.TermsFacet;
 import org.elasticsearch.search.sort.SortBuilders;
@@ -113,8 +114,8 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
     }
-    
-    
+
+
     @Test // see #2744
     public void test2744() throws ElasticSearchException, IOException {
         client.admin().indices().prepareDelete().execute().actionGet();
@@ -134,7 +135,7 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
         client.prepareIndex("test", "foo", "1").setSource("foo", 1).execute().actionGet();
         client.prepareIndex("test", "test").setSource("foo", 1).setParent("1").execute().actionGet();
         client.admin().indices().prepareRefresh().execute().actionGet();
-        SearchResponse searchResponse =  client.prepareSearch("test").setQuery(hasChildQuery("test", matchQuery("foo", 1))).execute().actionGet();
+        SearchResponse searchResponse = client.prepareSearch("test").setQuery(hasChildQuery("test", matchQuery("foo", 1))).execute().actionGet();
         assertThat(searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
@@ -1291,6 +1292,251 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
             assertThat(searchResponse.getHits().hits()[3].id(), equalTo("p003"));
             assertThat(searchResponse.getHits().hits()[4].id(), equalTo("p004"));
         }
+    }
+
+    @Test
+    public void simpleChildSorting() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+        client.admin().indices().prepareCreate("test")
+                .setSettings(
+                        ImmutableSettings.settingsBuilder()
+                                .put("index.number_of_shards", 1)
+                                .put("index.number_of_replicas", 0)
+                ).execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client.admin().indices().preparePutMapping("test").setType("child").setSource(jsonBuilder().startObject().startObject("type")
+                .startObject("_parent").field("type", "parent").endObject()
+                .startObject("properties")
+                .startObject("c_field_b").field("type", "byte").endObject()
+                .startObject("c_field_s").field("type", "short").endObject()
+                .startObject("c_field_i").field("type", "integer").endObject()
+                .startObject("c_field_l").field("type", "long").endObject()
+                .startObject("c_field_f").field("type", "float").endObject()
+                .startObject("c_field_d").field("type", "double").endObject()
+                .startObject("c_field_str").field("type", "string").field("index", "not_analyzed").endObject()
+                .endObject()
+                .endObject().endObject()).execute().actionGet();
+
+        client.prepareIndex("test", "parent", "p1").setSource("p_field", "p_value1").execute().actionGet();
+        client.prepareIndex("test", "child", "c1").setParent("p1")
+                .setSource(jsonBuilder().startObject()
+                        .field("c_field_l", 3l)
+                        .field("c_field_i", 3)
+                        .field("c_field_s", 3)
+                        .field("c_field_b", 3)
+                        .field("c_field_f", 3)
+                        .field("c_field_d", 3)
+                        .field("c_field_str", "d")
+                        .field("a", "1")
+                        .endObject()
+                )
+                .execute().actionGet();
+        client.prepareIndex("test", "child", "c2").setParent("p1")
+                .setSource(jsonBuilder().startObject()
+                        .field("c_field_l", 2l)
+                        .field("c_field_i", 2)
+                        .field("c_field_s", 2)
+                        .field("c_field_b", 2)
+                        .field("c_field_f", 2)
+                        .field("c_field_d", 2)
+                        .field("c_field_str", "c")
+                        .field("a", "2")
+                        .endObject()
+                )
+                .execute().actionGet();
+        client.prepareIndex("test", "parent", "p2").setSource("p_field", "p_value2").execute().actionGet();
+        client.prepareIndex("test", "child", "c3").setParent("p2")
+                .setSource(jsonBuilder().startObject()
+                        .field("c_field_l", 8l)
+                        .field("c_field_i", 8)
+                        .field("c_field_s", 8)
+                        .field("c_field_b", 8)
+                        .field("c_field_f", 8)
+                        .field("c_field_d", 8)
+                        .field("c_field_str", "e")
+                        .field("a", "1")
+                        .endObject()
+                )
+                .execute().actionGet();
+        client.prepareIndex("test", "child", "c4").setParent("p2")
+                .setSource(jsonBuilder().startObject()
+                        .field("c_field_l", -1l)
+                        .field("c_field_i", -1)
+                        .field("c_field_s", -1)
+                        .field("c_field_b", -1)
+                        .field("c_field_f", -1)
+                        .field("c_field_d", -1)
+                        .field("c_field_str", "b")
+                        .field("a", "2")
+                        .endObject()
+                )
+                .execute().actionGet();
+        client.prepareIndex("test", "parent", "p3").setSource("p_field", "p_value3").execute().actionGet();
+        client.prepareIndex("test", "child", "c5").setParent("p3")
+                .setSource(jsonBuilder().startObject()
+                        .field("c_field_l", 3l)
+                        .field("c_field_i", 3)
+                        .field("c_field_s", 3)
+                        .field("c_field_b", 3)
+                        .field("c_field_f", 3)
+                        .field("c_field_d", 3)
+                        .field("c_field_str", "d")
+                        .field("a", "1")
+                        .endObject()
+                )
+                .execute().actionGet();
+        client.prepareIndex("test", "child", "c6").setParent("p3")
+                .setSource(jsonBuilder().startObject()
+                        .field("c_field_l", -2l)
+                        .field("c_field_i", -2)
+                        .field("c_field_s", -2)
+                        .field("c_field_b", -2)
+                        .field("c_field_f", -2)
+                        .field("c_field_d", -2)
+                        .field("c_field_str", "a")
+                        .field("a", "2")
+                        .endObject()
+                )
+                .execute().actionGet();
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        String[] sortFields = new String[]{"c_field_l", "c_field_i", "c_field_s", "c_field_b", "c_field_f", "c_field_d"};
+        for (String sortField : sortFields) {
+            logger.info(String.format("--> [FIELD]: %s [ORDER]: asc [MODE]: min", sortField));
+            SearchResponse searchResponse = client.prepareSearch("test")
+                    .setQuery(hasChildQuery("child", matchAllQuery()))
+                    .addSort(SortBuilders.fieldSort(sortField).setChildType("child"))
+                    .execute().actionGet();
+            assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+            assertThat(searchResponse.getHits().getHits()[0].id(), equalTo("p3"));
+            assertThat(((Number) searchResponse.getHits().getHits()[0].sortValues()[0]).intValue(), equalTo(-2));
+            assertThat(searchResponse.getHits().getHits()[1].id(), equalTo("p2"));
+            assertThat(((Number) searchResponse.getHits().getHits()[1].sortValues()[0]).intValue(), equalTo(-1));
+            assertThat(searchResponse.getHits().getHits()[2].id(), equalTo("p1"));
+            assertThat(((Number) searchResponse.getHits().getHits()[2].sortValues()[0]).intValue(), equalTo(2));
+
+            logger.info(String.format("--> [FIELD]: %s [ORDER]: desc [MODE]: max", sortField));
+            searchResponse = client.prepareSearch("test")
+                    .setQuery(hasChildQuery("child", matchAllQuery()))
+                    .addSort(SortBuilders.fieldSort(sortField).setChildType("child").order(SortOrder.DESC))
+                    .execute().actionGet();
+            assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+            assertThat(searchResponse.getHits().getHits()[0].id(), equalTo("p2"));
+            assertThat(((Number) searchResponse.getHits().getHits()[0].sortValues()[0]).intValue(), equalTo(8));
+            assertThat(searchResponse.getHits().getHits()[1].id(), equalTo("p1"));
+            assertThat(((Number) searchResponse.getHits().getHits()[1].sortValues()[0]).intValue(), equalTo(3));
+            assertThat(searchResponse.getHits().getHits()[2].id(), equalTo("p3"));
+            assertThat(((Number) searchResponse.getHits().getHits()[2].sortValues()[0]).intValue(), equalTo(3));
+
+            logger.info(String.format("--> [FIELD]: %s [ORDER]: asc [MODE]: avg", sortField));
+            searchResponse = client.prepareSearch("test")
+                    .setQuery(hasChildQuery("child", matchAllQuery()))
+                    .addSort(SortBuilders.fieldSort(sortField).setChildType("child").sortMode("avg"))
+                    .execute().actionGet();
+            assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+            assertThat(searchResponse.getHits().getHits()[0].id(), equalTo("p3"));
+            assertThat(((Number) searchResponse.getHits().getHits()[0].sortValues()[0]).intValue(), equalTo(0));
+            assertThat(searchResponse.getHits().getHits()[1].id(), equalTo("p1"));
+            assertThat(((Number) searchResponse.getHits().getHits()[1].sortValues()[0]).intValue(), equalTo(2));
+            assertThat(searchResponse.getHits().getHits()[2].id(), equalTo("p2"));
+            assertThat(((Number) searchResponse.getHits().getHits()[2].sortValues()[0]).intValue(), equalTo(3));
+
+            logger.info(String.format("--> [FIELD]: %s [ORDER]: desc [MODE]: avg", sortField));
+            searchResponse = client.prepareSearch("test")
+                    .setQuery(hasChildQuery("child", matchAllQuery()))
+                    .addSort(SortBuilders.fieldSort(sortField).setChildType("child").order(SortOrder.DESC).sortMode("avg"))
+                    .execute().actionGet();
+            assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+            assertThat(searchResponse.getHits().getHits()[0].id(), equalTo("p2"));
+            assertThat(((Number) searchResponse.getHits().getHits()[0].sortValues()[0]).intValue(), equalTo(3));
+            assertThat(searchResponse.getHits().getHits()[1].id(), equalTo("p1"));
+            assertThat(((Number) searchResponse.getHits().getHits()[1].sortValues()[0]).intValue(), equalTo(2));
+            assertThat(searchResponse.getHits().getHits()[2].id(), equalTo("p3"));
+            assertThat(((Number) searchResponse.getHits().getHits()[2].sortValues()[0]).intValue(), equalTo(0));
+
+            logger.info(String.format("--> [FIELD]: %s [ORDER]: asc [MODE]: min [FILTER]: 'a:1'", sortField));
+            searchResponse = client.prepareSearch("test")
+                    .setQuery(hasChildQuery("child", matchAllQuery()))
+                    .addSort(SortBuilders.fieldSort(sortField).setChildType("child")
+                            .setChildFilter(FilterBuilders.termFilter("a", "1")))
+                    .execute().actionGet();
+            assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+            assertThat(searchResponse.getHits().getHits()[0].id(), equalTo("p1"));
+            assertThat(((Number) searchResponse.getHits().getHits()[0].sortValues()[0]).intValue(), equalTo(3));
+            assertThat(searchResponse.getHits().getHits()[1].id(), equalTo("p3"));
+            assertThat(((Number) searchResponse.getHits().getHits()[1].sortValues()[0]).intValue(), equalTo(3));
+            assertThat(searchResponse.getHits().getHits()[2].id(), equalTo("p2"));
+            assertThat(((Number) searchResponse.getHits().getHits()[2].sortValues()[0]).intValue(), equalTo(8));
+
+            logger.info(String.format("--> [FIELD]: %s [ORDER]: desc [MODE]: max [FILTER]: 'a:2'", sortField));
+            searchResponse = client.prepareSearch("test")
+                    .setQuery(hasChildQuery("child", matchAllQuery()))
+                    .addSort(SortBuilders.fieldSort(sortField).setChildType("child").order(SortOrder.DESC)
+                            .setChildFilter(FilterBuilders.termFilter("a", "2")))
+                    .execute().actionGet();
+            assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+            assertThat(searchResponse.getHits().getHits()[0].id(), equalTo("p1"));
+            assertThat(((Number) searchResponse.getHits().getHits()[0].sortValues()[0]).intValue(), equalTo(2));
+            assertThat(searchResponse.getHits().getHits()[1].id(), equalTo("p2"));
+            assertThat(((Number) searchResponse.getHits().getHits()[1].sortValues()[0]).intValue(), equalTo(-1));
+            assertThat(searchResponse.getHits().getHits()[2].id(), equalTo("p3"));
+            assertThat(((Number) searchResponse.getHits().getHits()[2].sortValues()[0]).intValue(), equalTo(-2));
+        }
+
+        String sortField = "c_field_str";
+        logger.info(String.format("--> [FIELD]: %s [ORDER]: asc [MODE]: min", sortField));
+        SearchResponse searchResponse = client.prepareSearch("test")
+                .setQuery(hasChildQuery("child", matchAllQuery()))
+                .addSort(SortBuilders.fieldSort(sortField).setChildType("child"))
+                .execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getHits()[0].id(), equalTo("p3"));
+        assertThat(searchResponse.getHits().getHits()[0].sortValues()[0].toString(), equalTo("a"));
+        assertThat(searchResponse.getHits().getHits()[1].id(), equalTo("p2"));
+        assertThat(searchResponse.getHits().getHits()[1].sortValues()[0].toString(), equalTo("b"));
+        assertThat(searchResponse.getHits().getHits()[2].id(), equalTo("p1"));
+        assertThat(searchResponse.getHits().getHits()[2].sortValues()[0].toString(), equalTo("c"));
+
+        logger.info(String.format("--> [FIELD]: %s [ORDER]: desc [MODE]: max", sortField));
+        searchResponse = client.prepareSearch("test")
+                .setQuery(hasChildQuery("child", matchAllQuery()))
+                .addSort(SortBuilders.fieldSort(sortField).setChildType("child").order(SortOrder.DESC))
+                .execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getHits()[0].id(), equalTo("p2"));
+        assertThat(searchResponse.getHits().getHits()[0].sortValues()[0].toString(), equalTo("e"));
+        assertThat(searchResponse.getHits().getHits()[1].id(), equalTo("p1"));
+        assertThat(searchResponse.getHits().getHits()[1].sortValues()[0].toString(), equalTo("d"));
+        assertThat(searchResponse.getHits().getHits()[2].id(), equalTo("p3"));
+        assertThat(searchResponse.getHits().getHits()[2].sortValues()[0].toString(), equalTo("d"));
+
+        logger.info(String.format("--> [FIELD]: %s [ORDER]: asc [MODE]: min [FILTER]: 'a:1'", sortField));
+        searchResponse = client.prepareSearch("test")
+                .setQuery(hasChildQuery("child", matchAllQuery()))
+                .addSort(SortBuilders.fieldSort(sortField).setChildType("child")
+                        .setChildFilter(FilterBuilders.termFilter("a", "1")))
+                .execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getHits()[0].id(), equalTo("p1"));
+        assertThat(searchResponse.getHits().getHits()[0].sortValues()[0].toString(), equalTo("d"));
+        assertThat(searchResponse.getHits().getHits()[1].id(), equalTo("p3"));
+        assertThat(searchResponse.getHits().getHits()[1].sortValues()[0].toString(), equalTo("d"));
+        assertThat(searchResponse.getHits().getHits()[2].id(), equalTo("p2"));
+        assertThat(searchResponse.getHits().getHits()[2].sortValues()[0].toString(), equalTo("e"));
+
+        logger.info(String.format("--> [FIELD]: %s [ORDER]: desc [MODE]: max [FILTER]: 'a:2'", sortField));
+        searchResponse = client.prepareSearch("test")
+                .setQuery(hasChildQuery("child", matchAllQuery()))
+                .addSort(SortBuilders.fieldSort(sortField).setChildType("child").order(SortOrder.DESC)
+                        .setChildFilter(FilterBuilders.termFilter("a", "2")))
+                .execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getHits()[0].id(), equalTo("p1"));
+        assertThat(searchResponse.getHits().getHits()[0].sortValues()[0].toString(), equalTo("c"));
+        assertThat(searchResponse.getHits().getHits()[1].id(), equalTo("p2"));
+        assertThat(searchResponse.getHits().getHits()[1].sortValues()[0].toString(), equalTo("b"));
+        assertThat(searchResponse.getHits().getHits()[2].id(), equalTo("p3"));
+        assertThat(searchResponse.getHits().getHits()[2].sortValues()[0].toString(), equalTo("a"));
     }
 
 }

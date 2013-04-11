@@ -21,18 +21,23 @@ package org.elasticsearch.search.sort;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.ObjectMappers;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
+import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
+import org.elasticsearch.index.search.child.ChildFieldComparatorSource;
 import org.elasticsearch.index.search.nested.NestedFieldComparatorSource;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.search.SearchParseElement;
@@ -78,13 +83,13 @@ public class SortParseElement implements SearchParseElement {
                 if (token == XContentParser.Token.START_OBJECT) {
                     addCompoundSortField(parser, context, sortFields);
                 } else if (token == XContentParser.Token.VALUE_STRING) {
-                    addSortField(context, sortFields, parser.text(), false, false, null, null, null, null);
+                    addSortField(context, sortFields, parser.text(), false, false, null, null, null, null, null, null);
                 } else {
                     throw new ElasticSearchIllegalArgumentException("malformed sort format, within the sort array, an object, or an actual string are allowed");
                 }
             }
         } else if (token == XContentParser.Token.VALUE_STRING) {
-            addSortField(context, sortFields, parser.text(), false, false, null, null, null, null);
+            addSortField(context, sortFields, parser.text(), false, false, null, null, null, null, null, null);
         } else if (token == XContentParser.Token.START_OBJECT) {
             addCompoundSortField(parser, context, sortFields);
         } else {
@@ -121,6 +126,9 @@ public class SortParseElement implements SearchParseElement {
                 SortMode sortMode = null;
                 Filter nestedFilter = null;
                 String nestedPath = null;
+                String childType = null;
+                Filter childFilter = null;
+
                 token = parser.nextToken();
                 if (token == XContentParser.Token.VALUE_STRING) {
                     String direction = parser.text();
@@ -131,7 +139,7 @@ public class SortParseElement implements SearchParseElement {
                     } else {
                         throw new ElasticSearchIllegalArgumentException("sort direction [" + fieldName + "] not supported");
                     }
-                    addSortField(context, sortFields, fieldName, reverse, ignoreUnmapped, missing, sortMode, nestedPath, nestedFilter);
+                    addSortField(context, sortFields, fieldName, reverse, ignoreUnmapped, missing, sortMode, nestedPath, nestedFilter, childType, childFilter);
                 } else {
                     if (parsers.containsKey(fieldName)) {
                         sortFields.add(parsers.get(fieldName).parse(parser, context));
@@ -156,25 +164,29 @@ public class SortParseElement implements SearchParseElement {
                                     sortMode = SortMode.fromString(parser.text());
                                 } else if ("nested_path".equals(innerJsonName) || "nestedPath".equals(innerJsonName)) {
                                     nestedPath = parser.text();
+                                } else if ("child_type".equals(innerJsonName) || "childType".equals(innerJsonName)) {
+                                    childType = parser.text();
                                 } else {
                                     throw new ElasticSearchIllegalArgumentException("sort option [" + innerJsonName + "] not supported");
                                 }
                             } else if (token == XContentParser.Token.START_OBJECT) {
                                 if ("nested_filter".equals(innerJsonName) || "nestedFilter".equals(innerJsonName)) {
                                     nestedFilter = context.queryParserService().parseInnerFilter(parser);
+                                } else if ("child_filter".equals(innerJsonName)) {
+                                    childFilter = context.queryParserService().parseInnerFilter(parser);
                                 } else {
                                     throw new ElasticSearchIllegalArgumentException("sort option [" + innerJsonName + "] not supported");
                                 }
                             }
                         }
-                        addSortField(context, sortFields, fieldName, reverse, ignoreUnmapped, missing, sortMode, nestedPath, nestedFilter);
+                        addSortField(context, sortFields, fieldName, reverse, ignoreUnmapped, missing, sortMode, nestedPath, nestedFilter, childType, childFilter);
                     }
                 }
             }
         }
     }
 
-    private void addSortField(SearchContext context, List<SortField> sortFields, String fieldName, boolean reverse, boolean ignoreUnmapped, @Nullable final String missing, SortMode sortMode, String nestedPath, Filter nestedFilter) {
+    private void addSortField(SearchContext context, List<SortField> sortFields, String fieldName, boolean reverse, boolean ignoreUnmapped, @Nullable final String missing, SortMode sortMode, String nestedPath, Filter nestedFilter, String childType, Filter childFilter) {
         if (SCORE_FIELD_NAME.equals(fieldName)) {
             if (reverse) {
                 sortFields.add(SORT_SCORE_REVERSE);
@@ -213,30 +225,53 @@ public class SortParseElement implements SearchParseElement {
                 sortMode = resolveDefaultSortMode(reverse);
             }
 
-            IndexFieldData.XFieldComparatorSource fieldComparatorSource = context.fieldData().getForField(fieldMapper)
-                    .comparatorSource(missing, sortMode);
-            ObjectMapper objectMapper;
-            if (nestedPath != null) {
-                ObjectMappers objectMappers = context.mapperService().objectMapper(nestedPath);
-                if (objectMappers == null) {
-                    throw new ElasticSearchIllegalArgumentException("failed to find nested object mapping for explicit nested path [" + nestedPath + "]");
-                }
-                objectMapper = objectMappers.mapper();
-                if (!objectMapper.nested().isNested()) {
-                    throw new ElasticSearchIllegalArgumentException("mapping for explicit nested path is not mapped as nested: [" + nestedPath + "]");
-                }
-            } else {
-                objectMapper = context.mapperService().resolveClosestNestedObjectMapper(fieldName);
-            }
-            if (objectMapper != null && objectMapper.nested().isNested()) {
-                Filter rootDocumentsFilter = context.filterCache().cache(NonNestedDocsFilter.INSTANCE);
-                Filter innerDocumentsFilter;
-                if (nestedFilter != null) {
-                    innerDocumentsFilter = context.filterCache().cache(nestedFilter);
+
+            IndexFieldData.XFieldComparatorSource fieldComparatorSource;
+            if (childType != null) {
+                DocumentMapper childDocMapper = context.mapperService().documentMapper(childType);
+                ParentFieldMapper parentFieldMapper = childDocMapper.parentFieldMapper();
+                String parentType = parentFieldMapper.type();
+                Filter _childFilter;
+                if (childFilter != null) {
+                    XBooleanFilter booleanFilter = new XBooleanFilter();
+                    booleanFilter.add(context.filterCache().cache(childDocMapper.typeFilter()), BooleanClause.Occur.MUST);
+                    booleanFilter.add(childFilter, BooleanClause.Occur.MUST);
+                    _childFilter = booleanFilter;
                 } else {
-                    innerDocumentsFilter = context.filterCache().cache(objectMapper.nestedTypeFilter());
+                    _childFilter = context.filterCache().cache(childDocMapper.typeFilter());
                 }
-                fieldComparatorSource = new NestedFieldComparatorSource(sortMode, fieldComparatorSource, rootDocumentsFilter, innerDocumentsFilter);
+                ChildFieldComparatorSource childFieldComparatorSource = new ChildFieldComparatorSource(
+                        parentType, _childFilter, sortMode, fieldMapper, missing, reverse
+                );
+                context.addRewrite(childFieldComparatorSource);
+                fieldComparatorSource = childFieldComparatorSource;
+            } else {
+                fieldComparatorSource = context.fieldData().getForField(fieldMapper)
+                        .comparatorSource(missing, sortMode);
+                ObjectMapper objectMapper;
+                if (nestedPath != null) {
+                    ObjectMappers objectMappers = context.mapperService().objectMapper(nestedPath);
+                    if (objectMappers == null) {
+                        throw new ElasticSearchIllegalArgumentException("failed to find nested object mapping for explicit nested path [" + nestedPath + "]");
+                    }
+                    objectMapper = objectMappers.mapper();
+                    if (!objectMapper.nested().isNested()) {
+                        throw new ElasticSearchIllegalArgumentException("mapping for explicit nested path is not mapped as nested: [" + nestedPath + "]");
+                    }
+                } else {
+                    objectMapper = context.mapperService().resolveClosestNestedObjectMapper(fieldName);
+                }
+
+                if (objectMapper != null && objectMapper.nested().isNested()) {
+                    Filter rootDocumentsFilter = context.filterCache().cache(NonNestedDocsFilter.INSTANCE);
+                    Filter innerDocumentsFilter;
+                    if (nestedFilter != null) {
+                        innerDocumentsFilter = context.filterCache().cache(nestedFilter);
+                    } else {
+                        innerDocumentsFilter = context.filterCache().cache(objectMapper.nestedTypeFilter());
+                    }
+                    fieldComparatorSource = new NestedFieldComparatorSource(sortMode, fieldComparatorSource, rootDocumentsFilter, innerDocumentsFilter);
+                }
             }
             sortFields.add(new SortField(fieldMapper.names().indexName(), fieldComparatorSource, reverse));
         }
