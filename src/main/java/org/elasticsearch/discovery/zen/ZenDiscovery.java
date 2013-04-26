@@ -45,6 +45,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.InitialStateDiscoveryListener;
+import org.elasticsearch.discovery.joinrules.JoinDecider;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.fd.MasterFaultDetection;
 import org.elasticsearch.discovery.zen.fd.NodesFaultDetection;
@@ -124,10 +125,12 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     @Nullable
     private NodeService nodeService;
 
+    private JoinDecider joinDecider;
+
     @Inject
     public ZenDiscovery(Settings settings, ClusterName clusterName, ThreadPool threadPool,
                         TransportService transportService, ClusterService clusterService, NodeSettingsService nodeSettingsService,
-                        DiscoveryNodeService discoveryNodeService, ZenPingService pingService) {
+                        DiscoveryNodeService discoveryNodeService, ZenPingService pingService, JoinDecider joinDecider) {
         super(settings);
         this.clusterName = clusterName;
         this.threadPool = threadPool;
@@ -159,6 +162,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         this.membership = new MembershipAction(settings, transportService, this, new MembershipListener());
 
         transportService.registerHandler(RejoinClusterRequestHandler.ACTION, new RejoinClusterRequestHandler());
+        this.joinDecider = joinDecider;
     }
 
     @Override
@@ -604,6 +608,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             logger.warn("received a wrong address type from [{}], ignoring...", node);
         } else {
             // try and connect to the node, if it fails, we can raise an exception back to the client...
+            if (!joinDecider.decide(node)) {
+                return state;
+            }
             transportService.connectToNode(node);
             state = clusterService.state();
 

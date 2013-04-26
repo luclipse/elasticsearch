@@ -25,6 +25,7 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.Modules;
 import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.joinrules.JoinDeciderModule;
 import org.elasticsearch.discovery.local.LocalDiscoveryModule;
 import org.elasticsearch.discovery.zen.ZenDiscoveryModule;
 
@@ -47,7 +48,10 @@ public class DiscoveryModule extends AbstractModule implements SpawnModules {
         } else {
             defaultDiscoveryModule = ZenDiscoveryModule.class;
         }
-        return ImmutableList.of(Modules.createModule(settings.getAsClass("discovery.type", defaultDiscoveryModule, "org.elasticsearch.discovery.", "DiscoveryModule"), settings));
+        return ImmutableList.of(
+                Modules.createModule(settings.getAsClass("discovery.type", defaultDiscoveryModule, "org.elasticsearch.discovery.", "DiscoveryModule"), settings),
+                Modules.createModule(JoinDeciderModule.class, settings)
+        );
     }
 
     @Override
