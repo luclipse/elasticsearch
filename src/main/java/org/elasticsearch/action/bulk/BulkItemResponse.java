@@ -22,6 +22,7 @@ package org.elasticsearch.action.bulk;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -229,6 +230,9 @@ public class BulkItemResponse implements Streamable {
         } else if (type == 1) {
             response = new DeleteResponse();
             response.readFrom(in);
+        } else if (type == 2) {
+            response = new UpdateResponse();
+            response.readFrom(in);
         }
 
         if (in.readBoolean()) {
@@ -247,6 +251,8 @@ public class BulkItemResponse implements Streamable {
                 out.writeByte((byte) 0);
             } else if (response instanceof DeleteResponse) {
                 out.writeByte((byte) 1);
+            } else if (response instanceof UpdateResponse) {
+                out.writeByte((byte) 2);
             }
             response.writeTo(out);
         }

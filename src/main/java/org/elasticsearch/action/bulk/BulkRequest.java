@@ -27,6 +27,7 @@ import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicationType;
+import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -82,6 +83,8 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
             add((IndexRequest) request, payload);
         } else if (request instanceof DeleteRequest) {
             add((DeleteRequest) request, payload);
+        } else if (request instanceof UpdateRequest) {
+            add((UpdateRequest) request, payload);
         } else {
             throw new ElasticSearchIllegalArgumentException("No support for request [" + request + "]");
         }
@@ -125,6 +128,27 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
         return this;
     }
 
+    /**
+     * Adds an {@link IndexRequest} to the list of actions to execute. Follows the same behavior of {@link IndexRequest}
+     * (for example, if no id is provided, one will be generated, or usage of the create flag).
+     */
+    public BulkRequest add(UpdateRequest request) {
+        request.beforeLocalFork();
+        return internalAdd(request, null, 0);
+    }
+
+    public BulkRequest add(UpdateRequest request, @Nullable Object payload) {
+        request.beforeLocalFork();
+        return internalAdd(request, payload, 0);
+    }
+
+    BulkRequest internalAdd(UpdateRequest request, @Nullable Object payload, int size) {
+        requests.add(request);
+        addPayload(payload);
+        // There is no .getSource() method on UpdateRequests, so the size is passed in
+        sizeInBytes += size + REQUEST_OVERHEAD;
+        return this;
+    }
     /**
      * Adds an {@link DeleteRequest} to the list of actions to execute.
      */
@@ -310,6 +334,10 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
                                 .create(true)
                                 .source(data.slice(from, nextMarker - from), contentUnsafe)
                                 .percolate(percolate), payload);
+                    } else if ("update".equals(action)) {
+                        internalAdd(new UpdateRequest(index, type, id).routing(routing).parent(parent)
+                                .source(data.slice(from, nextMarker - from))
+                                .percolate(percolate), payload, nextMarker - from);
                     }
                     // move pointers
                     from = nextMarker + 1;
@@ -403,6 +431,10 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
                 DeleteRequest request = new DeleteRequest();
                 request.readFrom(in);
                 requests.add(request);
+            } else if (type == 2) {
+                UpdateRequest request = new UpdateRequest();
+                request.readFrom(in);
+                requests.add(request);
             }
         }
         refresh = in.readBoolean();
@@ -419,6 +451,8 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
                 out.writeByte((byte) 0);
             } else if (request instanceof DeleteRequest) {
                 out.writeByte((byte) 1);
+            } else if (request instanceof UpdateRequest) {
+                out.writeByte((byte) 2);
             }
             request.writeTo(out);
         }
