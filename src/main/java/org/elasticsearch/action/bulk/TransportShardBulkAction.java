@@ -21,6 +21,7 @@ package org.elasticsearch.action.bulk;
 
 import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -30,9 +31,9 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.replication.TransportShardReplicationOperationAction;
+import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.action.update.UpdateTranslator;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
@@ -48,9 +49,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.engine.*;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -74,15 +73,17 @@ import java.util.Set;
 public class TransportShardBulkAction extends TransportShardReplicationOperationAction<BulkShardRequest, BulkShardRequest, BulkShardResponse> {
 
     private final MappingUpdatedAction mappingUpdatedAction;
-    private final UpdateTranslator updateTranslator;
+    private final UpdateHelper updateHelper;
+    private final boolean allowIdGeneration;
 
     @Inject
     public TransportShardBulkAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                     IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
-                                    MappingUpdatedAction mappingUpdatedAction, UpdateTranslator updateTranslator) {
+                                    MappingUpdatedAction mappingUpdatedAction, UpdateHelper updateHelper) {
         super(settings, transportService, clusterService, indicesService, threadPool, shardStateAction);
         this.mappingUpdatedAction = mappingUpdatedAction;
-        this.updateTranslator = updateTranslator;
+        this.updateHelper = updateHelper;
+        this.allowIdGeneration = settings.getAsBoolean("action.allow_id_generation", true);
     }
 
     @Override
@@ -149,7 +150,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
             if (item.request() instanceof IndexRequest) {
                 IndexRequest indexRequest = (IndexRequest) item.request();
                 try {
-                    IndexResult result = shardIndexOperation(request, indexRequest, item, clusterState, indexShard);
+                    IndexResult result = shardIndexOperation(request, indexRequest, item, clusterState, indexShard, true);
                     // add the response
                     responses[i] = result.response;
                     preVersions[i] = result.preVersion;
@@ -209,25 +210,41 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                     request.items()[i] = null;
                 }
             } else if (item.request() instanceof UpdateRequest) {
+                // TODO: move to shardUpdateOperation
                 UpdateRequest updateRequest = (UpdateRequest) item.request();
                 updateRequest.shardId = shardRequest.shardId; // TODO: Try to make protected again...
-                UpdateTranslator.Result translate = updateTranslator.translate(updateRequest);
-                switch (translate.operation()) {
-                    case UPSERT:
-                    case INDEX:
-                        int retryCount = 0;
-                        do {
+                int retryCount = 0;
+                do {
+                    UpdateHelper.Result translate;
+                    try {
+                        translate = updateHelper.prepare(updateRequest);
+                    } catch (ElasticSearchIllegalArgumentException e) { // Invalid script
+                        responses[i] = new BulkItemResponse(item.id(), "update", new BulkItemResponse.Failure(updateRequest.index(), updateRequest.type(), updateRequest.id(), ExceptionsHelper.detailedMessage(e)));
+                        request.items()[i] = null;
+                        break;
+                    } catch (DocumentSourceMissingException e) { // No source available
+                        responses[i] = new BulkItemResponse(item.id(), "update", new BulkItemResponse.Failure(updateRequest.index(), updateRequest.type(), updateRequest.id(), ExceptionsHelper.detailedMessage(e)));
+                        request.items()[i] = null;
+                        break;
+                    } catch (DocumentMissingException e) { // Document doesn't exists and upsert is missing
+                        responses[i] = new BulkItemResponse(item.id(), "update", new BulkItemResponse.Failure(updateRequest.index(), updateRequest.type(), updateRequest.id(), ExceptionsHelper.detailedMessage(e)));
+                        request.items()[i] = null;
+                        break;
+                    }
+                    switch (translate.operation()) {
+                        case UPSERT:
+                        case INDEX:
                             IndexRequest indexRequest = null;
                             try {
-                                indexRequest = translate.translation();
+                                indexRequest = translate.action();
                                 BytesReference indexSourceAsBytes = indexRequest.source();
-                                IndexResult result = shardIndexOperation(request, indexRequest, item, clusterState, indexShard);
+                                IndexResult result = shardIndexOperation(request, indexRequest, item, clusterState, indexShard, false);
                                 // add the response
                                 UpdateResponse updateResponse = new UpdateResponse(result.response.getIndex(), result.response.getType(), result.response.getId(), result.response.getVersion());
                                 updateResponse.setMatches(((IndexResponse) result.response.getResponse()).getMatches());
                                 if (updateRequest.fields() != null && updateRequest.fields().length > 0) {
                                     Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(indexSourceAsBytes, true);
-                                    updateResponse.setGetResult(updateTranslator.extractGetResult(updateRequest, result.response.getVersion(), sourceAndContent.v2(), sourceAndContent.v1(), indexSourceAsBytes));
+                                    updateResponse.setGetResult(updateHelper.extractGetResult(updateRequest, result.response.getVersion(), sourceAndContent.v2(), sourceAndContent.v1(), indexSourceAsBytes));
                                 }
                                 responses[i] = new BulkItemResponse(result.response.getItemId(), "update", updateResponse);
                                 preVersions[i] = result.preVersion;
@@ -248,7 +265,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                                 break;
                             } catch (Throwable t) {
                                 t = ExceptionsHelper.unwrapCause(t);
-                                if (t instanceof VersionConflictEngineException || (t instanceof DocumentAlreadyExistsException && translate.operation() == UpdateTranslator.Operation.UPSERT)) {
+                                if (t instanceof VersionConflictEngineException || (t instanceof DocumentAlreadyExistsException && translate.operation() == UpdateHelper.Operation.UPSERT)) {
                                     if (retryCount < updateRequest.retryOnConflict()) {
                                         continue;
                                     }
@@ -272,17 +289,16 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                                 // nullify the request so it won't execute on the replicas
                                 request.items()[i] = null;
                             }
-                        } while (++retryCount < updateRequest.retryOnConflict());
-                        break;
-                    case DELETE:
-                        retryCount = 0;
-                        do {
+
+                            break;
+                        case DELETE:
+                            retryCount = 0;
                             DeleteRequest deleteRequest = null;
                             try {
-                                deleteRequest = translate.translation();
+                                deleteRequest = translate.action();
                                 BulkItemResponse response = shardDeleteOperation(deleteRequest, item, indexShard);
                                 UpdateResponse updateResponse = new UpdateResponse(response.getIndex(), response.getType(), response.getId(), response.getVersion());
-                                updateResponse.setGetResult(updateTranslator.extractGetResult(updateRequest, response.getVersion(), translate.updatedSourceAsMap(), translate.updateSourceContentType(), null));
+                                updateResponse.setGetResult(updateHelper.extractGetResult(updateRequest, response.getVersion(), translate.updatedSourceAsMap(), translate.updateSourceContentType(), null));
                                 responses[i] = new BulkItemResponse(response.getItemId(), "update", updateResponse);
                                 // Replace the update request to the translated delete request to execute on the replica.
                                 request.items()[i] = new BulkItemRequest(request.items()[i].id(), deleteRequest);
@@ -313,14 +329,14 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                                 // nullify the request so it won't execute on the replicas
                                 request.items()[i] = null;
                             }
-                        } while (++retryCount < updateRequest.retryOnConflict());
-                        break;
-                    case NONE:
-                        responses[i] = new BulkItemResponse(item.id(), "update", (UpdateResponse) translate.translation());
-                        break;
-                    default:
-                        throw new ElasticSearchIllegalStateException("Illegal update operation " + translate.operation());
-                }
+                            break;
+                        case NONE:
+                            responses[i] = new BulkItemResponse(item.id(), "update", (UpdateResponse) translate.action());
+                            break;
+                        default:
+                            throw new ElasticSearchIllegalStateException("Illegal update operation " + translate.operation());
+                    }
+                } while (++retryCount < updateRequest.retryOnConflict());
             }
         }
 
@@ -357,7 +373,8 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
     }
 
     private IndexResult shardIndexOperation(BulkShardRequest request, IndexRequest indexRequest, BulkItemRequest item,
-                                            ClusterState clusterState, IndexShard indexShard) {
+                                            ClusterState clusterState, IndexShard indexShard, boolean processed) {
+
         // validate, if routing is required, that we got routing
         MappingMetaData mappingMd = clusterState.metaData().index(request.index()).mappingOrDefault(indexRequest.type());
         if (mappingMd != null && mappingMd.routing().required()) {
@@ -366,12 +383,12 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
             }
         }
 
-        SourceToParse sourceToParse = SourceToParse.source(indexRequest.source()).type(indexRequest.type()).id(indexRequest.id())
-                .routing(indexRequest.routing()).parent(indexRequest.parent()).ttl(indexRequest.ttl());
-        if (indexRequest.timestamp() != null) {
-            sourceToParse.timestamp(indexRequest.timestamp());
+        if (!processed) {
+            indexRequest.process(clusterState.metaData(), indexRequest.index(), mappingMd, allowIdGeneration);
         }
 
+        SourceToParse sourceToParse = SourceToParse.source(indexRequest.source()).type(indexRequest.type()).id(indexRequest.id())
+                .routing(indexRequest.routing()).parent(indexRequest.parent()).timestamp(indexRequest.timestamp()).ttl(indexRequest.ttl());
 
         long version;
         Engine.IndexingOperation op;
@@ -393,7 +410,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
         // update mapping on master if needed, we won't update changes to the same type, since once its changed, it won't have mappers added
         Tuple<String, String> mappingsToUpdate = null;
         if (op.parsedDoc().mappingsModified()) {
-           mappingsToUpdate = Tuple.tuple(indexRequest.index(), indexRequest.type());
+            mappingsToUpdate = Tuple.tuple(indexRequest.index(), indexRequest.type());
         }
 
         // if we are going to percolate, then we need to keep this op for the postPrimary operation

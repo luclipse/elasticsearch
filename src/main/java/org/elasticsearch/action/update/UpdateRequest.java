@@ -188,6 +188,10 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         return this;
     }
 
+    public String scriptLang() {
+        return scriptLang;
+    }
+
     /**
      * Add a script parameter.
      */

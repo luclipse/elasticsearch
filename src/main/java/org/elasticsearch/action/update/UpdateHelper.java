@@ -37,21 +37,24 @@ import java.util.Map;
 import static com.google.common.collect.Maps.newHashMapWithExpectedSize;
 
 /**
- * Service for translating an update request to an index, delete request or update response.
+ * Helper for translating an update request to an index, delete request or update response.
  */
-public class UpdateTranslator extends AbstractComponent {
+public class UpdateHelper extends AbstractComponent {
 
     private final IndicesService indicesService;
     private final ScriptService scriptService;
 
     @Inject
-    public UpdateTranslator(Settings settings, IndicesService indicesService, ScriptService scriptService) {
+    public UpdateHelper(Settings settings, IndicesService indicesService, ScriptService scriptService) {
         super(settings);
         this.indicesService = indicesService;
         this.scriptService = scriptService;
     }
 
-    public Result translate(UpdateRequest request) {
+    /**
+     * Prepares an update request by converting it into an index or delete request or an update response (no action).
+     */
+    public Result prepare(UpdateRequest request) {
         IndexService indexService = indicesService.indexServiceSafe(request.index());
         IndexShard indexShard = indexService.shardSafe(request.shardId());
 
@@ -168,6 +171,9 @@ public class UpdateTranslator extends AbstractComponent {
         }
     }
 
+    /**
+     * Extracts the fields from the updated document to be returned in a update response
+     */
     public GetResult extractGetResult(final UpdateRequest request, long version, final Map<String, Object> source, XContentType sourceContentType, @Nullable final BytesReference sourceAsBytes) {
         if (request.fields() == null || request.fields().length == 0) {
             return null;
@@ -203,21 +209,21 @@ public class UpdateTranslator extends AbstractComponent {
 
     public static class Result {
 
-        private final Streamable translation;
+        private final Streamable action;
         private final Operation operation;
         private final Map<String, Object> updatedSourceAsMap;
         private final XContentType updateSourceContentType;
 
-        public Result(Streamable translation, Operation operation, Map<String, Object> updatedSourceAsMap, XContentType updateSourceContentType) {
-            this.translation = translation;
+        public Result(Streamable action, Operation operation, Map<String, Object> updatedSourceAsMap, XContentType updateSourceContentType) {
+            this.action = action;
             this.operation = operation;
             this.updatedSourceAsMap = updatedSourceAsMap;
             this.updateSourceContentType = updateSourceContentType;
         }
 
         @SuppressWarnings("unchecked")
-        public <T extends Streamable> T translation() {
-            return (T) translation;
+        public <T extends Streamable> T action() {
+            return (T) action;
         }
 
         public Operation operation() {

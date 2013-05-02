@@ -269,6 +269,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
                 long version = 0;
                 VersionType versionType = VersionType.INTERNAL;
                 String percolate = null;
+                int retryOnConflict = 0;
 
                 // at this stage, next token can either be END_OBJECT (and use default index and type, with auto generated id)
                 // or START_OBJECT which will have another set of parameters
@@ -304,6 +305,8 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
                             versionType = VersionType.fromString(parser.text());
                         } else if ("percolate".equals(currentFieldName) || "_percolate".equals(currentFieldName)) {
                             percolate = parser.textOrNull();
+                        } else if ("_retry_on_conflict".equals(currentFieldName) || "_retryOnConflict".equals(currentFieldName)) {
+                            retryOnConflict = parser.intValue();
                         }
                     }
                 }
@@ -335,7 +338,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
                                 .source(data.slice(from, nextMarker - from), contentUnsafe)
                                 .percolate(percolate), payload);
                     } else if ("update".equals(action)) {
-                        internalAdd(new UpdateRequest(index, type, id).routing(routing).parent(parent)
+                        internalAdd(new UpdateRequest(index, type, id).routing(routing).parent(parent).retryOnConflict(retryOnConflict)
                                 .source(data.slice(from, nextMarker - from))
                                 .percolate(percolate), payload, nextMarker - from);
                     }

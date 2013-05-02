@@ -66,17 +66,17 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     private final TransportIndexAction indexAction;
     private final AutoCreateIndex autoCreateIndex;
     private final TransportCreateIndexAction createIndexAction;
-    private final UpdateTranslator updateTranslator;
+    private final UpdateHelper updateHelper;
 
     @Inject
     public TransportUpdateAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
                                  TransportIndexAction indexAction, TransportDeleteAction deleteAction, TransportCreateIndexAction createIndexAction,
-                                 UpdateTranslator updateTranslator) {
+                                 UpdateHelper updateHelper) {
         super(settings, threadPool, clusterService, transportService);
         this.indexAction = indexAction;
         this.deleteAction = deleteAction;
         this.createIndexAction = createIndexAction;
-        this.updateTranslator = updateTranslator;
+        this.updateHelper = updateHelper;
         this.autoCreateIndex = new AutoCreateIndex(settings);
     }
 
@@ -184,10 +184,10 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     }
 
     protected void shardOperation(final UpdateRequest request, final ActionListener<UpdateResponse> listener, final int retryCount) throws ElasticSearchException {
-        final UpdateTranslator.Result result = updateTranslator.translate(request);
+        final UpdateHelper.Result result = updateHelper.prepare(request);
         switch (result.operation()) {
             case UPSERT:
-                IndexRequest upsertRequest = result.translation();
+                IndexRequest upsertRequest = result.action();
                 // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
                 final BytesReference upsertSourceBytes = upsertRequest.source();
                 indexAction.execute(upsertRequest, new ActionListener<IndexResponse>() {
@@ -197,7 +197,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                         update.setMatches(response.getMatches());
                         if (request.fields() != null && request.fields().length > 0) {
                             Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(upsertSourceBytes, true);
-                            update.setGetResult(updateTranslator.extractGetResult(request, response.getVersion(), sourceAndContent.v2(), sourceAndContent.v1(), upsertSourceBytes));
+                            update.setGetResult(updateHelper.extractGetResult(request, response.getVersion(), sourceAndContent.v2(), sourceAndContent.v1(), upsertSourceBytes));
                         } else {
                             update.setGetResult(null);
                         }
@@ -223,7 +223,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 });
                 break;
             case INDEX:
-                IndexRequest indexRequest = result.translation();
+                IndexRequest indexRequest = result.action();
                 // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
                 final BytesReference indexSourceBytes = indexRequest.source();
                 indexAction.execute(indexRequest, new ActionListener<IndexResponse>() {
@@ -231,7 +231,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                     public void onResponse(IndexResponse response) {
                         UpdateResponse update = new UpdateResponse(response.getIndex(), response.getType(), response.getId(), response.getVersion());
                         update.setMatches(response.getMatches());
-                        update.setGetResult(updateTranslator.extractGetResult(request, response.getVersion(), result.updatedSourceAsMap(), result.updateSourceContentType(), indexSourceBytes));
+                        update.setGetResult(updateHelper.extractGetResult(request, response.getVersion(), result.updatedSourceAsMap(), result.updateSourceContentType(), indexSourceBytes));
                         listener.onResponse(update);
                     }
 
@@ -254,12 +254,12 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 });
                 break;
             case DELETE:
-                DeleteRequest deleteRequest = result.translation();
+                DeleteRequest deleteRequest = result.action();
                 deleteAction.execute(deleteRequest, new ActionListener<DeleteResponse>() {
                     @Override
                     public void onResponse(DeleteResponse response) {
                         UpdateResponse update = new UpdateResponse(response.getIndex(), response.getType(), response.getId(), response.getVersion());
-                        update.setGetResult(updateTranslator.extractGetResult(request, response.getVersion(), result.updatedSourceAsMap(), result.updateSourceContentType(), null));
+                        update.setGetResult(updateHelper.extractGetResult(request, response.getVersion(), result.updatedSourceAsMap(), result.updateSourceContentType(), null));
                         listener.onResponse(update);
                     }
 
@@ -282,7 +282,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 });
                 break;
             case NONE:
-                UpdateResponse update = result.translation();
+                UpdateResponse update = result.action();
                 listener.onResponse(update);
                 break;
             default:
