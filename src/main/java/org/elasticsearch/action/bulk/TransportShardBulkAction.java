@@ -154,7 +154,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                     WriteResult result = shardIndexOperation(request, indexRequest, clusterState, indexShard, true);
                     // add the response
                     IndexResponse indexResponse = result.response();
-                    responses[i] = new BulkItemResponse(item.id(), "index", indexResponse);
+                    responses[i] = new BulkItemResponse(item.id(), indexRequest.opType().lowercase(), indexResponse);
                     preVersions[i] = result.preVersion;
                     if (result.mappingToUpdate != null) {
                         if (mappingsToUpdate == null) {
@@ -191,8 +191,8 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                 DeleteRequest deleteRequest = (DeleteRequest) item.request();
                 try {
                     // add the response
-                    IndexResponse indexResponse = shardDeleteOperation(deleteRequest, indexShard).response();
-                    responses[i] = new BulkItemResponse(item.id(), "delete", indexResponse);
+                    DeleteResponse deleteResponse = shardDeleteOperation(deleteRequest, indexShard).response();
+                    responses[i] = new BulkItemResponse(item.id(), "delete", deleteResponse);
                 } catch (Exception e) {
                     // rethrow the failure if we are going to retry on primary and let parent failure to handle it
                     if (retryPrimaryException(e)) {
