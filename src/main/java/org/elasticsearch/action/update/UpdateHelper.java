@@ -57,7 +57,10 @@ public class UpdateHelper extends AbstractComponent {
     public Result prepare(UpdateRequest request) {
         IndexService indexService = indicesService.indexServiceSafe(request.index());
         IndexShard indexShard = indexService.shardSafe(request.shardId());
+        return prepare(request, indexShard);
+    }
 
+    public Result prepare(UpdateRequest request, IndexShard indexShard) {
         long getDate = System.currentTimeMillis();
         final GetResult getResult = indexShard.getService().get(request.type(), request.id(),
                 new String[]{SourceFieldMapper.NAME, RoutingFieldMapper.NAME, ParentFieldMapper.NAME, TTLFieldMapper.NAME}, true);

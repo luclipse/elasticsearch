@@ -40,7 +40,7 @@ public abstract class InstanceShardOperationRequest<T extends InstanceShardOpera
 
     protected String index;
     // -1 means its not set, allows to explicitly direct a request to a specific shard
-    public int shardId = -1;
+    protected int shardId = -1;
 
     protected InstanceShardOperationRequest() {
     }
