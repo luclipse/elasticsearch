@@ -217,6 +217,44 @@ public class BulkTests extends AbstractNodesTests {
                 assertThat(response.getItems()[i].getOpType(), equalTo("update"));
             }
         }
+
+        builder = client.prepareBulk();
+        for (int i = 0; i < numDocs; i++) {
+            builder.add(
+                    client.prepareUpdate()
+                            .setIndex("test").setType("type1").setId(Integer.toString(i)).setScript("ctx.op = \"none\"")
+            );
+        }
+        response = builder.execute().actionGet();
+        assertThat(response.hasFailures(), equalTo(false));
+        assertThat(response.getItems().length, equalTo(numDocs));
+        for (int i = 0; i < numDocs; i++) {
+            assertThat(response.getItems()[i].getItemId(), equalTo(i));
+            assertThat(response.getItems()[i].getId(), equalTo(Integer.toString(i)));
+            assertThat(response.getItems()[i].getIndex(), equalTo("test"));
+            assertThat(response.getItems()[i].getType(), equalTo("type1"));
+            assertThat(response.getItems()[i].getOpType(), equalTo("update"));
+        }
+
+        builder = client.prepareBulk();
+        for (int i = 0; i < numDocs; i++) {
+            builder.add(
+                    client.prepareUpdate()
+                            .setIndex("test").setType("type1").setId(Integer.toString(i)).setScript("ctx.op = \"delete\"")
+            );
+        }
+        response = builder.execute().actionGet();
+        assertThat(response.hasFailures(), equalTo(false));
+        assertThat(response.getItems().length, equalTo(numDocs));
+        for (int i = 0; i < numDocs; i++) {
+            assertThat(response.getItems()[i].getItemId(), equalTo(i));
+            assertThat(response.getItems()[i].getId(), equalTo(Integer.toString(i)));
+            assertThat(response.getItems()[i].getIndex(), equalTo("test"));
+            assertThat(response.getItems()[i].getType(), equalTo("type1"));
+            assertThat(response.getItems()[i].getOpType(), equalTo("update"));
+            GetResponse getResponse = client.prepareGet("test", "type1", Integer.toString(i)).setFields("counter").execute().actionGet();
+            assertThat(getResponse.isExists(), equalTo(false));
+        }
     }
 
 }
