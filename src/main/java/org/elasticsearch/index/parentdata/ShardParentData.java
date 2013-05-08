@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.cache.id;
+package org.elasticsearch.index.parentdata;
 
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.metrics.CounterMetric;
@@ -28,17 +28,17 @@ import org.elasticsearch.index.shard.ShardId;
 
 /**
  */
-public class ShardIdCache extends AbstractIndexShardComponent {
+public class ShardParentData extends AbstractIndexShardComponent {
 
     final CounterMetric totalMetric = new CounterMetric();
 
     @Inject
-    public ShardIdCache(ShardId shardId, @IndexSettings Settings indexSettings) {
+    public ShardParentData(ShardId shardId, @IndexSettings Settings indexSettings) {
         super(shardId, indexSettings);
     }
 
-    public IdCacheStats stats() {
-        return new IdCacheStats(totalMetric.count());
+    public ParentDataStats stats() {
+        return new ParentDataStats(totalMetric.count());
     }
 
     public void onCached(long sizeInBytes) {

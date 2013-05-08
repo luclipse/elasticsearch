@@ -19,13 +19,14 @@
 
 package org.elasticsearch.index.mapper;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.lucene.BytesRefs;
+
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 
 /**
  *
@@ -194,5 +195,28 @@ public final class Uid {
         System.arraycopy(uid.bytes, loc + 1, id, 0, id.length);
         return new HashedBytesArray[]{new HashedBytesArray(type), new HashedBytesArray(id)};
     }
+
+    public static BytesRef[] splitUidIntoTypeAndId_br(BytesRef uid) {
+        int loc = -1;
+        final int limit = uid.offset + uid.length;
+        for (int i = uid.offset; i < limit; i++) {
+            if (uid.bytes[i] == DELIMITER_BYTE) { // 0x23 is equal to '#'
+                loc = i;
+                break;
+            }
+        }
+
+        if (loc == -1) {
+            return null;
+        }
+
+        byte[] type = new byte[loc - uid.offset];
+        System.arraycopy(uid.bytes, uid.offset, type, 0, type.length);
+
+        byte[] id = new byte[uid.length - type.length - 1];
+        System.arraycopy(uid.bytes, loc + 1, id, 0, id.length);
+        return new BytesRef[]{new BytesRef(type), new BytesRef(id)};
+    }
+
 
 }

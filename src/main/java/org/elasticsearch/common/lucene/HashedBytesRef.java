@@ -56,6 +56,11 @@ public class HashedBytesRef {
         return this;
     }
 
+    public HashedBytesRef resetHash(int hash) {
+        this.hash = hash;
+        return this;
+    }
+
     @Override
     public int hashCode() {
         return hash;
@@ -63,8 +68,12 @@ public class HashedBytesRef {
 
     @Override
     public boolean equals(Object other) {
+        if (this == other) {
+            return true;
+        }
+
         if (other instanceof HashedBytesRef) {
-            return bytes.equals(((HashedBytesRef) other).bytes);
+            return bytes.bytesEquals(((HashedBytesRef) other).bytes);
         }
         return false;
     }

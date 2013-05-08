@@ -23,12 +23,16 @@ import gnu.trove.map.hash.TIntObjectHashMap;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.ToStringUtils;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.CacheRecycler;
-import org.elasticsearch.common.bytes.HashedBytesArray;
+import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.lucene.search.EmptyScorer;
 import org.elasticsearch.common.trove.ExtTHashMap;
+import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.parentdata.ParentValues;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -120,7 +124,7 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
     @Override
     public void contextRewrite(SearchContext searchContext) throws Exception {
         this.parentDocs = CacheRecycler.popHashMap();
-        searchContext.idCache().refresh(searchContext.searcher().getTopReaderContext().leaves());
+        searchContext.parentData().refresh(searchContext.searcher().getTopReaderContext().leaves());
 
         int parentHitsResolved;
         int numChildDocs = (searchContext.from() + searchContext.size());
@@ -164,7 +168,11 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
         }
     }
 
-    int resolveParentDocuments(TopDocs topDocs, SearchContext context) {
+    int resolveParentDocuments(TopDocs topDocs, SearchContext context) throws IOException {
+        BytesRef typeAsBytes = new BytesRef(parentType);
+        TermsEnum termsEnum = null;
+        DocsEnum docsEnum = null;
+
         int parentHitsResolved = 0;
         ExtTHashMap<Object, TIntObjectHashMap<ParentDoc>> parentDocsPerReader = CacheRecycler.popHashMap();
         for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
@@ -173,15 +181,31 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
             int subDoc = scoreDoc.doc - subContext.docBase;
 
             // find the parent id
-            HashedBytesArray parentId = context.idCache().reader(subContext.reader()).parentIdByDoc(parentType, subDoc);
+            // TODO: look into makeing this parentdata free
+            ParentValues parentValues = context.parentData().atomic(subContext.reader()).getValues(parentType);
+            HashedBytesRef parentId = parentValues.parentIdByDoc(subDoc);
             if (parentId == null) {
                 // no parent found
                 continue;
             }
+            BytesRef parentUid = Uid.createUidAsBytes(typeAsBytes, parentId.bytes);
             // now go over and find the parent doc Id and reader tuple
             for (AtomicReaderContext atomicReaderContext : context.searcher().getIndexReader().leaves()) {
                 AtomicReader indexReader = atomicReaderContext.reader();
-                int parentDocId = context.idCache().reader(indexReader).docById(parentType, parentId);
+                Terms terms = atomicReaderContext.reader().terms(UidFieldMapper.NAME);
+                if (terms == null) {
+                    continue; // This shouldn't happen...
+                }
+                termsEnum = terms.iterator(termsEnum);
+                if (!termsEnum.seekExact(parentUid, false)) {
+                    continue; // This shouldn't happen...
+                }
+                docsEnum = termsEnum.docs(null, docsEnum);
+                int parentDocId = docsEnum.nextDoc();
+                if (parentDocId == DocsEnum.NO_MORE_DOCS) {
+                    continue; // This shouldn't happen...
+                }
+
                 Bits liveDocs = indexReader.getLiveDocs();
                 if (parentDocId != -1 && (liveDocs == null || liveDocs.get(parentDocId))) {
                     // we found a match, add it and break

@@ -37,12 +37,12 @@ import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.docset.DocSetCache;
 import org.elasticsearch.index.cache.filter.FilterCache;
-import org.elasticsearch.index.cache.id.IdCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.parentdata.ParentData;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -405,8 +405,8 @@ public class SearchContext implements Releasable {
         return indexService.fieldData();
     }
 
-    public IdCache idCache() {
-        return indexService.cache().idCache();
+    public ParentData parentData() {
+        return indexService.parentData();
     }
 
     public long timeoutInMillis() {

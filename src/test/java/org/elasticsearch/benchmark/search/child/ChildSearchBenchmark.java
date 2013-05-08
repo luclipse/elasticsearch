@@ -27,6 +27,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.StopWatch;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -52,8 +53,10 @@ import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 public class ChildSearchBenchmark {
 
     public static void main(String[] args) throws Exception {
+        String parentDataType = "concrete";
         Settings settings = settingsBuilder()
                 .put("index.engine.robin.refreshInterval", "-1")
+                .put("index.parentdata.type", parentDataType)
                 .put("gateway.type", "local")
                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
@@ -111,6 +114,10 @@ public class ChildSearchBenchmark {
             if (clusterHealthResponse.isTimedOut()) {
                 System.err.println("--> Timed out waiting for cluster health");
             }
+            client.admin().indices().prepareClose(indexName).execute().actionGet();
+            client.admin().indices().prepareUpdateSettings(indexName).setSettings(ImmutableSettings.settingsBuilder().put("index.parentdata.type", parentDataType)).execute().actionGet();
+            client.admin().indices().prepareOpen(indexName).execute().actionGet();
+            client.admin().cluster().prepareHealth(indexName).setWaitForGreenStatus().setTimeout("10m").execute().actionGet();
         }
         client.admin().indices().prepareRefresh().execute().actionGet();
         System.out.println("--> Number of docs in index: " + client.prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount());
@@ -370,6 +377,7 @@ public class ChildSearchBenchmark {
         statsResponse = client.admin().cluster().prepareNodesStats()
                 .setJvm(true).setIndices(true).execute().actionGet();
 
+        System.out.println("--> Parentdata size: " + statsResponse.getNodes()[0].getIndices().getParentData().getMemorySize());
         System.out.println("--> Id cache size: " + statsResponse.getNodes()[0].getIndices().getIdCache().getMemorySize());
         System.out.println("--> Used heap size: " + statsResponse.getNodes()[0].getJvm().getMem().getHeapUsed());
 

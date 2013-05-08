@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.index.cache.id;
+package org.elasticsearch.index.parentdata;
 
 import org.elasticsearch.common.inject.AbstractModule;
 
 /**
  */
-public class ShardIdCacheModule extends AbstractModule {
+public class ShardParentDataModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        bind(ShardIdCache.class).asEagerSingleton();
+        bind(ShardParentData.class).asEagerSingleton();
     }
 }

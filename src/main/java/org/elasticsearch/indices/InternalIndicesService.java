@@ -41,7 +41,6 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.IndexCacheModule;
 import org.elasticsearch.index.cache.filter.FilterCacheStats;
-import org.elasticsearch.index.cache.id.IdCacheStats;
 import org.elasticsearch.index.codec.CodecModule;
 import org.elasticsearch.index.engine.IndexEngine;
 import org.elasticsearch.index.engine.IndexEngineModule;
@@ -56,6 +55,9 @@ import org.elasticsearch.index.indexing.IndexingStats;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceModule;
 import org.elasticsearch.index.merge.MergeStats;
+import org.elasticsearch.index.parentdata.ParentData;
+import org.elasticsearch.index.parentdata.ParentDataModule;
+import org.elasticsearch.index.parentdata.ParentDataStats;
 import org.elasticsearch.index.percolator.PercolatorModule;
 import org.elasticsearch.index.percolator.PercolatorService;
 import org.elasticsearch.index.query.IndexQueryParserModule;
@@ -243,7 +245,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
                     stats.fieldData = new FieldDataStats();
                     break;
                 case IdCache:
-                    stats.idCache = new IdCacheStats();
+                    stats.parentData = new ParentDataStats();
                     break;
                 case FilterCache:
                     stats.filterCache = new FilterCacheStats();
@@ -286,7 +288,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
                             stats.filterCache.add(indexShard.filterCacheStats());
                             break;
                         case IdCache:
-                            stats.idCache.add(indexShard.idCacheStats());
+                            stats.parentData.add(indexShard.parentDataStats());
                             break;
                         case FieldData:
                             stats.fieldData.add(indexShard.fieldDataStats(flags.fieldDataFields()));
@@ -367,6 +369,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         modules.add(new SimilarityModule(indexSettings));
         modules.add(new IndexCacheModule(indexSettings));
         modules.add(new IndexFieldDataModule(indexSettings));
+        modules.add(new ParentDataModule(indexSettings));
         modules.add(new CodecModule(indexSettings));
         modules.add(new MapperServiceModule());
         modules.add(new IndexQueryParserModule(indexSettings));
@@ -425,6 +428,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         indexInjector.getInstance(PercolatorService.class).close();
         indexInjector.getInstance(IndexCache.class).close();
         indexInjector.getInstance(IndexFieldDataService.class).clear();
+        indexInjector.getInstance(ParentData.class).close();
         indexInjector.getInstance(AnalysisService.class).close();
         indexInjector.getInstance(IndexEngine.class).close();
 
