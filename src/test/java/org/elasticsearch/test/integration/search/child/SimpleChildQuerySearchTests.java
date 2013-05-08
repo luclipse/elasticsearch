@@ -26,6 +26,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.facet.terms.TermsFacet;
 import org.elasticsearch.search.sort.SortBuilders;

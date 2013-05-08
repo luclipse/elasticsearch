@@ -29,6 +29,7 @@ import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.search.EmptyScorer;
 import org.elasticsearch.common.trove.ExtTHashMap;
+import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -181,7 +182,19 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
             // now go over and find the parent doc Id and reader tuple
             for (AtomicReaderContext atomicReaderContext : context.searcher().getIndexReader().leaves()) {
                 AtomicReader indexReader = atomicReaderContext.reader();
-                int parentDocId = context.idCache().reader(indexReader).docById(parentType, parentId);
+                // TODO fix:
+//                int parentDocId = context.idCache().reader(indexReader).docById(parentType, parentId);
+                int parentDocId;
+                try {
+                    IndexSearcher indexSearcher = new IndexSearcher(new MultiReader(indexReader));
+                    TopDocs parentTopDocs = indexSearcher.search(new TermQuery(new Term(UidFieldMapper.NAME, parentType + "#" + parentId.toBytesRef().utf8ToString())), 1);
+                    if (parentTopDocs.totalHits == 0) {
+                        continue;
+                    }
+                    parentDocId = parentTopDocs.scoreDocs[0].doc;
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
                 Bits liveDocs = indexReader.getLiveDocs();
                 if (parentDocId != -1 && (liveDocs == null || liveDocs.get(parentDocId))) {
                     // we found a match, add it and break
