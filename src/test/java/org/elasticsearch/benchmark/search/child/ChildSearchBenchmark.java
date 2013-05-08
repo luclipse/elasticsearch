@@ -27,6 +27,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.StopWatch;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -52,9 +53,10 @@ import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 public class ChildSearchBenchmark {
 
     public static void main(String[] args) throws Exception {
+        String idCacheType = "paged";
         Settings settings = settingsBuilder()
                 .put("index.engine.robin.refreshInterval", "-1")
-                .put("index.cache.id.type", "paged")
+                .put("index.cache.id.type", idCacheType)
                 .put("gateway.type", "local")
                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
@@ -63,7 +65,7 @@ public class ChildSearchBenchmark {
         Node node1 = nodeBuilder().settings(settingsBuilder().put(settings).put("name", "node1")).node();
         Client client = node1.client();
 
-        long COUNT = SizeValue.parseSizeValue("1k").singles();
+        long COUNT = SizeValue.parseSizeValue("1m").singles();
         int CHILD_COUNT = 5;
         int BATCH = 100;
         int QUERY_WARMUP = 20;
@@ -112,6 +114,10 @@ public class ChildSearchBenchmark {
             if (clusterHealthResponse.isTimedOut()) {
                 System.err.println("--> Timed out waiting for cluster health");
             }
+            client.admin().indices().prepareClose(indexName).execute().actionGet();
+            client.admin().indices().prepareUpdateSettings(indexName).setSettings(ImmutableSettings.settingsBuilder().put("index.cache.id.type", idCacheType)).execute().actionGet();
+            client.admin().indices().prepareOpen(indexName).execute().actionGet();
+            client.admin().cluster().prepareHealth(indexName).setWaitForGreenStatus().setTimeout("10m").execute().actionGet();
         }
         client.admin().indices().prepareRefresh().execute().actionGet();
         System.out.println("--> Number of docs in index: " + client.prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount());
@@ -367,6 +373,7 @@ public class ChildSearchBenchmark {
         System.out.println("--> has_parent query with match_all Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");
 
 
+        System.gc();
         statsResponse = client.admin().cluster().prepareNodesStats()
                 .setJvm(true).setIndices(true).execute().actionGet();
 

@@ -26,7 +26,6 @@ import org.apache.lucene.util.packed.GrowableWriter;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -34,24 +33,22 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.id.IdCache;
 import org.elasticsearch.index.cache.id.IdReaderCache;
-import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
-import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.index.shard.service.IndexShard;
 
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.io.IOException;
+import java.util.*;
 import java.util.concurrent.ConcurrentMap;
 
 /**
  *
  */
 public class PagedIdCache extends AbstractIndexComponent implements IdCache, SegmentReader.CoreClosedListener {
+
+    static final BytesRef EMPTY = new BytesRef();
 
     private final ConcurrentMap<Object, PagedIdReaderCache> idReaders;
 
@@ -118,9 +115,19 @@ public class PagedIdCache extends AbstractIndexComponent implements IdCache, Seg
                 Map<Object, Map<String, TypeBuilder>> builders = new HashMap<Object, Map<String, TypeBuilder>>();
                 Map<Object, IndexReader> cacheToReader = new HashMap<Object, IndexReader>();
 
+                // We don't want to load uid of child documents, this allows us to not load uids of child types.
+                Set<String> parentTypes = new HashSet<String>();
+                for (String type : indexService.mapperService().types()) {
+                    ParentFieldMapper parentFieldMapper = indexService.mapperService().documentMapper(type).parentFieldMapper();
+                    if (parentFieldMapper != null) {
+                        parentTypes.add(parentFieldMapper.type());
+                    }
+                }
+                ParentChildUidIterator iterator = new ParentChildUidIterator(parentTypes);
+
                 // first, go over and load all the id->doc map for all types
                 for (AtomicReaderContext context : atomicReaderContexts) {
-                    AtomicReader reader = context.reader();
+                    final AtomicReader reader = context.reader();
                     if (idReaders.containsKey(reader.getCoreCacheKey())) {
                         // no need, continue
                         continue;
@@ -129,118 +136,28 @@ public class PagedIdCache extends AbstractIndexComponent implements IdCache, Seg
                     if (reader instanceof SegmentReader) {
                         ((SegmentReader) reader).addCoreClosedListener(this);
                     }
-                    Map<String, TypeBuilder> readerBuilder = new HashMap<String, TypeBuilder>();
+                    final Map<String, TypeBuilder> readerBuilder = new HashMap<String, TypeBuilder>();
                     builders.put(reader.getCoreCacheKey(), readerBuilder);
                     cacheToReader.put(reader.getCoreCacheKey(), context.reader());
+                    iterator.iterate(reader, new ParentChildUidIterator.Callback() {
 
-
-                    Terms uidTerms = reader.terms(UidFieldMapper.NAME);
-                    Terms parentUidTerms = reader.terms(ParentFieldMapper.NAME);
-
-                    TermsEnum uidTermsEnum = uidTerms.iterator(null);
-                    TermsEnum parentUidTermsEnum = parentUidTerms.iterator(null);
-                    DocsEnum docsEnum = null;
-                    while (true) {
-                        BytesRef uidAndType = uidTermsEnum.next();
-                        BytesRef parentUidAndType = parentUidTermsEnum.next();
-                        if (uidAndType == null && parentUidAndType == null) {
-                            break;
-                        } else if (uidAndType == null) {
-                            for (; parentUidAndType != null; parentUidAndType = parentUidTermsEnum.next()) {
-                                Tuple<BytesRef, TypeBuilder> idAndType = resolveUidAndTypeBuilder(reader, readerBuilder, parentUidAndType);
-                                BytesRef parentUid = idAndType.v1();
-                                TypeBuilder typeBuilder = idAndType.v2();
-                                long offset = typeBuilder.parentIds.copyUsingLengthPrefix(parentUid);
-                                docsEnum = uidTermsEnum.docs(reader.getLiveDocs(), docsEnum, DocsEnum.FLAG_NONE);
-                                for (int docId = docsEnum.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
-                                    typeBuilder.childDocIdToParentIdOffsetWriter.set(docId, offset);
-                                }
-                            }
-                            break;
-                        } else if (parentUidAndType == null) {
-                            for (; uidAndType != null; uidAndType = uidTermsEnum.next()) {
-                                Tuple<BytesRef, TypeBuilder> idAndType = resolveUidAndTypeBuilder(reader, readerBuilder, uidAndType);
-                                BytesRef uid = idAndType.v1();
-                                TypeBuilder typeBuilder = idAndType.v2();
-                                long offset = typeBuilder.parentIds.copyUsingLengthPrefix(uid);
-                                docsEnum = uidTermsEnum.docs(reader.getLiveDocs(), docsEnum, DocsEnum.FLAG_NONE);
-                                for (int docId = docsEnum.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
-                                    typeBuilder.parentDocIdToUidOffsetWriter.set(docId, offset);
-                                }
-                            }
-                            break;
-                        }
-
-                        BytesRef uid = Uid.splitUidIntoTypeAndId_br(uidAndType)[1];
-                        BytesRef parentUid = Uid.splitUidIntoTypeAndId_br(parentUidAndType)[1];
-
-                        int cmp = uid.compareTo(parentUid);
-                        if (cmp < 0) {
-                            long offset;
-                            do {
-                                Tuple<BytesRef, TypeBuilder> idAndType = resolveUidAndTypeBuilder(reader, readerBuilder, uidAndType);
-                                uid = idAndType.v1();
-                                TypeBuilder typeBuilder = idAndType.v2();
-                                offset = typeBuilder.parentIds.copyUsingLengthPrefix(uid);
-                                docsEnum = uidTermsEnum.docs(reader.getLiveDocs(), docsEnum, DocsEnum.FLAG_NONE);
-                                for (int docId = docsEnum.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
-                                    typeBuilder.parentDocIdToUidOffsetWriter.set(docId, offset);
-                                }
-                                uidAndType = uidTermsEnum.next();
-                                if (uidAndType != null) {
-                                    uid = Uid.splitUidIntoTypeAndId_br(uidAndType)[1];
-                                } else {
-                                    uid = null;
-                                }
-                            } while (uid != null && uid.compareTo(parentUid) < 0);
-                            // Now catch up in the parent_uid field
-                            Tuple<BytesRef, TypeBuilder> idAndType = resolveUidAndTypeBuilder(reader, readerBuilder, parentUidAndType);
-                            TypeBuilder typeBuilder = idAndType.v2();
-                            docsEnum = parentUidTermsEnum.docs(reader.getLiveDocs(), docsEnum, DocsEnum.FLAG_NONE);
-                            for (int docId = docsEnum.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
-                                typeBuilder.childDocIdToParentIdOffsetWriter.set(docId, offset);
-                            }
-                        } else if (cmp == 0) {
-                            Tuple<BytesRef, TypeBuilder> idAndType = resolveUidAndTypeBuilder(reader, readerBuilder, parentUidAndType);
-                            uid = idAndType.v1();
-                            TypeBuilder typeBuilder = idAndType.v2();
+                        @Override
+                        public void onUid(String type, BytesRef uid, DocsEnum parentDocs, DocsEnum childDocs) throws IOException {
+                            TypeBuilder typeBuilder = resolveTypeBuilder(reader, readerBuilder, type);
                             long offset = typeBuilder.parentIds.copyUsingLengthPrefix(uid);
-                            docsEnum = uidTermsEnum.docs(reader.getLiveDocs(), docsEnum, DocsEnum.FLAG_NONE);
-                            for (int docId = docsEnum.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
-                                typeBuilder.parentDocIdToUidOffsetWriter.set(docId, offset);
-                            }
-                            docsEnum = parentUidTermsEnum.docs(reader.getLiveDocs(), docsEnum, DocsEnum.FLAG_NONE);
-                            for (int docId = docsEnum.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
-                                typeBuilder.childDocIdToParentIdOffsetWriter.set(docId, offset);
-                            }
-                        } else if (cmp > 0) {
-                            long offset;
-                            do {
-                                Tuple<BytesRef, TypeBuilder> idAndType = resolveUidAndTypeBuilder(reader, readerBuilder, parentUidAndType);
-                                BytesRef parentId = idAndType.v1();
-                                TypeBuilder typeBuilder = idAndType.v2();
-
-                                offset = typeBuilder.parentIds.copyUsingLengthPrefix(parentId);
-                                docsEnum = parentUidTermsEnum.docs(reader.getLiveDocs(), docsEnum, DocsEnum.FLAG_NONE);
-                                for (int docId = docsEnum.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
-                                    typeBuilder.childDocIdToParentIdOffsetWriter.set(docId, offset);
+                            if (parentDocs != null) {
+                                for (int docId = parentDocs.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = parentDocs.nextDoc()) {
+                                    typeBuilder.docIdToUidOffsetWriter.set(docId, offset);
                                 }
-                                parentUidAndType = parentUidTermsEnum.next();
-                                if (parentUidAndType != null) {
-                                    parentUid = Uid.splitUidIntoTypeAndId_br(parentUidAndType)[1];
-                                } else {
-                                    parentUid = null;
+                            }
+                            if (childDocs != null) {
+                                for (int docId = childDocs.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = childDocs.nextDoc()) {
+                                    typeBuilder.docIdToParentUidOffsetWriter.set(docId, offset);
                                 }
-                            } while (parentUidAndType != null && parentUid.compareTo(uid) < 0);
-                            // Now catch up in the uid field
-                            Tuple<BytesRef, TypeBuilder> idAndType = resolveUidAndTypeBuilder(reader, readerBuilder, uidAndType);
-                            TypeBuilder typeBuilder = idAndType.v2();
-                            docsEnum = uidTermsEnum.docs(reader.getLiveDocs(), docsEnum, DocsEnum.FLAG_NONE);
-                            for (int docId = docsEnum.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
-                                typeBuilder.parentDocIdToUidOffsetWriter.set(docId, offset);
                             }
                         }
-                    }
+
+                    });
                 }
 
                 // now, build it back
@@ -250,9 +167,9 @@ public class PagedIdCache extends AbstractIndexComponent implements IdCache, Seg
                     for (Map.Entry<String, TypeBuilder> typeBuilderEntry : entry.getValue().entrySet()) {
                         types.put(typeBuilderEntry.getKey(), new PagedIdReaderTypeCache(typeBuilderEntry.getKey(),
                                 typeBuilderEntry.getValue().parentIds.freeze(true),
-                                0l, // TODO
-                                typeBuilderEntry.getValue().childDocIdToParentIdOffsetWriter.getMutable(),
-                                typeBuilderEntry.getValue().parentDocIdToUidOffsetWriter.getMutable()));
+                                typeBuilderEntry.getValue().parentIds.getPointer(),
+                                typeBuilderEntry.getValue().docIdToParentUidOffsetWriter.getMutable(),
+                                typeBuilderEntry.getValue().docIdToUidOffsetWriter.getMutable()));
                     }
                     IndexReader indexReader = cacheToReader.get(readerKey);
                     PagedIdReaderCache readerCache = new PagedIdReaderCache(types.immutableMap(), ShardUtils.extractShardId(indexReader));
@@ -290,27 +207,25 @@ public class PagedIdCache extends AbstractIndexComponent implements IdCache, Seg
         return false;
     }
 
-    private Tuple<BytesRef, TypeBuilder> resolveUidAndTypeBuilder(IndexReader reader, Map<String, TypeBuilder> readerBuilder, BytesRef uid) {
-        BytesRef[] typeAndId = Uid.splitUidIntoTypeAndId_br(uid);
-        String type = typeAndId[0].utf8ToString();
+    private TypeBuilder resolveTypeBuilder(IndexReader reader, Map<String, TypeBuilder> readerBuilder, String type) {
         TypeBuilder typeBuilder = readerBuilder.get(type);
         if (typeBuilder == null) {
             typeBuilder = new TypeBuilder(reader);
             readerBuilder.put(type, typeBuilder);
         }
-        return new Tuple<BytesRef, TypeBuilder>(typeAndId[1], typeBuilder);
+        return typeBuilder;
     }
 
     static class TypeBuilder {
 
         final PagedBytes parentIds = new PagedBytes(15);
-        final GrowableWriter parentDocIdToUidOffsetWriter;
-        final GrowableWriter childDocIdToParentIdOffsetWriter;
+        final GrowableWriter docIdToUidOffsetWriter;
+        final GrowableWriter docIdToParentUidOffsetWriter;
 
         TypeBuilder(IndexReader reader) {
-            parentIds.copyUsingLengthPrefix(new BytesRef()); // pointer 0 is for not set
-            parentDocIdToUidOffsetWriter = new GrowableWriter(1, reader.maxDoc(), PackedInts.FAST);
-            childDocIdToParentIdOffsetWriter = new GrowableWriter(1, reader.maxDoc(), PackedInts.FAST);
+            parentIds.copyUsingLengthPrefix(EMPTY); // pointer 0 is for not set
+            docIdToUidOffsetWriter = new GrowableWriter(1, reader.maxDoc(), PackedInts.FAST);
+            docIdToParentUidOffsetWriter = new GrowableWriter(1, reader.maxDoc(), PackedInts.FAST);
         }
     }
 }

@@ -142,7 +142,8 @@ public abstract class HasParentFilter extends Filter implements SearchContext.Re
 
             @Override
             protected boolean matchDoc(int doc) {
-                return parents.contains(idReaderTypeCache.parentIdByDoc(doc));
+                boolean res = parents.contains(idReaderTypeCache.parentIdByDoc(doc));
+                return res;
             }
 
         }
@@ -164,7 +165,8 @@ public abstract class HasParentFilter extends Filter implements SearchContext.Re
             public void collect(int doc) throws IOException {
                 // It can happen that for particular segment no document exist for an specific type. This prevents NPE
                 if (typeCache != null) {
-                    collectedUids.add(typeCache.idByDoc(doc));
+                    BytesReference uid = typeCache.idByDoc(doc);
+                    collectedUids.add(uid);
                 }
             }
 

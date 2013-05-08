@@ -35,17 +35,17 @@ public class PagedIdReaderTypeCache implements IdReaderTypeCache {
 
     private final PagedBytes.Reader parentIds;
     private final long parentIdsSizeInBytes;
-    private final PackedInts.Reader childDocIdToParentIdOffset;
-    private final PackedInts.Reader parentDocIdToUidOffset;
+    private final PackedInts.Reader docIdToParentIdOffset;
+    private final PackedInts.Reader docIdToUidOffset;
 
     private long sizeInBytes = -1;
 
-    public PagedIdReaderTypeCache(String type, PagedBytes.Reader parentIds, long parentIdsSizeInBytes, PackedInts.Reader childDocIdToParentIdOffset, PackedInts.Reader parentDocIdToUidOffset) {
+    public PagedIdReaderTypeCache(String type, PagedBytes.Reader parentIds, long parentIdsSizeInBytes, PackedInts.Reader docIdToParentIdOffset, PackedInts.Reader docIdToUidOffset) {
         this.type = type;
         this.parentIds = parentIds;
         this.parentIdsSizeInBytes = parentIdsSizeInBytes;
-        this.childDocIdToParentIdOffset = childDocIdToParentIdOffset;
-        this.parentDocIdToUidOffset = parentDocIdToUidOffset;
+        this.docIdToParentIdOffset = docIdToParentIdOffset;
+        this.docIdToUidOffset = docIdToUidOffset;
     }
 
     public String type() {
@@ -53,10 +53,14 @@ public class PagedIdReaderTypeCache implements IdReaderTypeCache {
     }
 
     public BytesReference parentIdByDoc(int docId) {
-        int parentIdOffset = (int) childDocIdToParentIdOffset.get(docId);
+        int offset = (int) docIdToParentIdOffset.get(docId);
         BytesRef ref = new BytesRef();
-        parentIds.fill(ref, parentIdOffset);
-        return new BytesArray(ref);
+        parentIds.fill(ref, offset);
+        if (ref.length == 0) {
+            return null;
+        } else {
+            return new BytesArray(ref);
+        }
     }
 
     public int docById(BytesReference uid) {
@@ -65,14 +69,18 @@ public class PagedIdReaderTypeCache implements IdReaderTypeCache {
     }
 
     public BytesReference idByDoc(int docId) {
-        int parentIdOffset = (int) parentDocIdToUidOffset.get(docId);
+        int offset = (int) docIdToUidOffset.get(docId);
         BytesRef ref = new BytesRef();
-        parentIds.fill(ref, parentIdOffset);
-        return new BytesArray(ref);
+        parentIds.fill(ref, offset);
+        if (ref.length == 0) {
+            return null;
+        } else {
+            return new BytesArray(ref);
+        }
     }
 
     public void idByDoc(int docId, BytesRef ref) {
-        int parentIdOffset = (int) parentDocIdToUidOffset.get(docId);
+        int parentIdOffset = (int) docIdToUidOffset.get(docId);
         parentIds.fill(ref, parentIdOffset);
     }
 
@@ -85,8 +93,8 @@ public class PagedIdReaderTypeCache implements IdReaderTypeCache {
 
     long computeSizeInBytes() {
         long sizeInBytes = parentIdsSizeInBytes;
-        sizeInBytes += childDocIdToParentIdOffset.ramBytesUsed();
-        sizeInBytes += parentDocIdToUidOffset.ramBytesUsed();
+        sizeInBytes += docIdToParentIdOffset.ramBytesUsed();
+        sizeInBytes += docIdToUidOffset.ramBytesUsed();
         return sizeInBytes;
     }
 
