@@ -18,13 +18,13 @@
  */
 package org.elasticsearch.index.search.child;
 
-import java.io.IOException;
-
 import org.apache.lucene.index.AtomicReaderContext;
-import org.elasticsearch.common.bytes.HashedBytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
 import org.elasticsearch.search.internal.SearchContext;
+
+import java.io.IOException;
 
 /**
  * A simple collector that only collects if the docs parent ID is not
@@ -43,14 +43,14 @@ abstract class ParentIdCollector extends NoopCollector {
     @Override
     public final void collect(int doc) throws IOException {
         if (typeCache != null) {
-            HashedBytesArray parentIdByDoc = typeCache.parentIdByDoc(doc);
+            BytesReference parentIdByDoc = typeCache.parentIdByDoc(doc);
             if (parentIdByDoc != null) {
                collect(doc, parentIdByDoc);
             }
         }
     }
     
-    protected abstract void collect(int doc, HashedBytesArray parentId) throws IOException;
+    protected abstract void collect(int doc, BytesReference parentId) throws IOException;
 
     @Override
     public void setNextReader(AtomicReaderContext readerContext) throws IOException {

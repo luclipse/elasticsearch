@@ -52,7 +52,7 @@ public class ParentQuery extends Query implements SearchContext.Rewrite {
     private final Filter childrenFilter;
 
     private Query rewrittenParentQuery;
-    private TObjectFloatHashMap<HashedBytesArray> uidToScore;
+    private TObjectFloatHashMap<BytesReference> uidToScore;
 
     public ParentQuery(SearchContext searchContext, Query parentQuery, String parentType, Filter childrenFilter) {
         this.searchContext = searchContext;
@@ -162,14 +162,14 @@ public class ParentQuery extends Query implements SearchContext.Rewrite {
 
     static class ParentUidCollector extends NoopCollector {
 
-        final TObjectFloatHashMap<HashedBytesArray> uidToScore;
+        final TObjectFloatHashMap<BytesReference> uidToScore;
         final SearchContext searchContext;
         final String parentType;
 
         Scorer scorer;
         IdReaderTypeCache typeCache;
 
-        ParentUidCollector(TObjectFloatHashMap<HashedBytesArray> uidToScore, SearchContext searchContext, String parentType) {
+        ParentUidCollector(TObjectFloatHashMap<BytesReference> uidToScore, SearchContext searchContext, String parentType) {
             this.uidToScore = uidToScore;
             this.searchContext = searchContext;
             this.parentType = parentType;
@@ -181,7 +181,7 @@ public class ParentQuery extends Query implements SearchContext.Rewrite {
                 return;
             }
 
-            HashedBytesArray parentUid = typeCache.idByDoc(doc);
+            BytesReference parentUid = typeCache.idByDoc(doc);
             uidToScore.put(parentUid, scorer.score());
         }
 
@@ -242,14 +242,14 @@ public class ParentQuery extends Query implements SearchContext.Rewrite {
 
     static class ChildScorer extends Scorer {
 
-        final TObjectFloatHashMap<HashedBytesArray> uidToScore;
+        final TObjectFloatHashMap<BytesReference> uidToScore;
         final DocIdSetIterator childrenIterator;
         final IdReaderTypeCache typeCache;
 
         int currentChildDoc = -1;
         float currentScore;
 
-        ChildScorer(Weight weight, TObjectFloatHashMap<HashedBytesArray> uidToScore, DocIdSetIterator childrenIterator, IdReaderTypeCache typeCache) {
+        ChildScorer(Weight weight, TObjectFloatHashMap<BytesReference> uidToScore, DocIdSetIterator childrenIterator, IdReaderTypeCache typeCache) {
             super(weight);
             this.uidToScore = uidToScore;
             this.childrenIterator = childrenIterator;

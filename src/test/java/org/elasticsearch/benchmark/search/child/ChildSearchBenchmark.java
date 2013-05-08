@@ -54,6 +54,7 @@ public class ChildSearchBenchmark {
     public static void main(String[] args) throws Exception {
         Settings settings = settingsBuilder()
                 .put("index.engine.robin.refreshInterval", "-1")
+                .put("index.cache.id.type", "paged")
                 .put("gateway.type", "local")
                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
@@ -62,7 +63,7 @@ public class ChildSearchBenchmark {
         Node node1 = nodeBuilder().settings(settingsBuilder().put(settings).put("name", "node1")).node();
         Client client = node1.client();
 
-        long COUNT = SizeValue.parseSizeValue("1m").singles();
+        long COUNT = SizeValue.parseSizeValue("1k").singles();
         int CHILD_COUNT = 5;
         int BATCH = 100;
         int QUERY_WARMUP = 20;
@@ -82,7 +83,7 @@ public class ChildSearchBenchmark {
             System.out.println("--> Indexing [" + COUNT + "] parent document and [" + (COUNT * CHILD_COUNT) + " child documents");
             long ITERS = COUNT / BATCH;
             long i = 1;
-            int counter = 0;
+            int counter = 1;
             for (; i <= ITERS; i++) {
                 BulkRequestBuilder request = client.prepareBulk();
                 for (int j = 0; j < BATCH; j++) {
