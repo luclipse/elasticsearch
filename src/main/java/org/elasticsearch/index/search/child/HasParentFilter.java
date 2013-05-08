@@ -29,7 +29,7 @@ import org.apache.lucene.util.Bits;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.HashedBytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.docset.MatchDocIdSet;
 import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
@@ -91,7 +91,7 @@ public abstract class HasParentFilter extends Filter implements SearchContext.Re
 
     static class Uid extends HasParentFilter {
 
-        THashSet<HashedBytesArray> parents;
+        THashSet<BytesReference> parents;
 
         Uid(Query query, String parentType, SearchContext context) {
             super(query, parentType, context);
@@ -130,10 +130,10 @@ public abstract class HasParentFilter extends Filter implements SearchContext.Re
         static class ChildrenDocSet extends MatchDocIdSet {
 
             final IndexReader reader;
-            final THashSet<HashedBytesArray> parents;
+            final THashSet<BytesReference> parents;
             final IdReaderTypeCache idReaderTypeCache;
 
-            ChildrenDocSet(IndexReader reader, @Nullable Bits acceptDocs, THashSet<HashedBytesArray> parents, IdReaderTypeCache idReaderTypeCache) {
+            ChildrenDocSet(IndexReader reader, @Nullable Bits acceptDocs, THashSet<BytesReference> parents, IdReaderTypeCache idReaderTypeCache) {
                 super(reader.maxDoc(), acceptDocs);
                 this.reader = reader;
                 this.parents = parents;
@@ -149,13 +149,13 @@ public abstract class HasParentFilter extends Filter implements SearchContext.Re
 
         static class ParentUidsCollector extends NoopCollector {
 
-            final THashSet<HashedBytesArray> collectedUids;
+            final THashSet<BytesReference> collectedUids;
             final SearchContext context;
             final String parentType;
 
             IdReaderTypeCache typeCache;
 
-            ParentUidsCollector(THashSet<HashedBytesArray> collectedUids, SearchContext context, String parentType) {
+            ParentUidsCollector(THashSet<BytesReference> collectedUids, SearchContext context, String parentType) {
                 this.collectedUids = collectedUids;
                 this.context = context;
                 this.parentType = parentType;

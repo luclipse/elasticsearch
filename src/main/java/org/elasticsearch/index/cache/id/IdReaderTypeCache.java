@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.cache.id;
 
-import org.elasticsearch.common.bytes.HashedBytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 
 /**
  *
@@ -30,19 +30,19 @@ public interface IdReaderTypeCache {
      * @param docId The Lucene docId of the child document to return the parent _uid for.
      * @return The parent _uid for the specified docId (which is a child document)
      */
-    HashedBytesArray parentIdByDoc(int docId);
+    BytesReference parentIdByDoc(int docId);
 
     /**
      * @param uid The uid of the document to return the lucene docId for
      * @return The lucene docId for the specified uid
      */
-    int docById(HashedBytesArray uid);
+    int docById(BytesReference uid);
 
     /**
      * @param docId The lucene docId of the document to return _uid for
      * @return The _uid of the specified docId
      */
-    HashedBytesArray idByDoc(int docId);
+    BytesReference idByDoc(int docId);
 
     /**
      * @return The size in bytes for this particular instance

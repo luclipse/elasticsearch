@@ -17,38 +17,42 @@
  * under the License.
  */
 
-package org.elasticsearch.index.cache.id.simple;
+package org.elasticsearch.index.cache.id.fst;
 
-import gnu.trove.impl.hash.TObjectHash;
+import org.apache.lucene.util.IntsRef;
+import org.apache.lucene.util.fst.FST;
+import org.apache.lucene.util.fst.Util;
+import org.apache.lucene.util.packed.PackedInts;
+import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.HashedBytesArray;
-import org.elasticsearch.common.trove.ExtTObjectIntHasMap;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
+
+import java.io.IOException;
 
 /**
  *
  */
-public class SimpleIdReaderTypeCache implements IdReaderTypeCache {
+public class FSTReaderTypeCache implements IdReaderTypeCache {
 
     private final String type;
 
-    private final ExtTObjectIntHasMap<HashedBytesArray> idToDoc;
+    private final FST<Long> idToDoc;
 
     private final HashedBytesArray[] docIdToId;
 
-    private final HashedBytesArray[] parentIdsValues;
+    private final FST<BytesReference> parentIdsValues;
 
-    private final int[] parentIdsOrdinals;
+    private final PackedInts.Reader parentIdsOrdinals;
 
     private long sizeInBytes = -1;
 
-    public SimpleIdReaderTypeCache(String type, ExtTObjectIntHasMap<HashedBytesArray> idToDoc, HashedBytesArray[] docIdToId,
-                                   HashedBytesArray[] parentIdsValues, int[] parentIdsOrdinals) {
+    public FSTReaderTypeCache(String type, FST<Long> idToDoc, HashedBytesArray[] docIdToId,
+                              FST<BytesReference> parentIdsValues, PackedInts.Reader parentIdsOrdinals) {
         this.type = type;
         this.idToDoc = idToDoc;
         this.docIdToId = docIdToId;
-        this.idToDoc.trimToSize();
         this.parentIdsValues = parentIdsValues;
         this.parentIdsOrdinals = parentIdsOrdinals;
     }
@@ -58,11 +62,22 @@ public class SimpleIdReaderTypeCache implements IdReaderTypeCache {
     }
 
     public BytesReference parentIdByDoc(int docId) {
-        return parentIdsValues[parentIdsOrdinals[docId]];
+        IntsRef intsRef = new IntsRef(1);
+        intsRef.length = 1;
+        try {
+            intsRef.ints[0] = (int) parentIdsOrdinals.get(docId);
+            return Util.get(parentIdsValues, intsRef);
+        } catch (IOException e) {
+            throw new ElasticSearchException("", e);
+        }
     }
 
     public int docById(BytesReference uid) {
-        return idToDoc.get(uid);
+        try {
+            return Util.get(idToDoc, uid.toBytesRef()).intValue();
+        } catch (IOException e) {
+            throw new ElasticSearchException("", e);
+        }
     }
 
     public BytesReference idByDoc(int docId) {
@@ -80,33 +95,20 @@ public class SimpleIdReaderTypeCache implements IdReaderTypeCache {
      * Returns an already stored instance if exists, if not, returns null;
      */
     public HashedBytesArray canReuse(HashedBytesArray id) {
-        return idToDoc.key(id);
+//        return idToDoc.key(id);
+        return null;
     }
 
     long computeSizeInBytes() {
         long sizeInBytes = 0;
         // Ignore type field
         //  sizeInBytes += ((type.length() * RamUsage.NUM_BYTES_CHAR) + (3 * RamUsage.NUM_BYTES_INT)) + RamUsage.NUM_BYTES_OBJECT_HEADER;
-        sizeInBytes += RamUsage.NUM_BYTES_ARRAY_HEADER + (idToDoc._valuesSize() * RamUsage.NUM_BYTES_INT);
-        for (Object o : idToDoc._set) {
-            if (o == TObjectHash.FREE || o == TObjectHash.REMOVED) {
-                sizeInBytes += RamUsage.NUM_BYTES_OBJECT_REF;
-            } else {
-                HashedBytesArray bytesArray = (HashedBytesArray) o;
-                sizeInBytes += RamUsage.NUM_BYTES_OBJECT_HEADER + (bytesArray.length() + RamUsage.NUM_BYTES_INT);
-            }
-        }
+        sizeInBytes += RamUsage.NUM_BYTES_ARRAY_HEADER + idToDoc.sizeInBytes();
 
         // The docIdToId array contains references to idToDoc for this segment or other segments, so we can use OBJECT_REF
         sizeInBytes += RamUsage.NUM_BYTES_ARRAY_HEADER + (RamUsage.NUM_BYTES_OBJECT_REF * docIdToId.length);
-        for (HashedBytesArray bytesArray : parentIdsValues) {
-            if (bytesArray == null) {
-                sizeInBytes += RamUsage.NUM_BYTES_OBJECT_REF;
-            } else {
-                sizeInBytes += RamUsage.NUM_BYTES_OBJECT_HEADER + (bytesArray.length() + RamUsage.NUM_BYTES_INT);
-            }
-        }
-        sizeInBytes += RamUsage.NUM_BYTES_ARRAY_HEADER + (RamUsage.NUM_BYTES_INT * parentIdsOrdinals.length);
+        sizeInBytes += parentIdsValues.sizeInBytes();
+        sizeInBytes += parentIdsOrdinals.ramBytesUsed();
 
         return sizeInBytes;
     }

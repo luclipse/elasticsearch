@@ -17,12 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.index.cache.id.simple;
+package org.elasticsearch.index.cache.id.paged;
 
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.index.cache.id.IdReaderCache;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
 import org.elasticsearch.index.shard.ShardId;
@@ -30,14 +29,14 @@ import org.elasticsearch.index.shard.ShardId;
 /**
  *
  */
-public class SimpleIdReaderCache implements IdReaderCache {
+public class PagedIdReaderCache implements IdReaderCache {
 
-    private final ImmutableMap<String, SimpleIdReaderTypeCache> types;
+    private final ImmutableMap<String, PagedIdReaderTypeCache> types;
 
     @Nullable
     public final ShardId shardId;
 
-    public SimpleIdReaderCache(ImmutableMap<String, SimpleIdReaderTypeCache> types, @Nullable ShardId shardId) {
+    public PagedIdReaderCache(ImmutableMap<String, PagedIdReaderTypeCache> types, @Nullable ShardId shardId) {
         this.types = types;
         this.shardId = shardId;
     }
@@ -49,7 +48,7 @@ public class SimpleIdReaderCache implements IdReaderCache {
 
     @Override
     public BytesReference parentIdByDoc(String type, int docId) {
-        SimpleIdReaderTypeCache typeCache = types.get(type);
+        PagedIdReaderTypeCache typeCache = types.get(type);
         if (typeCache != null) {
             return typeCache.parentIdByDoc(docId);
         }
@@ -58,7 +57,7 @@ public class SimpleIdReaderCache implements IdReaderCache {
 
     @Override
     public int docById(String type, BytesReference id) {
-        SimpleIdReaderTypeCache typeCache = types.get(type);
+        PagedIdReaderTypeCache typeCache = types.get(type);
         if (typeCache != null) {
             return typeCache.docById(id);
         }
@@ -67,22 +66,10 @@ public class SimpleIdReaderCache implements IdReaderCache {
 
     public long sizeInBytes() {
         long sizeInBytes = 0;
-        for (SimpleIdReaderTypeCache readerTypeCache : types.values()) {
+        for (PagedIdReaderTypeCache readerTypeCache : types.values()) {
             sizeInBytes += readerTypeCache.sizeInBytes();
         }
         return sizeInBytes;
     }
 
-    /**
-     * Returns an already stored instance if exists, if not, returns null;
-     */
-    public HashedBytesArray canReuse(HashedBytesArray id) {
-        for (SimpleIdReaderTypeCache typeCache : types.values()) {
-            HashedBytesArray wrap = typeCache.canReuse(id);
-            if (wrap != null) {
-                return wrap;
-            }
-        }
-        return null;
-    }
 }

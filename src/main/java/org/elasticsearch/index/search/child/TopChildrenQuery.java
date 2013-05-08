@@ -26,7 +26,7 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.ToStringUtils;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.CacheRecycler;
-import org.elasticsearch.common.bytes.HashedBytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.search.EmptyScorer;
 import org.elasticsearch.common.trove.ExtTHashMap;
 import org.elasticsearch.search.internal.SearchContext;
@@ -173,7 +173,7 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
             int subDoc = scoreDoc.doc - subContext.docBase;
 
             // find the parent id
-            HashedBytesArray parentId = context.idCache().reader(subContext.reader()).parentIdByDoc(parentType, subDoc);
+            BytesReference parentId = context.idCache().reader(subContext.reader()).parentIdByDoc(parentType, subDoc);
             if (parentId == null) {
                 // no parent found
                 continue;
