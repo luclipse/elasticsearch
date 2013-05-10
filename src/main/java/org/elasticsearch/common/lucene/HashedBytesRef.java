@@ -56,6 +56,11 @@ public class HashedBytesRef {
         return this;
     }
 
+    public HashedBytesRef resetHash(int hash) {
+        this.hash = hash;
+        return this;
+    }
+
     @Override
     public int hashCode() {
         return hash;
