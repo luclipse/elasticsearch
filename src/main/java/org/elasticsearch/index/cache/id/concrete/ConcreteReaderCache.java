@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.cache.id.fst;
+package org.elasticsearch.index.cache.id.concrete;
 
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.Nullable;
@@ -29,14 +29,14 @@ import org.elasticsearch.index.shard.ShardId;
 /**
  *
  */
-public class FSTIdReaderCache implements IdReaderCache {
+public class ConcreteReaderCache implements IdReaderCache {
 
-    private final ImmutableMap<String, FSTReaderTypeCache> types;
+    private final ImmutableMap<String, ConcreteIdReaderTypeCache> types;
 
     @Nullable
     public final ShardId shardId;
 
-    public FSTIdReaderCache(ImmutableMap<String, FSTReaderTypeCache> types, @Nullable ShardId shardId) {
+    public ConcreteReaderCache(ImmutableMap<String, ConcreteIdReaderTypeCache> types, @Nullable ShardId shardId) {
         this.types = types;
         this.shardId = shardId;
     }
@@ -48,7 +48,7 @@ public class FSTIdReaderCache implements IdReaderCache {
 
     @Override
     public BytesReference parentIdByDoc(String type, int docId) {
-        FSTReaderTypeCache typeCache = types.get(type);
+        ConcreteIdReaderTypeCache typeCache = types.get(type);
         if (typeCache != null) {
             return typeCache.parentIdByDoc(docId);
         }
@@ -57,7 +57,7 @@ public class FSTIdReaderCache implements IdReaderCache {
 
     @Override
     public int docById(String type, BytesReference id) {
-        FSTReaderTypeCache typeCache = types.get(type);
+        ConcreteIdReaderTypeCache typeCache = types.get(type);
         if (typeCache != null) {
             return typeCache.docById(id);
         }
@@ -66,9 +66,10 @@ public class FSTIdReaderCache implements IdReaderCache {
 
     public long sizeInBytes() {
         long sizeInBytes = 0;
-        for (FSTReaderTypeCache readerTypeCache : types.values()) {
+        for (ConcreteIdReaderTypeCache readerTypeCache : types.values()) {
             sizeInBytes += readerTypeCache.sizeInBytes();
         }
         return sizeInBytes;
     }
+
 }

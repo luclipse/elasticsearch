@@ -19,14 +19,14 @@
 
 package org.elasticsearch.index.cache.id.fst;
 
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IntsRef;
 import org.apache.lucene.util.fst.FST;
 import org.apache.lucene.util.fst.Util;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.common.RamUsage;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
 
 import java.io.IOException;
@@ -37,24 +37,17 @@ import java.io.IOException;
 public class FSTReaderTypeCache implements IdReaderTypeCache {
 
     private final String type;
-
-    private final FST<Long> idToDoc;
-
-    private final HashedBytesArray[] docIdToId;
-
-    private final FST<BytesReference> parentIdsValues;
-
-    private final PackedInts.Reader parentIdsOrdinals;
+    private final FST<Long> parentIdsValues;
+    private final PackedInts.Reader docIdToParentIdOrd;
+    private final PackedInts.Reader docIdToUidOrd;
 
     private long sizeInBytes = -1;
 
-    public FSTReaderTypeCache(String type, FST<Long> idToDoc, HashedBytesArray[] docIdToId,
-                              FST<BytesReference> parentIdsValues, PackedInts.Reader parentIdsOrdinals) {
+    public FSTReaderTypeCache(String type, FST<Long> parentIdsValues, PackedInts.Reader docIdToParentIdOrd, PackedInts.Reader docIdToUidOrd) {
         this.type = type;
-        this.idToDoc = idToDoc;
-        this.docIdToId = docIdToId;
         this.parentIdsValues = parentIdsValues;
-        this.parentIdsOrdinals = parentIdsOrdinals;
+        this.docIdToParentIdOrd = docIdToParentIdOrd;
+        this.docIdToUidOrd = docIdToUidOrd;
     }
 
     public String type() {
@@ -62,26 +55,54 @@ public class FSTReaderTypeCache implements IdReaderTypeCache {
     }
 
     public BytesReference parentIdByDoc(int docId) {
-        IntsRef intsRef = new IntsRef(1);
-        intsRef.length = 1;
+        int ord = (int) docIdToParentIdOrd.get(docId);
+        if (ord == 0) {
+            return null;
+        }
+        FST.BytesReader in = parentIdsValues.getBytesReader();
+        FST.Arc<Long> firstArc = new FST.Arc<Long>();
+        FST.Arc<Long> scratchArc = new FST.Arc<Long>();
+        IntsRef scratchInts = new IntsRef();
+        in.setPosition(0);
+        parentIdsValues.getFirstArc(firstArc);
+        BytesRef uid = new BytesRef();
         try {
-            intsRef.ints[0] = (int) parentIdsOrdinals.get(docId);
-            return Util.get(parentIdsValues, intsRef);
+            IntsRef output = Util.getByOutput(parentIdsValues, ord, in, firstArc, scratchArc, scratchInts);
+            uid.grow(output.length);
+            uid.length = uid.offset = 0;
+            Util.toBytesRef(output, uid);
+            return new BytesArray(uid);
         } catch (IOException e) {
             throw new ElasticSearchException("", e);
         }
     }
 
+    // only used by top_children query! Find a different solution for this query
     public int docById(BytesReference uid) {
-        try {
-            return Util.get(idToDoc, uid.toBytesRef()).intValue();
-        } catch (IOException e) {
-            throw new ElasticSearchException("", e);
-        }
+        throw new UnsupportedOperationException();
     }
 
     public BytesReference idByDoc(int docId) {
-        return docIdToId[docId];
+        int ord = (int) docIdToUidOrd.get(docId);
+        if (ord == 0) {
+            return null;
+        }
+        FST.BytesReader in = parentIdsValues.getBytesReader();
+        FST.Arc<Long> firstArc = new FST.Arc<Long>();
+        FST.Arc<Long> scratchArc = new FST.Arc<Long>();
+        IntsRef scratchInts = new IntsRef();
+        in.setPosition(0);
+        parentIdsValues.getFirstArc(firstArc);
+        BytesRef uid = new BytesRef();
+        try {
+            IntsRef output = Util.getByOutput(parentIdsValues, ord, in, firstArc, scratchArc, scratchInts);
+            uid.grow(output.length);
+            uid.length = uid.offset = 0;
+            Util.toBytesRef(output, uid);
+            return new BytesArray(uid);
+        } catch (IOException e) {
+            throw new ElasticSearchException("", e);
+        }
     }
 
     public long sizeInBytes() {
@@ -91,25 +112,10 @@ public class FSTReaderTypeCache implements IdReaderTypeCache {
         return sizeInBytes;
     }
 
-    /**
-     * Returns an already stored instance if exists, if not, returns null;
-     */
-    public HashedBytesArray canReuse(HashedBytesArray id) {
-//        return idToDoc.key(id);
-        return null;
-    }
-
     long computeSizeInBytes() {
-        long sizeInBytes = 0;
-        // Ignore type field
-        //  sizeInBytes += ((type.length() * RamUsage.NUM_BYTES_CHAR) + (3 * RamUsage.NUM_BYTES_INT)) + RamUsage.NUM_BYTES_OBJECT_HEADER;
-        sizeInBytes += RamUsage.NUM_BYTES_ARRAY_HEADER + idToDoc.sizeInBytes();
-
-        // The docIdToId array contains references to idToDoc for this segment or other segments, so we can use OBJECT_REF
-        sizeInBytes += RamUsage.NUM_BYTES_ARRAY_HEADER + (RamUsage.NUM_BYTES_OBJECT_REF * docIdToId.length);
-        sizeInBytes += parentIdsValues.sizeInBytes();
-        sizeInBytes += parentIdsOrdinals.ramBytesUsed();
-
+        long sizeInBytes = parentIdsValues.sizeInBytes();
+        sizeInBytes += docIdToParentIdOrd.ramBytesUsed();
+        sizeInBytes += docIdToUidOrd.ramBytesUsed();
         return sizeInBytes;
     }
 

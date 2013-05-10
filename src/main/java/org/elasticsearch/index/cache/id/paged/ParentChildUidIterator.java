@@ -14,6 +14,8 @@ import java.util.Set;
 
 /**
  */
+// Why isn't there a TermsEnum that combines the terms and docs from two fields?
+// Maybe nice to refactor this in a TermsEnum
 public class ParentChildUidIterator {
 
     private final String uidField;
@@ -28,6 +30,9 @@ public class ParentChildUidIterator {
 
 
     public void iterate(AtomicReader reader, Callback callback) throws IOException {
+//        System.out.println("=======================================");
+//        System.out.println("reader=" + reader.getCoreCacheKey() + "");
+//        System.out.println("=======================================");
         Terms uidTerms = reader.terms(uidField);
         Terms parentUidTerms = reader.terms(parentUidField);
         if (uidTerms == null && parentUidTerms == null) {
@@ -64,6 +69,12 @@ public class ParentChildUidIterator {
             while (true) {
                 BytesRef uidAndType = uidExhausted ? null : uidTermsEnum.next();
                 BytesRef parentUidAndType = parentUidExhausted ? null : parentUidTermsEnum.next();
+//                if (uidAndType != null) {
+//                    System.out.println("Uid= " + uidAndType.utf8ToString());
+//                }
+//                if (parentUidAndType != null) {
+//                    System.out.println("parentUid= " + parentUidAndType.utf8ToString());
+//                }
                 if (uidAndType == null && parentUidAndType == null) {
                     break;
                 } else if (uidAndType == null) {
@@ -72,6 +83,7 @@ public class ParentChildUidIterator {
                         String type = typeAndUid[0].utf8ToString();
                         BytesRef uid = typeAndUid[1];
                         childDocsEnum = parentUidTermsEnum.docs(reader.getLiveDocs(), childDocsEnum, DocsEnum.FLAG_NONE);
+//                        System.out.printf("Emit type[%s] and uid[%s]\n", type, uid.utf8ToString());
                         callback.onUid(type, uid, null, childDocsEnum);
                     }
                     break;
@@ -82,6 +94,7 @@ public class ParentChildUidIterator {
                         BytesRef uid = typeAndUid[1];
                         if (parentTypes.contains(type)) {
                             parentDocsEnum = uidTermsEnum.docs(reader.getLiveDocs(), parentDocsEnum, DocsEnum.FLAG_NONE);
+//                            System.out.printf("Emit type[%s] and uid[%s]\n", type, uid.utf8ToString());
                             callback.onUid(type, uid, parentDocsEnum, null);
                         }
                     }
@@ -89,6 +102,7 @@ public class ParentChildUidIterator {
                 }
 
                 int cmp = uidAndType.compareTo(parentUidAndType);
+//                System.out.println("cmp= " + cmp);
                 if (cmp < 0) {
                     do {
                         BytesRef[] typeAndUid = Uid.splitUidIntoTypeAndId_br(uidAndType);
@@ -96,11 +110,15 @@ public class ParentChildUidIterator {
                         BytesRef uid = typeAndUid[1];
                         if (parentTypes.contains(type)) {
                             parentDocsEnum = uidTermsEnum.docs(reader.getLiveDocs(), parentDocsEnum, DocsEnum.FLAG_NONE);
+//                            System.out.printf("Emit type[%s] and uid[%s]\n", type, uid.utf8ToString());
                             callback.onUid(type, uid, parentDocsEnum, null);
                         }
                         uidAndType = uidTermsEnum.next();
                         if (uidAndType != null) {
+//                            System.out.println("New uid= " + uidAndType.utf8ToString());
+//                            System.out.println("parentUid= " + parentUidAndType.utf8ToString());
                             cmp = uidAndType.compareTo(parentUidAndType);
+//                            System.out.println("cmp= " + cmp);
                             // Now the uid and parent field are on the same term
                             if (cmp == 0) {
                                 typeAndUid = Uid.splitUidIntoTypeAndId_br(uidAndType);
@@ -108,6 +126,7 @@ public class ParentChildUidIterator {
                                 uid = typeAndUid[1];
                                 parentDocsEnum = uidTermsEnum.docs(reader.getLiveDocs(), parentDocsEnum, DocsEnum.FLAG_NONE);
                                 childDocsEnum = parentUidTermsEnum.docs(reader.getLiveDocs(), childDocsEnum, DocsEnum.FLAG_NONE);
+//                                System.out.printf("Emit type[%s] and uid[%s]\n", type, uid.utf8ToString());
                                 callback.onUid(type, uid, parentDocsEnum, childDocsEnum);
                             } else if (cmp > 0) {
                                 // We're about the continue to the next round, but we shouldn't forget the current parentUid
@@ -115,7 +134,27 @@ public class ParentChildUidIterator {
                                 type = typeAndUid[0].utf8ToString();
                                 uid = typeAndUid[1];
                                 childDocsEnum = parentUidTermsEnum.docs(reader.getLiveDocs(), childDocsEnum, DocsEnum.FLAG_NONE);
+//                                System.out.printf("Emit type[%s] and uid[%s]\n", type, uid.utf8ToString());
                                 callback.onUid(type, uid, null, childDocsEnum);
+
+                                // And the uid if applicable
+                                typeAndUid = Uid.splitUidIntoTypeAndId_br(uidAndType);
+                                type = typeAndUid[0].utf8ToString();
+                                uid = typeAndUid[1];
+                                if (parentTypes.contains(type)) {
+                                    parentDocsEnum = uidTermsEnum.docs(reader.getLiveDocs(), parentDocsEnum, DocsEnum.FLAG_NONE);
+//                                    System.out.printf("Emit type[%s] and uid[%s]\n", type, uid.utf8ToString());
+                                    callback.onUid(type, uid, parentDocsEnum, null);
+                                }
+                            } else if (cmp < 0) {
+                                typeAndUid = Uid.splitUidIntoTypeAndId_br(uidAndType);
+                                type = typeAndUid[0].utf8ToString();
+                                uid = typeAndUid[1];
+                                if (parentTypes.contains(type)) {
+                                    parentDocsEnum = uidTermsEnum.docs(reader.getLiveDocs(), parentDocsEnum, DocsEnum.FLAG_NONE);
+//                                    System.out.printf("Emit type[%s] and uid[%s]\n", type, uid.utf8ToString());
+                                    callback.onUid(type, uid, parentDocsEnum, null);
+                                }
                             }
                         } else {
                             // We're about the continue to the next round, but we shouldn't forget the current parentUid
@@ -123,6 +162,7 @@ public class ParentChildUidIterator {
                             type = typeAndUid[0].utf8ToString();
                             uid = typeAndUid[1];
                             childDocsEnum = parentUidTermsEnum.docs(reader.getLiveDocs(), childDocsEnum, DocsEnum.FLAG_NONE);
+//                            System.out.printf("Emit type[%s] and uid[%s]\n", type, uid.utf8ToString());
                             callback.onUid(type, uid, null, childDocsEnum);
                             uidExhausted = true;
                             break;
@@ -134,6 +174,7 @@ public class ParentChildUidIterator {
                     BytesRef uid = typeAndUid[1];
                     parentDocsEnum = uidTermsEnum.docs(reader.getLiveDocs(), parentDocsEnum, DocsEnum.FLAG_NONE);
                     childDocsEnum = parentUidTermsEnum.docs(reader.getLiveDocs(), childDocsEnum, DocsEnum.FLAG_NONE);
+//                    System.out.printf("Emit type[%s] and uid[%s]\n", type, uid.utf8ToString());
                     callback.onUid(type, uid, parentDocsEnum, childDocsEnum);
                 } else if (cmp > 0) {
                     do {
@@ -141,11 +182,15 @@ public class ParentChildUidIterator {
                         String type = typeAndUid[0].utf8ToString();
                         BytesRef uid = typeAndUid[1];
                         childDocsEnum = parentUidTermsEnum.docs(reader.getLiveDocs(), childDocsEnum, DocsEnum.FLAG_NONE);
+//                        System.out.printf("Emit type[%s] and uid[%s]\n", type, uid.utf8ToString());
                         callback.onUid(type, uid, null, childDocsEnum);
 
                         parentUidAndType = parentUidTermsEnum.next();
                         if (parentUidAndType != null) {
+//                            System.out.println("uid= " + uidAndType.utf8ToString());
+//                            System.out.println("new parentUid= " + parentUidAndType.utf8ToString());
                             cmp = uidAndType.compareTo(parentUidAndType);
+//                            System.out.println("cmp= " + cmp);
                             // Now the uid and parent field are on the same term
                             if (cmp == 0) {
                                 typeAndUid = Uid.splitUidIntoTypeAndId_br(parentUidAndType);
@@ -153,14 +198,32 @@ public class ParentChildUidIterator {
                                 uid = typeAndUid[1];
                                 parentDocsEnum = uidTermsEnum.docs(reader.getLiveDocs(), parentDocsEnum, DocsEnum.FLAG_NONE);
                                 childDocsEnum = parentUidTermsEnum.docs(reader.getLiveDocs(), childDocsEnum, DocsEnum.FLAG_NONE);
+//                                System.out.printf("Emit type[%s] and uid[%s]\n", type, uid.utf8ToString());
                                 callback.onUid(type, uid, parentDocsEnum, childDocsEnum);
                             } else if (cmp < 0) {
                                 // We're about the continue to the next round, but we shouldn't forget the current uid
                                 typeAndUid = Uid.splitUidIntoTypeAndId_br(uidAndType);
                                 type = typeAndUid[0].utf8ToString();
                                 uid = typeAndUid[1];
-                                parentDocsEnum = uidTermsEnum.docs(reader.getLiveDocs(), parentDocsEnum, DocsEnum.FLAG_NONE);
-                                callback.onUid(type, uid, parentDocsEnum, null);
+                                if (parentTypes.contains(type)) {
+                                    parentDocsEnum = uidTermsEnum.docs(reader.getLiveDocs(), parentDocsEnum, DocsEnum.FLAG_NONE);
+//                                    System.out.printf("Emit type[%s] and uid[%s]\n", type, uid.utf8ToString());
+                                    callback.onUid(type, uid, parentDocsEnum, null);
+                                }
+
+                                typeAndUid = Uid.splitUidIntoTypeAndId_br(parentUidAndType);
+                                type = typeAndUid[0].utf8ToString();
+                                uid = typeAndUid[1];
+                                childDocsEnum = parentUidTermsEnum.docs(reader.getLiveDocs(), childDocsEnum, DocsEnum.FLAG_NONE);
+//                                System.out.printf("Emit type[%s] and uid[%s]\n", type, uid.utf8ToString());
+                                callback.onUid(type, uid, null, childDocsEnum);
+                            } else if (cmp > 0) {
+                                typeAndUid = Uid.splitUidIntoTypeAndId_br(parentUidAndType);
+                                type = typeAndUid[0].utf8ToString();
+                                uid = typeAndUid[1];
+                                childDocsEnum = parentUidTermsEnum.docs(reader.getLiveDocs(), childDocsEnum, DocsEnum.FLAG_NONE);
+//                                System.out.printf("Emit type[%s] and uid[%s]\n", type, uid.utf8ToString());
+                                callback.onUid(type, uid, null, childDocsEnum);
                             }
                         } else {
                             // We're about the continue to the next round, but we shouldn't forget the current uid
@@ -168,6 +231,7 @@ public class ParentChildUidIterator {
                             type = typeAndUid[0].utf8ToString();
                             uid = typeAndUid[1];
                             parentDocsEnum = uidTermsEnum.docs(reader.getLiveDocs(), parentDocsEnum, DocsEnum.FLAG_NONE);
+//                            System.out.printf("Emit type[%s] and uid[%s]\n", type, uid.utf8ToString());
                             callback.onUid(type, uid, parentDocsEnum, null);
                             parentUidExhausted = true;
                             break;

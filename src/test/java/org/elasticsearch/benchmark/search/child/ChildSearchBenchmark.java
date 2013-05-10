@@ -53,7 +53,7 @@ import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 public class ChildSearchBenchmark {
 
     public static void main(String[] args) throws Exception {
-        String idCacheType = "paged";
+        String idCacheType = "simple";
         Settings settings = settingsBuilder()
                 .put("index.engine.robin.refreshInterval", "-1")
                 .put("index.cache.id.type", idCacheType)

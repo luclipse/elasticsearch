@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.index.cache.id.paged;
+package org.elasticsearch.index.cache.id.concrete;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.PagedBytes;
 import org.apache.lucene.util.packed.PackedInts;
+import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
@@ -29,23 +29,20 @@ import org.elasticsearch.index.cache.id.IdReaderTypeCache;
 /**
  *
  */
-public class PagedIdReaderTypeCache implements IdReaderTypeCache {
+public class ConcreteIdReaderTypeCache implements IdReaderTypeCache {
 
     private final String type;
-
-    private final PagedBytes.Reader parentIds;
-    private final long parentIdsSizeInBytes;
-    private final PackedInts.Reader docIdToParentIdOffset;
-    private final PackedInts.Reader docIdToUidOffset;
+    private final BytesRef[] parentIds;
+    private final PackedInts.Reader docIdToParentIdOrd;
+    private final PackedInts.Reader docIdToUidOrd;
 
     private long sizeInBytes = -1;
 
-    public PagedIdReaderTypeCache(String type, PagedBytes.Reader parentIds, long parentIdsSizeInBytes, PackedInts.Reader docIdToParentIdOffset, PackedInts.Reader docIdToUidOffset) {
+    public ConcreteIdReaderTypeCache(String type, BytesRef[] parentIds, PackedInts.Reader docIdToParentIdOrd, PackedInts.Reader docIdToUidOrd) {
         this.type = type;
         this.parentIds = parentIds;
-        this.parentIdsSizeInBytes = parentIdsSizeInBytes;
-        this.docIdToParentIdOffset = docIdToParentIdOffset;
-        this.docIdToUidOffset = docIdToUidOffset;
+        this.docIdToParentIdOrd = docIdToParentIdOrd;
+        this.docIdToUidOrd = docIdToUidOrd;
     }
 
     public String type() {
@@ -53,13 +50,12 @@ public class PagedIdReaderTypeCache implements IdReaderTypeCache {
     }
 
     public BytesReference parentIdByDoc(int docId) {
-        int offset = (int) docIdToParentIdOffset.get(docId);
-        BytesRef ref = new BytesRef();
-        parentIds.fill(ref, offset);
-        if (ref.length == 0) {
+        int ord = (int) docIdToParentIdOrd.get(docId);
+        BytesRef uid = parentIds[ord];
+        if (uid == null) {
             return null;
         } else {
-            return new BytesArray(ref);
+            return new BytesArray(uid);
         }
     }
 
@@ -70,19 +66,13 @@ public class PagedIdReaderTypeCache implements IdReaderTypeCache {
     }
 
     public BytesReference idByDoc(int docId) {
-        int offset = (int) docIdToUidOffset.get(docId);
-        BytesRef ref = new BytesRef();
-        parentIds.fill(ref, offset);
-        if (ref.length == 0) {
+        int ord = (int) docIdToUidOrd.get(docId);
+        BytesRef uid = parentIds[ord];
+        if (uid == null) {
             return null;
         } else {
-            return new BytesArray(ref);
+            return new BytesArray(uid);
         }
-    }
-
-    public void idByDoc(int docId, BytesRef ref) {
-        int parentIdOffset = (int) docIdToUidOffset.get(docId);
-        parentIds.fill(ref, parentIdOffset);
     }
 
     public long sizeInBytes() {
@@ -93,9 +83,14 @@ public class PagedIdReaderTypeCache implements IdReaderTypeCache {
     }
 
     long computeSizeInBytes() {
-        long sizeInBytes = parentIdsSizeInBytes;
-        sizeInBytes += docIdToParentIdOffset.ramBytesUsed();
-        sizeInBytes += docIdToUidOffset.ramBytesUsed();
+        long sizeInBytes = RamUsage.NUM_BYTES_ARRAY_HEADER + (RamUsage.NUM_BYTES_OBJECT_REF * parentIds.length);
+        for (BytesRef bytesArray : parentIds) {
+            if (bytesArray != null) {
+                sizeInBytes += RamUsage.NUM_BYTES_OBJECT_HEADER + (bytesArray.length + RamUsage.NUM_BYTES_INT);
+            }
+        }
+        sizeInBytes += docIdToParentIdOrd.ramBytesUsed();
+        sizeInBytes += docIdToUidOrd.ramBytesUsed();
         return sizeInBytes;
     }
 
