@@ -53,7 +53,7 @@ import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 public class ChildSearchBenchmark {
 
     public static void main(String[] args) throws Exception {
-        String idCacheType = "paged";
+        String idCacheType = "simple";
         Settings settings = settingsBuilder()
                 .put("index.engine.robin.refreshInterval", "-1")
                 .put("index.cache.id.type", idCacheType)
@@ -72,7 +72,7 @@ public class ChildSearchBenchmark {
         int QUERY_COUNT = 50;
         String indexName = "test";
 
-        Thread.sleep(10000);
+        client.admin().cluster().prepareHealth(indexName).setWaitForGreenStatus().setTimeout("10s").execute().actionGet();
         try {
             client.admin().indices().create(createIndexRequest(indexName)).actionGet();
             client.admin().indices().preparePutMapping(indexName).setType("child").setSource(XContentFactory.jsonBuilder().startObject().startObject("type")

@@ -17,11 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.index.cache.id.paged;
+package org.elasticsearch.index.cache.id.concrete;
 
 import org.apache.lucene.index.*;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.PagedBytes;
 import org.apache.lucene.util.packed.GrowableWriter;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.ElasticSearchException;
@@ -33,6 +32,7 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.id.IdCache;
 import org.elasticsearch.index.cache.id.IdReaderCache;
+import org.elasticsearch.index.cache.id.paged.ParentChildUidIterator;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -46,16 +46,16 @@ import java.util.concurrent.ConcurrentMap;
 /**
  *
  */
-public class PagedIdCache extends AbstractIndexComponent implements IdCache, SegmentReader.CoreClosedListener {
+public class ConcreteIdCache extends AbstractIndexComponent implements IdCache, SegmentReader.CoreClosedListener {
 
     static final BytesRef EMPTY = new BytesRef();
 
-    private final ConcurrentMap<Object, PagedIdReaderCache> idReaders;
+    private final ConcurrentMap<Object, ConcreteReaderCache> idReaders;
 
     IndexService indexService;
 
     @Inject
-    public PagedIdCache(Index index, @IndexSettings Settings indexSettings) {
+    public ConcreteIdCache(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
         idReaders = ConcurrentCollections.newConcurrentMap();
     }
@@ -72,8 +72,8 @@ public class PagedIdCache extends AbstractIndexComponent implements IdCache, Seg
 
     @Override
     public void clear() {
-        for (Iterator<PagedIdReaderCache> it = idReaders.values().iterator(); it.hasNext(); ) {
-            PagedIdReaderCache idReaderCache = it.next();
+        for (Iterator<ConcreteReaderCache> it = idReaders.values().iterator(); it.hasNext(); ) {
+            ConcreteReaderCache idReaderCache = it.next();
             it.remove();
             onRemoval(idReaderCache);
         }
@@ -86,7 +86,7 @@ public class PagedIdCache extends AbstractIndexComponent implements IdCache, Seg
 
     @Override
     public void clear(IndexReader reader) {
-        PagedIdReaderCache removed = idReaders.remove(reader.getCoreCacheKey());
+        ConcreteReaderCache removed = idReaders.remove(reader.getCoreCacheKey());
         if (removed != null) onRemoval(removed);
     }
 
@@ -143,24 +143,19 @@ public class PagedIdCache extends AbstractIndexComponent implements IdCache, Seg
 
                         @Override
                         public void onUid(String type, BytesRef uid, DocsEnum parentDocs, DocsEnum childDocs) throws IOException {
-//                            System.out.println("Uid: " + uid.utf8ToString());
                             TypeBuilder typeBuilder = resolveTypeBuilder(reader, readerBuilder, type);
-                            long offset = typeBuilder.parentIds.copyUsingLengthPrefix(uid);
+                            typeBuilder.parentIds.add(uid);
+                            long ord = typeBuilder.parentIds.size() - 1;
                             if (parentDocs != null) {
-//                                System.out.print("parent ids: ");
                                 for (int docId = parentDocs.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = parentDocs.nextDoc()) {
-//                                    System.out.print(docId + ", ");
-                                    typeBuilder.docIdToUidOffsetWriter.set(docId, offset);
+                                    typeBuilder.docIdToUidOffsetWriter.set(docId, ord);
                                 }
                             }
                             if (childDocs != null) {
-//                                System.out.print("\nparent ids: ");
                                 for (int docId = childDocs.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = childDocs.nextDoc()) {
-//                                    System.out.print(docId + ", ");
-                                    typeBuilder.docIdToParentUidOffsetWriter.set(docId, offset);
+                                    typeBuilder.docIdToParentUidOffsetWriter.set(docId, ord);
                                 }
                             }
-//                            System.out.print("\n");
                         }
 
                     });
@@ -169,16 +164,15 @@ public class PagedIdCache extends AbstractIndexComponent implements IdCache, Seg
                 // now, build it back
                 for (Map.Entry<Object, Map<String, TypeBuilder>> entry : builders.entrySet()) {
                     Object readerKey = entry.getKey();
-                    MapBuilder<String, PagedIdReaderTypeCache> types = MapBuilder.newMapBuilder();
+                    MapBuilder<String, ConcreteIdReaderTypeCache> types = MapBuilder.newMapBuilder();
                     for (Map.Entry<String, TypeBuilder> typeBuilderEntry : entry.getValue().entrySet()) {
-                        types.put(typeBuilderEntry.getKey(), new PagedIdReaderTypeCache(typeBuilderEntry.getKey(),
-                                typeBuilderEntry.getValue().parentIds.freeze(true),
-                                typeBuilderEntry.getValue().parentIds.getPointer(),
+                        types.put(typeBuilderEntry.getKey(), new ConcreteIdReaderTypeCache(typeBuilderEntry.getKey(),
+                                typeBuilderEntry.getValue().parentIds.toArray(new BytesRef[typeBuilderEntry.getValue().parentIds.size()]),
                                 typeBuilderEntry.getValue().docIdToParentUidOffsetWriter.getMutable(),
                                 typeBuilderEntry.getValue().docIdToUidOffsetWriter.getMutable()));
                     }
                     IndexReader indexReader = cacheToReader.get(readerKey);
-                    PagedIdReaderCache readerCache = new PagedIdReaderCache(types.immutableMap(), ShardUtils.extractShardId(indexReader));
+                    ConcreteReaderCache readerCache = new ConcreteReaderCache(types.immutableMap(), ShardUtils.extractShardId(indexReader));
                     idReaders.put(readerKey, readerCache);
                     onCached(readerCache);
                 }
@@ -186,7 +180,7 @@ public class PagedIdCache extends AbstractIndexComponent implements IdCache, Seg
         }
     }
 
-    void onCached(PagedIdReaderCache readerCache) {
+    void onCached(ConcreteReaderCache readerCache) {
         if (readerCache.shardId != null) {
             IndexShard shard = indexService.shard(readerCache.shardId.id());
             if (shard != null) {
@@ -195,7 +189,7 @@ public class PagedIdCache extends AbstractIndexComponent implements IdCache, Seg
         }
     }
 
-    void onRemoval(PagedIdReaderCache readerCache) {
+    void onRemoval(ConcreteReaderCache readerCache) {
         if (readerCache.shardId != null) {
             IndexShard shard = indexService.shard(readerCache.shardId.id());
             if (shard != null) {
@@ -224,12 +218,12 @@ public class PagedIdCache extends AbstractIndexComponent implements IdCache, Seg
 
     static class TypeBuilder {
 
-        final PagedBytes parentIds = new PagedBytes(15);
+        final List<BytesRef> parentIds = new ArrayList<BytesRef>();
         final GrowableWriter docIdToUidOffsetWriter;
         final GrowableWriter docIdToParentUidOffsetWriter;
 
         TypeBuilder(IndexReader reader) {
-            parentIds.copyUsingLengthPrefix(EMPTY); // pointer 0 is for not set
+            parentIds.add(null); // pointer 0 is for not set
             docIdToUidOffsetWriter = new GrowableWriter(1, reader.maxDoc(), PackedInts.FAST);
             docIdToParentUidOffsetWriter = new GrowableWriter(1, reader.maxDoc(), PackedInts.FAST);
         }

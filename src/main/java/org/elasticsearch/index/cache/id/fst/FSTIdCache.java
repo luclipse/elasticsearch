@@ -29,8 +29,6 @@ import org.apache.lucene.util.fst.Util;
 import org.apache.lucene.util.packed.GrowableWriter;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -39,36 +37,29 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.id.IdCache;
 import org.elasticsearch.index.cache.id.IdReaderCache;
-import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.cache.id.paged.ParentChildUidIterator;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
-import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.index.shard.service.IndexShard;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentMap;
 
 /**
  *
  */
-public class FSTIdCache extends AbstractIndexComponent implements IdCache, SegmentReader.CoreClosedListener {
+public class FstIdCache extends AbstractIndexComponent implements IdCache, SegmentReader.CoreClosedListener {
 
     private final ConcurrentMap<Object, FSTIdReaderCache> idReaders;
-    private final boolean reuse;
-
-    IndexService indexService;
+    private IndexService indexService;
 
     @Inject
-    public FSTIdCache(Index index, @IndexSettings Settings indexSettings) {
+    public FstIdCache(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
         idReaders = ConcurrentCollections.newConcurrentMap();
-        this.reuse = componentSettings.getAsBoolean("reuse", false);
     }
 
     @Override
@@ -126,9 +117,19 @@ public class FSTIdCache extends AbstractIndexComponent implements IdCache, Segme
                 Map<Object, Map<String, TypeBuilder>> builders = new HashMap<Object, Map<String, TypeBuilder>>();
                 Map<Object, IndexReader> cacheToReader = new HashMap<Object, IndexReader>();
 
+                // We don't want to load uid of child documents, this allows us to not load uids of child types.
+                Set<String> parentTypes = new HashSet<String>();
+                for (String type : indexService.mapperService().types()) {
+                    ParentFieldMapper parentFieldMapper = indexService.mapperService().documentMapper(type).parentFieldMapper();
+                    if (parentFieldMapper != null) {
+                        parentTypes.add(parentFieldMapper.type());
+                    }
+                }
+                ParentChildUidIterator iterator = new ParentChildUidIterator(parentTypes);
+
                 // first, go over and load all the id->doc map for all types
                 for (AtomicReaderContext context : atomicReaderContexts) {
-                    AtomicReader reader = context.reader();
+                    final AtomicReader reader = context.reader();
                     if (idReaders.containsKey(reader.getCoreCacheKey())) {
                         // no need, continue
                         continue;
@@ -137,76 +138,29 @@ public class FSTIdCache extends AbstractIndexComponent implements IdCache, Segme
                     if (reader instanceof SegmentReader) {
                         ((SegmentReader) reader).addCoreClosedListener(this);
                     }
-                    Map<String, TypeBuilder> readerBuilder = new HashMap<String, TypeBuilder>();
+                    final Map<String, TypeBuilder> readerBuilder = new HashMap<String, TypeBuilder>();
                     builders.put(reader.getCoreCacheKey(), readerBuilder);
                     cacheToReader.put(reader.getCoreCacheKey(), context.reader());
+                    iterator.iterate(reader, new ParentChildUidIterator.Callback() {
 
-
-                    Terms terms = reader.terms(UidFieldMapper.NAME);
-                    if (terms != null) {
-                        TermsEnum termsEnum = terms.iterator(null);
-                        DocsEnum docsEnum = null;
-                        for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.next()) {
-                            HashedBytesArray[] typeAndId = Uid.splitUidIntoTypeAndId(term);
-                            TypeBuilder typeBuilder = readerBuilder.get(typeAndId[0].toUtf8());
-                            if (typeBuilder == null) {
-                                typeBuilder = new TypeBuilder(reader);
-                                readerBuilder.put(typeAndId[0].toUtf8(), typeBuilder);
-                            }
-
-                            HashedBytesArray idAsBytes = checkIfCanReuse(builders, typeAndId[1]);
-                            docsEnum = termsEnum.docs(reader.getLiveDocs(), docsEnum, 0);
-                            IntsRef scratchInts = new IntsRef();
-                            for (int docId = docsEnum.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
-                                typeBuilder.idToDoc.add(Util.toIntsRef(idAsBytes.toBytesRef(), scratchInts), (long) docId);
-                                typeBuilder.docToId[docId] = idAsBytes;
-                            }
-                        }
-                    }
-                }
-
-                // now, go and load the docId->parentId map
-
-                for (AtomicReaderContext context : atomicReaderContexts) {
-                    AtomicReader reader = context.reader();
-                    if (idReaders.containsKey(reader.getCoreCacheKey())) {
-                        // no need, continue
-                        continue;
-                    }
-
-                    Map<String, TypeBuilder> readerBuilder = builders.get(reader.getCoreCacheKey());
-
-                    Terms terms = reader.terms(ParentFieldMapper.NAME);
-                    if (terms != null) {
-                        TermsEnum termsEnum = terms.iterator(null);
-                        DocsEnum docsEnum = null;
-                        for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.next()) {
-                            HashedBytesArray[] typeAndId = Uid.splitUidIntoTypeAndId(term);
-
-                            TypeBuilder typeBuilder = readerBuilder.get(typeAndId[0].toUtf8());
-                            if (typeBuilder == null) {
-                                typeBuilder = new TypeBuilder(reader);
-                                readerBuilder.put(typeAndId[0].toUtf8(), typeBuilder);
-                            }
-
-                            HashedBytesArray idAsBytes = checkIfCanReuse(builders, typeAndId[1]);
-                            boolean added = false; // optimize for when all the docs are deleted for this id
-
-                            IntsRef scratchInts = new IntsRef();
-                            docsEnum = termsEnum.docs(reader.getLiveDocs(), docsEnum, 0);
-                            for (int docId = docsEnum.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
-                                if (!added) {
-//                                    typeBuilder.parentIdsValues.add(Util.toIntsRef(idAsBytes.toBytesRef(), scratchInts), (long) typeBuilder.t);
-                                    added = true;
+                        @Override
+                        public void onUid(String type, BytesRef uid, DocsEnum parentDocs, DocsEnum childDocs) throws IOException {
+                            TypeBuilder typeBuilder = resolveTypeBuilder(reader, readerBuilder, type);
+                            typeBuilder.parentIdsValues.add(Util.toIntsRef(uid, typeBuilder.scratch), (long) typeBuilder.ord);
+                            if (parentDocs != null) {
+                                for (int docId = parentDocs.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = parentDocs.nextDoc()) {
+                                    typeBuilder.docIdToUidOrdWriter.set(docId, typeBuilder.ord);
                                 }
-                                typeBuilder.parentIdsOrdinals.set(docId, typeBuilder.t);
                             }
-
-                            if (added) {
-                                typeBuilder.t++;
+                            if (childDocs != null) {
+                                for (int docId = childDocs.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = childDocs.nextDoc()) {
+                                    typeBuilder.docIdToParenUidOrdWriter.set(docId, typeBuilder.ord);
+                                }
                             }
+                            typeBuilder.ord++;
                         }
-                    }
+
+                    });
                 }
 
 
@@ -216,10 +170,9 @@ public class FSTIdCache extends AbstractIndexComponent implements IdCache, Segme
                     MapBuilder<String, FSTReaderTypeCache> types = MapBuilder.newMapBuilder();
                     for (Map.Entry<String, TypeBuilder> typeBuilderEntry : entry.getValue().entrySet()) {
                         types.put(typeBuilderEntry.getKey(), new FSTReaderTypeCache(typeBuilderEntry.getKey(),
-                                typeBuilderEntry.getValue().idToDoc.finish(),
-                                typeBuilderEntry.getValue().docToId,
                                 typeBuilderEntry.getValue().parentIdsValues.finish(),
-                                typeBuilderEntry.getValue().parentIdsOrdinals));
+                                typeBuilderEntry.getValue().docIdToParenUidOrdWriter.getMutable(),
+                                typeBuilderEntry.getValue().docIdToUidOrdWriter.getMutable()));
                     }
                     IndexReader indexReader = cacheToReader.get(readerKey);
                     FSTIdReaderCache readerCache = new FSTIdReaderCache(types.immutableMap(), ShardUtils.extractShardId(indexReader));
@@ -248,27 +201,13 @@ public class FSTIdCache extends AbstractIndexComponent implements IdCache, Segme
         }
     }
 
-    private HashedBytesArray checkIfCanReuse(Map<Object, Map<String, TypeBuilder>> builders, HashedBytesArray idAsBytes) {
-        HashedBytesArray finalIdAsBytes;
-        // go over and see if we can reuse this id
-        if (reuse) {
-            for (FSTIdReaderCache idReaderCache : idReaders.values()) {
-                finalIdAsBytes = idReaderCache.canReuse(idAsBytes);
-                if (finalIdAsBytes != null) {
-                    return finalIdAsBytes;
-                }
-            }
+    private TypeBuilder resolveTypeBuilder(IndexReader reader, Map<String, TypeBuilder> readerBuilder, String type) throws IOException {
+        TypeBuilder typeBuilder = readerBuilder.get(type);
+        if (typeBuilder == null) {
+            typeBuilder = new TypeBuilder(reader);
+            readerBuilder.put(type, typeBuilder);
         }
-        // even if we don't enable reuse, at least check on the current "live" builders that we are handling
-        for (Map<String, TypeBuilder> map : builders.values()) {
-            for (TypeBuilder typeBuilder : map.values()) {
-                finalIdAsBytes = typeBuilder.canReuse(idAsBytes);
-                if (finalIdAsBytes != null) {
-                    return finalIdAsBytes;
-                }
-            }
-        }
-        return idAsBytes;
+        return typeBuilder;
     }
 
     private boolean refreshNeeded(List<AtomicReaderContext> atomicReaderContexts) {
@@ -282,35 +221,18 @@ public class FSTIdCache extends AbstractIndexComponent implements IdCache, Segme
 
     static class TypeBuilder {
 
-//        final ExtTObjectIntHasMap<HashedBytesArray> idToDoc = new ExtTObjectIntHasMap<HashedBytesArray>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, -1);
-        final Builder<Long> idToDoc;
-        final HashedBytesArray[] docToId;
-//        final ArrayList<HashedBytesArray> parentIdsValues = new ArrayList<HashedBytesArray>();
-        final Builder<BytesReference> parentIdsValues;
-        final PackedInts.Mutable parentIdsOrdinals;
-        int t = 1;  // current term number (0 indicated null value)
-
-        IntsRef intsRef = new IntsRef(1);
+        final Builder<Long> parentIdsValues;
+        final GrowableWriter docIdToParenUidOrdWriter;
+        final GrowableWriter docIdToUidOrdWriter;
+        final IntsRef scratch = new IntsRef();
+        int ord = 1;
 
         TypeBuilder(IndexReader reader) throws IOException {
-            PositiveIntOutputs idToDocOutputs = PositiveIntOutputs.getSingleton(true);
-            idToDoc = new Builder<Long>(FST.INPUT_TYPE.BYTE1, idToDocOutputs);
+            docIdToParenUidOrdWriter = new GrowableWriter(1, reader.maxDoc(), PackedInts.FAST);
+            docIdToUidOrdWriter = new GrowableWriter(1, reader.maxDoc(), PackedInts.FAST);
 
-            parentIdsOrdinals = new GrowableWriter(1, reader.maxDoc(), PackedInts.FAST);
-            BytesReferenceOutputs parentIdsOutputs = BytesReferenceOutputs.getSingleton(/*true*/);
-            parentIdsValues = new Builder<BytesReference>(FST.INPUT_TYPE.BYTE1, parentIdsOutputs);
-            // the first one indicates null value
-            intsRef.ints[0] = 0;
-            parentIdsValues.add(intsRef, null);
-            docToId = new HashedBytesArray[reader.maxDoc()];
-        }
-
-        /**
-         * Returns an already stored instance if exists, if not, returns null;
-         */
-        public HashedBytesArray canReuse(HashedBytesArray id) {
-            return null;
-//            return idToDoc.key(id);
+            PositiveIntOutputs outputs = PositiveIntOutputs.getSingleton(true);
+            parentIdsValues = new Builder<Long>(FST.INPUT_TYPE.BYTE1, outputs);
         }
     }
 }
