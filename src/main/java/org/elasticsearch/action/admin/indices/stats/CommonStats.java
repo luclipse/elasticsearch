@@ -31,7 +31,7 @@ import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.indexing.IndexingStats;
 import org.elasticsearch.index.merge.MergeStats;
-import org.elasticsearch.index.parentdata.IdCacheStats;
+import org.elasticsearch.index.parentdata.ParentDataStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.DocsStats;
@@ -75,7 +75,7 @@ public class CommonStats implements Streamable, ToXContent {
     public FilterCacheStats filterCache;
 
     @Nullable
-    public IdCacheStats idCache;
+    public ParentDataStats parentData;
 
     @Nullable
     public FieldDataStats fieldData;
@@ -162,13 +162,13 @@ public class CommonStats implements Streamable, ToXContent {
             filterCache.add(stats.getFilterCache());
         }
 
-        if (idCache == null) {
+        if (parentData == null) {
             if (stats.getIdCache() != null) {
-                idCache = new IdCacheStats();
-                idCache.add(stats.getIdCache());
+                parentData = new ParentDataStats();
+                parentData.add(stats.getIdCache());
             }
         } else {
-            idCache.add(stats.getIdCache());
+            parentData.add(stats.getIdCache());
         }
 
         if (fieldData == null) {
@@ -232,8 +232,13 @@ public class CommonStats implements Streamable, ToXContent {
     }
 
     @Nullable
-    public IdCacheStats getIdCache() {
-        return this.idCache;
+    public ParentDataStats getIdCache() {
+        return this.parentData;
+    }
+
+    @Nullable
+    public ParentDataStats getParentData() {
+        return this.parentData;
     }
 
     @Nullable
@@ -280,7 +285,7 @@ public class CommonStats implements Streamable, ToXContent {
             filterCache = FilterCacheStats.readFilterCacheStats(in);
         }
         if (in.readBoolean()) {
-            idCache = IdCacheStats.readIdCacheStats(in);
+            parentData = ParentDataStats.readParentDataStats(in);
         }
         if (in.readBoolean()) {
             fieldData = FieldDataStats.readFieldDataStats(in);
@@ -349,11 +354,11 @@ public class CommonStats implements Streamable, ToXContent {
             out.writeBoolean(true);
             filterCache.writeTo(out);
         }
-        if (idCache == null) {
+        if (parentData == null) {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            idCache.writeTo(out);
+            parentData.writeTo(out);
         }
         if (fieldData == null) {
             out.writeBoolean(false);
@@ -396,8 +401,8 @@ public class CommonStats implements Streamable, ToXContent {
         if (filterCache != null) {
             filterCache.toXContent(builder, params);
         }
-        if (idCache != null) {
-            idCache.toXContent(builder, params);
+        if (parentData != null) {
+            parentData.toXContent(builder, params);
         }
         if (fieldData != null) {
             fieldData.toXContent(builder, params);

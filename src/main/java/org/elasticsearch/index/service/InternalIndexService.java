@@ -50,7 +50,7 @@ import org.elasticsearch.index.merge.policy.MergePolicyModule;
 import org.elasticsearch.index.merge.policy.MergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerModule;
 import org.elasticsearch.index.parentdata.ParentData;
-import org.elasticsearch.index.parentdata.ShardIdCacheModule;
+import org.elasticsearch.index.parentdata.ShardParentDataModule;
 import org.elasticsearch.index.percolator.PercolatorService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.search.stats.ShardSearchModule;
@@ -336,7 +336,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         modules.add(new MergeSchedulerModule(indexSettings));
         modules.add(new ShardFilterCacheModule());
         modules.add(new ShardFieldDataModule());
-        modules.add(new ShardIdCacheModule());
+        modules.add(new ShardParentDataModule());
         modules.add(new TranslogModule(indexSettings));
         modules.add(new EngineModule(indexSettings));
         modules.add(new IndexShardGatewayModule(injector.getInstance(IndexGateway.class)));

@@ -55,9 +55,9 @@ import org.elasticsearch.index.indexing.IndexingStats;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceModule;
 import org.elasticsearch.index.merge.MergeStats;
-import org.elasticsearch.index.parentdata.IdCacheStats;
 import org.elasticsearch.index.parentdata.ParentData;
 import org.elasticsearch.index.parentdata.ParentDataModule;
+import org.elasticsearch.index.parentdata.ParentDataStats;
 import org.elasticsearch.index.percolator.PercolatorModule;
 import org.elasticsearch.index.percolator.PercolatorService;
 import org.elasticsearch.index.query.IndexQueryParserModule;
@@ -245,7 +245,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
                     stats.fieldData = new FieldDataStats();
                     break;
                 case IdCache:
-                    stats.idCache = new IdCacheStats();
+                    stats.parentData = new ParentDataStats();
                     break;
                 case FilterCache:
                     stats.filterCache = new FilterCacheStats();
@@ -288,7 +288,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
                             stats.filterCache.add(indexShard.filterCacheStats());
                             break;
                         case IdCache:
-                            stats.idCache.add(indexShard.idCacheStats());
+                            stats.parentData.add(indexShard.parentDataStats());
                             break;
                         case FieldData:
                             stats.fieldData.add(indexShard.fieldDataStats(flags.fieldDataFields()));

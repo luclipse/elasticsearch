@@ -37,8 +37,8 @@ import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.merge.MergeStats;
-import org.elasticsearch.index.parentdata.IdCacheStats;
-import org.elasticsearch.index.parentdata.ShardIdCache;
+import org.elasticsearch.index.parentdata.ParentDataStats;
+import org.elasticsearch.index.parentdata.ShardParentData;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.ShardSearchService;
@@ -64,7 +64,7 @@ public interface IndexShard extends IndexShardComponent {
 
     ShardFilterCache filterCache();
 
-    ShardIdCache idCache();
+    ShardParentData idCache();
 
     ShardFieldData fieldData();
 
@@ -90,7 +90,7 @@ public interface IndexShard extends IndexShardComponent {
 
     FilterCacheStats filterCacheStats();
 
-    IdCacheStats idCacheStats();
+    ParentDataStats parentDataStats();
 
     FieldDataStats fieldDataStats(String... fields);
 

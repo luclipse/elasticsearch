@@ -19,33 +19,14 @@
 
 package org.elasticsearch.index.parentdata;
 
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.metrics.CounterMetric;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.index.shard.AbstractIndexShardComponent;
-import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.common.inject.AbstractModule;
 
 /**
  */
-public class ShardIdCache extends AbstractIndexShardComponent {
+public class ShardParentDataModule extends AbstractModule {
 
-    final CounterMetric totalMetric = new CounterMetric();
-
-    @Inject
-    public ShardIdCache(ShardId shardId, @IndexSettings Settings indexSettings) {
-        super(shardId, indexSettings);
-    }
-
-    public IdCacheStats stats() {
-        return new IdCacheStats(totalMetric.count());
-    }
-
-    public void onCached(long sizeInBytes) {
-        totalMetric.inc(sizeInBytes);
-    }
-
-    public void onRemoval(long sizeInBytes) {
-        totalMetric.dec(sizeInBytes);
+    @Override
+    protected void configure() {
+        bind(ShardParentData.class).asEagerSingleton();
     }
 }

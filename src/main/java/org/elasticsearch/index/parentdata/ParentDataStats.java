@@ -31,18 +31,18 @@ import java.io.IOException;
 
 /**
  */
-public class IdCacheStats implements Streamable, ToXContent {
+public class ParentDataStats implements Streamable, ToXContent {
 
     long memorySize;
 
-    public IdCacheStats() {
+    public ParentDataStats() {
     }
 
-    public IdCacheStats(long memorySize) {
+    public ParentDataStats(long memorySize) {
         this.memorySize = memorySize;
     }
 
-    public void add(IdCacheStats stats) {
+    public void add(ParentDataStats stats) {
         this.memorySize += stats.memorySize;
     }
 
@@ -54,8 +54,8 @@ public class IdCacheStats implements Streamable, ToXContent {
         return new ByteSizeValue(memorySize);
     }
 
-    public static IdCacheStats readIdCacheStats(StreamInput in) throws IOException {
-        IdCacheStats stats = new IdCacheStats();
+    public static ParentDataStats readParentDataStats(StreamInput in) throws IOException {
+        ParentDataStats stats = new ParentDataStats();
         stats.readFrom(in);
         return stats;
     }
@@ -76,11 +76,16 @@ public class IdCacheStats implements Streamable, ToXContent {
         builder.field(Fields.MEMORY_SIZE, getMemorySize().toString());
         builder.field(Fields.MEMORY_SIZE_IN_BYTES, memorySize);
         builder.endObject();
+        builder.startObject(Fields.PARENT_DATA);
+        builder.field(Fields.MEMORY_SIZE, getMemorySize().toString());
+        builder.field(Fields.MEMORY_SIZE_IN_BYTES, memorySize);
+        builder.endObject();
         return builder;
     }
 
     static final class Fields {
         static final XContentBuilderString ID_CACHE = new XContentBuilderString("id_cache");
+        static final XContentBuilderString PARENT_DATA = new XContentBuilderString("parentdata");
         static final XContentBuilderString MEMORY_SIZE = new XContentBuilderString("memory_size");
         static final XContentBuilderString MEMORY_SIZE_IN_BYTES = new XContentBuilderString("memory_size_in_bytes");
     }

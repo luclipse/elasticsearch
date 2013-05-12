@@ -23,12 +23,14 @@ import gnu.trove.map.hash.TIntObjectHashMap;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.ToStringUtils;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.lucene.search.EmptyScorer;
 import org.elasticsearch.common.trove.ExtTHashMap;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.parentdata.ParentValues;
 import org.elasticsearch.search.internal.SearchContext;
@@ -166,7 +168,11 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
         }
     }
 
-    int resolveParentDocuments(TopDocs topDocs, SearchContext context) {
+    int resolveParentDocuments(TopDocs topDocs, SearchContext context) throws IOException {
+        BytesRef typeAsBytes = new BytesRef(parentType);
+        TermsEnum termsEnum = null;
+        DocsEnum docsEnum = null;
+
         int parentHitsResolved = 0;
         ExtTHashMap<Object, TIntObjectHashMap<ParentDoc>> parentDocsPerReader = CacheRecycler.popHashMap();
         for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
@@ -181,22 +187,24 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
                 // no parent found
                 continue;
             }
+            BytesRef parentUid = Uid.createUidAsBytes(typeAsBytes, parentId.bytes);
             // now go over and find the parent doc Id and reader tuple
             for (AtomicReaderContext atomicReaderContext : context.searcher().getIndexReader().leaves()) {
                 AtomicReader indexReader = atomicReaderContext.reader();
-                // TODO fix:
-//                int parentDocId = context.idCache().reader(indexReader).docById(parentType, parentId);
-                int parentDocId;
-                try {
-                    IndexSearcher indexSearcher = new IndexSearcher(new MultiReader(indexReader));
-                    TopDocs parentTopDocs = indexSearcher.search(new TermQuery(new Term(UidFieldMapper.NAME, parentType + "#" + parentId.bytes.utf8ToString())), 1);
-                    if (parentTopDocs.totalHits == 0) {
-                        continue;
-                    }
-                    parentDocId = parentTopDocs.scoreDocs[0].doc;
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
+                Terms terms = atomicReaderContext.reader().terms(UidFieldMapper.NAME);
+                if (terms == null) {
+                    continue; // This shouldn't happen...
                 }
+                termsEnum = terms.iterator(termsEnum);
+                if (!termsEnum.seekExact(parentUid, false)) {
+                    continue; // This shouldn't happen...
+                }
+                docsEnum = termsEnum.docs(null, docsEnum);
+                int parentDocId = docsEnum.nextDoc();
+                if (parentDocId == DocsEnum.NO_MORE_DOCS) {
+                    continue; // This shouldn't happen...
+                }
+
                 Bits liveDocs = indexReader.getLiveDocs();
                 if (parentDocId != -1 && (liveDocs == null || liveDocs.get(parentDocId))) {
                     // we found a match, add it and break
