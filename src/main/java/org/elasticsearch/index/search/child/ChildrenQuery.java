@@ -32,8 +32,6 @@ import org.apache.lucene.util.ToStringUtils;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.lucene.HashedBytesRef;
-import org.elasticsearch.common.lucene.search.ApplyAcceptedDocsFilter;
-import org.elasticsearch.index.cache.id.IdReaderTypeCache;
 import org.elasticsearch.index.parentdata.ParentValues;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -42,7 +40,7 @@ import java.util.Set;
 
 /**
  * A query implementation that executes the wrapped child query and connects all the matching child docs to the related
- * parent documents using the {@link IdReaderTypeCache}.
+ * parent documents using the {@link ParentValues}.
  * <p/>
  * This query is executed in two rounds. The first round resolves all the matching child documents and groups these
  * documents by parent uid value. Also the child scores are aggregated per parent uid value. During the second round

@@ -30,7 +30,6 @@ import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.lucene.search.ApplyAcceptedDocsFilter;
-import org.elasticsearch.index.cache.id.IdReaderTypeCache;
 import org.elasticsearch.index.parentdata.ParentValues;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -40,7 +39,7 @@ import java.util.Set;
 /**
  * A query implementation that executes the wrapped parent query and
  * connects the matching parent docs to the related child documents
- * using the {@link IdReaderTypeCache}.
+ * using the {@link ParentValues}.
  */
 // TODO We use a score of 0 to indicate a doc was not scored in uidToScore, this means score of 0 can be problematic, if we move to HPCC, we can use lset/...
 public class ParentQuery extends Query implements SearchContext.Rewrite {
