@@ -50,6 +50,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.merge.policy.MergePolicyModule;
 import org.elasticsearch.index.merge.policy.MergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerModule;
+import org.elasticsearch.index.parentdata.ParentData;
 import org.elasticsearch.index.percolator.PercolatorService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.search.stats.ShardSearchModule;
@@ -114,6 +115,8 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
     private final IndexFieldDataService indexFieldData;
 
+    private final ParentData parentData;
+
     private final IndexEngine indexEngine;
 
     private final IndexGateway indexGateway;
@@ -133,7 +136,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
                                 PercolatorService percolatorService, AnalysisService analysisService, MapperService mapperService,
                                 IndexQueryParserService queryParserService, SimilarityService similarityService, IndexAliasesService aliasesService,
                                 IndexCache indexCache, IndexEngine indexEngine, IndexGateway indexGateway, IndexStore indexStore, IndexSettingsService settingsService,
-                                IndexFieldDataService indexFieldData) {
+                                IndexFieldDataService indexFieldData, ParentData parentData) {
         super(index, indexSettings);
         this.injector = injector;
         this.nodeEnv = nodeEnv;
@@ -147,6 +150,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         this.aliasesService = aliasesService;
         this.indexCache = indexCache;
         this.indexFieldData = indexFieldData;
+        this.parentData = parentData;
         this.indexEngine = indexEngine;
         this.indexGateway = indexGateway;
         this.indexStore = indexStore;
@@ -157,8 +161,8 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
         // inject workarounds for cyclic dep
         indexCache.filter().setIndexService(this);
-        indexCache.idCache().setIndexService(this);
         indexFieldData.setIndexService(this);
+        parentData.setIndexService(this);
     }
 
     @Override
@@ -223,6 +227,10 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
     @Override
     public IndexFieldDataService fieldData() {
         return indexFieldData;
+    }
+
+    public ParentData parentData() {
+        return parentData;
     }
 
     @Override

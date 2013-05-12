@@ -23,11 +23,21 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 
 /**
+ * Per segment holder for {@link ParentValues} instances for all parent types.
  */
 public interface AtomicParentData {
 
     @Nullable
     ShardId shardId();
 
+    /**
+     * @return The size in bytes the parent data takes into memory for all parent types.
+     */
+    long sizeInBytes();
+
+    /**
+     * @param type The parent type to load the {@link ParentValues} for
+     * @return {@link ParentValues} for the specified type or {@link ParentValues#EMPTY} if no parent values are available.
+     */
     ParentValues getValues(String type);
 }

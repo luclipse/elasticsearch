@@ -21,6 +21,7 @@ package org.elasticsearch.index.parentdata.paged;
 
 import org.apache.lucene.util.PagedBytes;
 import org.apache.lucene.util.packed.PackedInts;
+import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.index.parentdata.AtomicParentData;
 import org.elasticsearch.index.parentdata.ParentValues;
 import org.elasticsearch.index.shard.ShardId;
@@ -34,6 +35,8 @@ public class PagedAtomicParentData implements AtomicParentData {
     private final ShardId shardId;
     private final Map<String, Type> types;
 
+    private long sizeInBytes = -1;
+
     public PagedAtomicParentData(Map<String, Type> types, ShardId shardId) {
         this.types = types;
         this.shardId = shardId;
@@ -45,13 +48,28 @@ public class PagedAtomicParentData implements AtomicParentData {
     }
 
     @Override
+    public long sizeInBytes() {
+        if (sizeInBytes == -1) {
+            sizeInBytes = 0;
+            for (Map.Entry<String, Type> entry : types.entrySet()) {
+                sizeInBytes += entry.getValue().sizeInBytes();
+            }
+        }
+        return sizeInBytes;
+    }
+
+    @Override
     public ParentValues getValues(String type) {
-        Type type1 = types.get(type);
-        if (type1 == null) return ParentValues.EMPTY;
-        return new PagedParentValues(type1);
+        Type foundType = types.get(type);
+        if (foundType != null) {
+            return new PagedParentValues(foundType);
+        } else {
+            return ParentValues.EMPTY;
+        }
     }
 
     static class Type {
+
         final String type;
         final PagedBytes.Reader parentIds;
         final long parentIdsSizeInBytes;
@@ -67,5 +85,14 @@ public class PagedAtomicParentData implements AtomicParentData {
             this.docIdToUidOffset = docIdToUidOffset;
             this.hashes = hashes;
         }
+
+        long sizeInBytes() {
+            long size = parentIdsSizeInBytes;
+            size += docIdToParentIdOffset.ramBytesUsed();
+            size += docIdToUidOffset.ramBytesUsed();
+            size += hashes.length * RamUsage.NUM_BYTES_INT + RamUsage.NUM_BYTES_ARRAY_HEADER;
+            return size;
+        }
+
     }
 }

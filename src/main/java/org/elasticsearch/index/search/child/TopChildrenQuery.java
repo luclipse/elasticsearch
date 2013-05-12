@@ -26,10 +26,11 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.ToStringUtils;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.CacheRecycler;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.lucene.search.EmptyScorer;
 import org.elasticsearch.common.trove.ExtTHashMap;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.parentdata.ParentValues;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -121,7 +122,7 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
     @Override
     public void contextRewrite(SearchContext searchContext) throws Exception {
         this.parentDocs = CacheRecycler.popHashMap();
-        searchContext.idCache().refresh(searchContext.searcher().getTopReaderContext().leaves());
+        searchContext.parentData().refresh(searchContext.searcher().getTopReaderContext().leaves());
 
         int parentHitsResolved;
         int numChildDocs = (searchContext.from() + searchContext.size());
@@ -174,7 +175,8 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
             int subDoc = scoreDoc.doc - subContext.docBase;
 
             // find the parent id
-            BytesReference parentId = context.idCache().reader(subContext.reader()).parentIdByDoc(parentType, subDoc);
+            ParentValues parentValues = context.parentData().atomic(subContext.reader()).getValues(parentType);
+            HashedBytesRef parentId = parentValues.parentIdByDoc(subDoc);
             if (parentId == null) {
                 // no parent found
                 continue;
@@ -187,7 +189,7 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
                 int parentDocId;
                 try {
                     IndexSearcher indexSearcher = new IndexSearcher(new MultiReader(indexReader));
-                    TopDocs parentTopDocs = indexSearcher.search(new TermQuery(new Term(UidFieldMapper.NAME, parentType + "#" + parentId.toBytesRef().utf8ToString())), 1);
+                    TopDocs parentTopDocs = indexSearcher.search(new TermQuery(new Term(UidFieldMapper.NAME, parentType + "#" + parentId.bytes.utf8ToString())), 1);
                     if (parentTopDocs.totalHits == 0) {
                         continue;
                     }

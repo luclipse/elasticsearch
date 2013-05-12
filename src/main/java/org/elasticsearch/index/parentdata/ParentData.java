@@ -74,7 +74,7 @@ public abstract class ParentData<Atomic extends AtomicParentData, PB extends Par
         if (atomicParentData.shardId() != null) {
             IndexShard shard = indexService.shard(atomicParentData.shardId().id());
             if (shard != null) {
-                //shard.idCache().onCached(readerCache.sizeInBytes());
+                shard.idCache().onCached(atomicParentData.sizeInBytes());
             }
         }
     }
@@ -83,7 +83,7 @@ public abstract class ParentData<Atomic extends AtomicParentData, PB extends Par
         if (atomicParentData.shardId() != null) {
             IndexShard shard = indexService.shard(atomicParentData.shardId().id());
             if (shard != null) {
-                //shard.idCache().onCached(readerCache.sizeInBytes());
+                shard.idCache().onCached(atomicParentData.sizeInBytes());
             }
         }
     }
@@ -152,7 +152,7 @@ public abstract class ParentData<Atomic extends AtomicParentData, PB extends Par
         return false;
     }
 
-    protected static abstract class ParentBuilder<T extends AtomicParentData> implements ParentChildUidIterator.Callback {
+    public static abstract class ParentBuilder<T extends AtomicParentData> implements ParentChildUidIterator.Callback {
         public abstract T build(AtomicReader reader);
     }
 }
