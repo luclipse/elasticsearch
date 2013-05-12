@@ -54,8 +54,8 @@ import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
-import org.elasticsearch.index.parentdata.IdCacheStats;
-import org.elasticsearch.index.parentdata.ShardIdCache;
+import org.elasticsearch.index.parentdata.ParentDataStats;
+import org.elasticsearch.index.parentdata.ShardParentData;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
@@ -103,7 +103,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     private final ShardGetService getService;
     private final ShardIndexWarmerService shardWarmerService;
     private final ShardFilterCache shardFilterCache;
-    private final ShardIdCache shardIdCache;
+    private final ShardParentData shardParentData;
     private final ShardFieldData shardFieldData;
 
     private final Object mutex = new Object();
@@ -128,7 +128,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     @Inject
     public InternalIndexShard(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService, IndicesLifecycle indicesLifecycle, Store store, Engine engine, MergeSchedulerProvider mergeScheduler, Translog translog,
                               ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService, ShardIndexingService indexingService, ShardGetService getService, ShardSearchService searchService, ShardIndexWarmerService shardWarmerService,
-                              ShardFilterCache shardFilterCache, ShardIdCache shardIdCache, ShardFieldData shardFieldData) {
+                              ShardFilterCache shardFilterCache, ShardParentData shardParentData, ShardFieldData shardFieldData) {
         super(shardId, indexSettings);
         this.indicesLifecycle = (InternalIndicesLifecycle) indicesLifecycle;
         this.indexSettingsService = indexSettingsService;
@@ -146,7 +146,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         this.searchService = searchService;
         this.shardWarmerService = shardWarmerService;
         this.shardFilterCache = shardFilterCache;
-        this.shardIdCache = shardIdCache;
+        this.shardParentData = shardParentData;
         this.shardFieldData = shardFieldData;
         state = IndexShardState.CREATED;
 
@@ -201,8 +201,8 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     }
 
     @Override
-    public ShardIdCache idCache() {
-        return this.shardIdCache;
+    public ShardParentData idCache() {
+        return this.shardParentData;
     }
 
     @Override
@@ -482,8 +482,8 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     }
 
     @Override
-    public IdCacheStats idCacheStats() {
-        return shardIdCache.stats();
+    public ParentDataStats parentDataStats() {
+        return shardParentData.stats();
     }
 
     @Override

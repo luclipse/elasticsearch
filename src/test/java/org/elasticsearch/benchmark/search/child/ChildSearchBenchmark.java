@@ -42,6 +42,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.FilterBuilders.hasChildFilter;
 import static org.elasticsearch.index.query.FilterBuilders.hasParentFilter;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
@@ -149,7 +150,7 @@ public class ChildSearchBenchmark {
         System.out.println("--> Used heap size: " + statsResponse.getNodes()[0].getJvm().getMem().getHeapUsed());
 
         // run parent child constant query
-        /*for (int j = 0; j < QUERY_WARMUP; j++) {
+        for (int j = 0; j < QUERY_WARMUP; j++) {
             SearchResponse searchResponse = client.prepareSearch(indexName)
                     .setQuery(
                             filteredQuery(
@@ -224,7 +225,7 @@ public class ChildSearchBenchmark {
             if (searchResponse.getHits().totalHits() != CHILD_COUNT) {
                 System.err.println("--> mismatch on hits [" + j + "], got [" + searchResponse.getHits().totalHits() + "], expected [" + CHILD_COUNT + "]");
             }
-        }*/
+        }
 
         totalQueryTime = 0;
         for (int j = 1; j <= QUERY_COUNT; j++) {
@@ -246,7 +247,7 @@ public class ChildSearchBenchmark {
         }
         System.out.println("--> has_parent filter Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");
 
-        /*System.out.println("--> Running has_parent filter with match_all parent query ");
+        System.out.println("--> Running has_parent filter with match_all parent query ");
         totalQueryTime = 0;
         for (int j = 1; j <= QUERY_COUNT; j++) {
             SearchResponse searchResponse = client.prepareSearch(indexName)
@@ -369,13 +370,14 @@ public class ChildSearchBenchmark {
             }
             totalQueryTime += searchResponse.getTookInMillis();
         }
-        System.out.println("--> has_parent query with match_all Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");*/
+        System.out.println("--> has_parent query with match_all Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");
 
 
         System.gc();
         statsResponse = client.admin().cluster().prepareNodesStats()
                 .setJvm(true).setIndices(true).execute().actionGet();
 
+        System.out.println("--> Parentdata size: " + statsResponse.getNodes()[0].getIndices().getParentData().getMemorySize());
         System.out.println("--> Id cache size: " + statsResponse.getNodes()[0].getIndices().getIdCache().getMemorySize());
         System.out.println("--> Used heap size: " + statsResponse.getNodes()[0].getJvm().getMem().getHeapUsed());
 
