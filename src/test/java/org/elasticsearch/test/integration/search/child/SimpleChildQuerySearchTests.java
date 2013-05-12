@@ -27,7 +27,6 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.facet.terms.TermsFacet;
 import org.elasticsearch.search.sort.SortBuilders;
@@ -60,16 +59,9 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
 
     @BeforeClass
     public void createNodes() throws Exception {
-        String idCacheType = getIdCacheType();
-        Settings nodeSettings = ImmutableSettings.settingsBuilder()
-                .put("index.cache.id.type", idCacheType).build();
-        startNode("node1", nodeSettings);
-        startNode("node2", nodeSettings);
+        startNode("node1");
+        startNode("node2");
         client = getClient();
-    }
-
-    protected String getIdCacheType() {
-        return "simple";
     }
 
     @AfterClass

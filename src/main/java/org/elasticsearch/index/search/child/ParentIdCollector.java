@@ -19,9 +19,9 @@
 package org.elasticsearch.index.search.child;
 
 import org.apache.lucene.index.AtomicReaderContext;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.lucene.search.NoopCollector;
-import org.elasticsearch.index.cache.id.IdReaderTypeCache;
+import org.elasticsearch.index.parentdata.ParentValues;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -31,29 +31,31 @@ import java.io.IOException;
  * <code>null</code>
  */
 abstract class ParentIdCollector extends NoopCollector {
-    protected final String type;
+
+    protected final String parentType;
     protected final SearchContext context;
-    private IdReaderTypeCache typeCache;
+    protected ParentValues parentValues;
 
     protected ParentIdCollector(String parentType, SearchContext context) {
-        this.type = parentType;
+        this.parentType = parentType;
         this.context = context;
     }
 
     @Override
     public final void collect(int doc) throws IOException {
-        if (typeCache != null) {
-            BytesReference parentIdByDoc = typeCache.parentIdByDoc(doc);
-            if (parentIdByDoc != null) {
-               collect(doc, parentIdByDoc);
-            }
+        if (parentValues == ParentValues.EMPTY) {
+            return;
+        }
+        HashedBytesRef parentIdByDoc = parentValues.parentIdByDoc(doc);
+        if (parentIdByDoc.bytes.length != 0) {
+            collect(doc, parentIdByDoc);
         }
     }
     
-    protected abstract void collect(int doc, BytesReference parentId) throws IOException;
+    protected abstract void collect(int doc, HashedBytesRef parentId) throws IOException;
 
     @Override
     public void setNextReader(AtomicReaderContext readerContext) throws IOException {
-        typeCache = context.idCache().reader(readerContext.reader()).type(type);
+        parentValues = context.parentData().atomic(readerContext.reader()).getValues(parentType);
     }
 }

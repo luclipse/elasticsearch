@@ -42,7 +42,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.FilterBuilders.hasChildFilter;
 import static org.elasticsearch.index.query.FilterBuilders.hasParentFilter;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
@@ -53,10 +52,10 @@ import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 public class ChildSearchBenchmark {
 
     public static void main(String[] args) throws Exception {
-        String idCacheType = "simple";
+        String idCacheType = "paged";
         Settings settings = settingsBuilder()
                 .put("index.engine.robin.refreshInterval", "-1")
-                .put("index.cache.id.type", idCacheType)
+                .put("index.parentdata.type", idCacheType)
                 .put("gateway.type", "local")
                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
@@ -85,7 +84,7 @@ public class ChildSearchBenchmark {
             System.out.println("--> Indexing [" + COUNT + "] parent document and [" + (COUNT * CHILD_COUNT) + " child documents");
             long ITERS = COUNT / BATCH;
             long i = 1;
-            int counter = 1;
+            int counter = 0;
             for (; i <= ITERS; i++) {
                 BulkRequestBuilder request = client.prepareBulk();
                 for (int j = 0; j < BATCH; j++) {
@@ -115,7 +114,7 @@ public class ChildSearchBenchmark {
                 System.err.println("--> Timed out waiting for cluster health");
             }
             client.admin().indices().prepareClose(indexName).execute().actionGet();
-            client.admin().indices().prepareUpdateSettings(indexName).setSettings(ImmutableSettings.settingsBuilder().put("index.cache.id.type", idCacheType)).execute().actionGet();
+            client.admin().indices().prepareUpdateSettings(indexName).setSettings(ImmutableSettings.settingsBuilder().put("index.parentdata.type", idCacheType)).execute().actionGet();
             client.admin().indices().prepareOpen(indexName).execute().actionGet();
             client.admin().cluster().prepareHealth(indexName).setWaitForGreenStatus().setTimeout("10m").execute().actionGet();
         }
@@ -150,7 +149,7 @@ public class ChildSearchBenchmark {
         System.out.println("--> Used heap size: " + statsResponse.getNodes()[0].getJvm().getMem().getHeapUsed());
 
         // run parent child constant query
-        for (int j = 0; j < QUERY_WARMUP; j++) {
+        /*for (int j = 0; j < QUERY_WARMUP; j++) {
             SearchResponse searchResponse = client.prepareSearch(indexName)
                     .setQuery(
                             filteredQuery(
@@ -225,7 +224,7 @@ public class ChildSearchBenchmark {
             if (searchResponse.getHits().totalHits() != CHILD_COUNT) {
                 System.err.println("--> mismatch on hits [" + j + "], got [" + searchResponse.getHits().totalHits() + "], expected [" + CHILD_COUNT + "]");
             }
-        }
+        }*/
 
         totalQueryTime = 0;
         for (int j = 1; j <= QUERY_COUNT; j++) {
@@ -247,7 +246,7 @@ public class ChildSearchBenchmark {
         }
         System.out.println("--> has_parent filter Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");
 
-        System.out.println("--> Running has_parent filter with match_all parent query ");
+        /*System.out.println("--> Running has_parent filter with match_all parent query ");
         totalQueryTime = 0;
         for (int j = 1; j <= QUERY_COUNT; j++) {
             SearchResponse searchResponse = client.prepareSearch(indexName)
@@ -370,7 +369,7 @@ public class ChildSearchBenchmark {
             }
             totalQueryTime += searchResponse.getTookInMillis();
         }
-        System.out.println("--> has_parent query with match_all Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");
+        System.out.println("--> has_parent query with match_all Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");*/
 
 
         System.gc();

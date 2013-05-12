@@ -51,13 +51,13 @@ import java.util.concurrent.ConcurrentMap;
 /**
  *
  */
-public class FstIdCache extends AbstractIndexComponent implements IdCache, SegmentReader.CoreClosedListener {
+public class FSTIdCache extends AbstractIndexComponent implements IdCache, SegmentReader.CoreClosedListener {
 
     private final ConcurrentMap<Object, FSTIdReaderCache> idReaders;
     private IndexService indexService;
 
     @Inject
-    public FstIdCache(Index index, @IndexSettings Settings indexSettings) {
+    public FSTIdCache(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
         idReaders = ConcurrentCollections.newConcurrentMap();
     }

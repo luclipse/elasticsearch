@@ -56,6 +56,8 @@ import org.elasticsearch.index.indexing.IndexingStats;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceModule;
 import org.elasticsearch.index.merge.MergeStats;
+import org.elasticsearch.index.parentdata.ParentData;
+import org.elasticsearch.index.parentdata.ParentDataModule;
 import org.elasticsearch.index.percolator.PercolatorModule;
 import org.elasticsearch.index.percolator.PercolatorService;
 import org.elasticsearch.index.query.IndexQueryParserModule;
@@ -367,6 +369,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         modules.add(new SimilarityModule(indexSettings));
         modules.add(new IndexCacheModule(indexSettings));
         modules.add(new IndexFieldDataModule(indexSettings));
+        modules.add(new ParentDataModule(indexSettings));
         modules.add(new CodecModule(indexSettings));
         modules.add(new MapperServiceModule());
         modules.add(new IndexQueryParserModule(indexSettings));
@@ -425,6 +428,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         indexInjector.getInstance(PercolatorService.class).close();
         indexInjector.getInstance(IndexCache.class).close();
         indexInjector.getInstance(IndexFieldDataService.class).clear();
+        indexInjector.getInstance(ParentData.class).close();
         indexInjector.getInstance(AnalysisService.class).close();
         indexInjector.getInstance(IndexEngine.class).close();
 

@@ -29,9 +29,9 @@ import org.apache.lucene.util.Bits;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.lucene.docset.MatchDocIdSet;
-import org.elasticsearch.index.cache.id.IdReaderTypeCache;
+import org.elasticsearch.index.parentdata.ParentValues;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -96,7 +96,7 @@ public abstract class HasChildFilter extends Filter implements SearchContext.Rew
 
     static class Uid extends HasChildFilter {
 
-        THashSet<BytesReference> collectedUids;
+        THashSet<HashedBytesRef> collectedUids;
 
         Uid(Query childQuery, String parentType, String childType, SearchContext searchContext) {
             super(childQuery, parentType, childType, searchContext);
@@ -107,9 +107,9 @@ public abstract class HasChildFilter extends Filter implements SearchContext.Rew
                 throw new ElasticSearchIllegalStateException("has_child filter hasn't executed properly");
             }
 
-            IdReaderTypeCache idReaderTypeCache = searchContext.idCache().reader(context.reader()).type(parentType);
-            if (idReaderTypeCache != null) {
-                return new ParentDocSet(context.reader(), acceptDocs, collectedUids, idReaderTypeCache);
+            ParentValues parentValues = searchContext.parentData().atomic(context.reader()).getValues(parentType);
+            if (parentValues != ParentValues.EMPTY) {
+                return new ParentDocSet(context.reader(), acceptDocs, collectedUids, parentValues);
             } else {
                 return null;
             }
@@ -117,7 +117,7 @@ public abstract class HasChildFilter extends Filter implements SearchContext.Rew
 
         @Override
         public void contextRewrite(SearchContext searchContext) throws Exception {
-            searchContext.idCache().refresh(searchContext.searcher().getTopReaderContext().leaves());
+            searchContext.parentData().refresh(searchContext.searcher().getTopReaderContext().leaves());
             collectedUids = CacheRecycler.popHashSet();
             UidCollector collector = new UidCollector(parentType, searchContext, collectedUids);
             searchContext.searcher().search(childQuery, collector);
@@ -134,33 +134,36 @@ public abstract class HasChildFilter extends Filter implements SearchContext.Rew
         final static class ParentDocSet extends MatchDocIdSet {
 
             final IndexReader reader;
-            final THashSet<BytesReference> parents;
-            final IdReaderTypeCache typeCache;
+            final THashSet<HashedBytesRef> parents;
+            final ParentValues parentValues;
 
-            ParentDocSet(IndexReader reader, @Nullable Bits acceptDocs, THashSet<BytesReference> parents, IdReaderTypeCache typeCache) {
+            ParentDocSet(IndexReader reader, @Nullable Bits acceptDocs, THashSet<HashedBytesRef> parents, ParentValues parentValues) {
                 super(reader.maxDoc(), acceptDocs);
                 this.reader = reader;
                 this.parents = parents;
-                this.typeCache = typeCache;
+                this.parentValues = parentValues;
             }
 
             @Override
             protected boolean matchDoc(int doc) {
-                return parents.contains(typeCache.idByDoc(doc));
+                return parents.contains(parentValues.idByDoc(doc));
             }
         }
 
         final static class UidCollector extends ParentIdCollector {
-            private final THashSet<BytesReference> collectedUids;
 
-            UidCollector(String parentType, SearchContext context, THashSet<BytesReference> collectedUids) {
+            private final THashSet<HashedBytesRef> collectedUids;
+
+            UidCollector(String parentType, SearchContext context, THashSet<HashedBytesRef> collectedUids) {
                 super(parentType, context);
                 this.collectedUids = collectedUids;
             }
 
             @Override
-            public void collect(int doc, BytesReference parentIdByDoc){
-                collectedUids.add(parentIdByDoc);
+            public void collect(int doc, HashedBytesRef parentIdByDoc){
+                if (!collectedUids.contains(parentIdByDoc)) {
+                    collectedUids.add(parentValues.makeSafe(parentIdByDoc));
+                }
             }
 
         }

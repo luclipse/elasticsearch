@@ -52,6 +52,7 @@ public class PagedParentValues implements ParentValues {
     public HashedBytesRef makeSafe(HashedBytesRef ref) {
         // we only make a shallow copy here, to make sure not to change the internals of the bytes in the hashed one
         // but, since the reader from pages bytes just acts as a "pointer", its fine not to need to copy the bytes
-        return new HashedBytesRef(ref.bytes, ref.hash);
+        BytesRef shallowCopy = new BytesRef(ref.bytes.bytes, ref.bytes.offset, ref.bytes.length);
+        return new HashedBytesRef(shallowCopy, ref.hash);
     }
 }
