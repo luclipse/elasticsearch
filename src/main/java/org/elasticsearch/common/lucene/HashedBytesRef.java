@@ -69,7 +69,7 @@ public class HashedBytesRef {
     @Override
     public boolean equals(Object other) {
         if (other instanceof HashedBytesRef) {
-            return bytes.equals(((HashedBytesRef) other).bytes);
+            return bytes.bytesEquals(((HashedBytesRef) other).bytes);
         }
         return false;
     }

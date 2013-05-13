@@ -181,6 +181,7 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
             int subDoc = scoreDoc.doc - subContext.docBase;
 
             // find the parent id
+            // TODO: look into makeing this parentdata free
             ParentValues parentValues = context.parentData().atomic(subContext.reader()).getValues(parentType);
             HashedBytesRef parentId = parentValues.parentIdByDoc(subDoc);
             if (parentId == null) {
