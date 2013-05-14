@@ -53,10 +53,10 @@ import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 public class ChildSearchBenchmark {
 
     public static void main(String[] args) throws Exception {
-        String idCacheType = "paged";
+        String parentDataType = "concrete";
         Settings settings = settingsBuilder()
                 .put("index.engine.robin.refreshInterval", "-1")
-                .put("index.parentdata.type", idCacheType)
+                .put("index.parentdata.type", parentDataType)
                 .put("gateway.type", "local")
                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
@@ -115,7 +115,7 @@ public class ChildSearchBenchmark {
                 System.err.println("--> Timed out waiting for cluster health");
             }
             client.admin().indices().prepareClose(indexName).execute().actionGet();
-            client.admin().indices().prepareUpdateSettings(indexName).setSettings(ImmutableSettings.settingsBuilder().put("index.parentdata.type", idCacheType)).execute().actionGet();
+            client.admin().indices().prepareUpdateSettings(indexName).setSettings(ImmutableSettings.settingsBuilder().put("index.parentdata.type", parentDataType)).execute().actionGet();
             client.admin().indices().prepareOpen(indexName).execute().actionGet();
             client.admin().cluster().prepareHealth(indexName).setWaitForGreenStatus().setTimeout("10m").execute().actionGet();
         }
