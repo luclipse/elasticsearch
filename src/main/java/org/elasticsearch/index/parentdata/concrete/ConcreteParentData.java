@@ -32,9 +32,7 @@ import org.elasticsearch.index.parentdata.ParentData;
 import org.elasticsearch.index.shard.ShardUtils;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  */
@@ -61,7 +59,16 @@ public class ConcreteParentData extends ParentData<ConcreteAtomicParentData, Par
                 typeBuilder = new TypeBuilder(reader);
                 typeBuilders.put(type, typeBuilder);
             }
-            typeBuilder.parentIds.add(new HashedBytesRef(uid));
+            HashedBytesRef parentId = new HashedBytesRef(uid);
+            for (TypeBuilder builder : typeBuilders.values()) {
+                HashedBytesRef reuse = builder.reuse(parentId);
+                if (reuse != parentId) {
+                    parentId = reuse;
+                    break;
+                }
+            }
+
+            typeBuilder.parentIds.add(parentId);
             int ord  = typeBuilder.ord++;
             if (parentDocs != null) {
                 for (int docId = parentDocs.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = parentDocs.nextDoc()) {
@@ -103,6 +110,20 @@ public class ConcreteParentData extends ParentData<ConcreteAtomicParentData, Par
                 docIdToUidOffsetWriter = new GrowableWriter(1, reader.maxDoc(), PackedInts.FAST);
                 docIdToParentUidOffsetWriter = new GrowableWriter(1, reader.maxDoc(), PackedInts.FAST);
             }
+
+            HashedBytesRef reuse(HashedBytesRef uid) {
+                int index = Collections.binarySearch(parentIds, uid, comparator);
+                return index < 0 ? uid : parentIds.get(index);
+            }
+
         }
+
+        static final Comparator<HashedBytesRef> comparator = new Comparator<HashedBytesRef>() {
+            @Override
+            public int compare(HashedBytesRef o1, HashedBytesRef o2) {
+                return BytesRef.getUTF8SortedAsUnicodeComparator().compare(o1.bytes, o2.bytes);
+            }
+        };
+
     }
 }

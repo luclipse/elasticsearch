@@ -68,6 +68,10 @@ public class HashedBytesRef {
 
     @Override
     public boolean equals(Object other) {
+        if (this == other) {
+            return true;
+        }
+
         if (other instanceof HashedBytesRef) {
             return bytes.bytesEquals(((HashedBytesRef) other).bytes);
         }
