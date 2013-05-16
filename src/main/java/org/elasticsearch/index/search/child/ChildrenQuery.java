@@ -371,7 +371,7 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
         }
 
         @Override
-        protected void collect(int doc, HashedBytesArray parentUid) throws IOException {
+        public void collect(int doc, HashedBytesArray parentUid) throws IOException {
             float previousScore = uidToScore.get(parentUid);
             float currentScore = scorer.score();
             if (previousScore == 0) {
@@ -409,7 +409,7 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
         }
 
         @Override
-        protected void collect(int doc, HashedBytesArray parentUid) throws IOException {
+        public void collect(int doc, HashedBytesArray parentUid) throws IOException {
             float previousScore = uidToScore.get(parentUid);
             float currentScore = scorer.score();
             if (previousScore == 0) {

@@ -18,25 +18,26 @@
  */
 package org.elasticsearch.index.search.child;
 
-import java.io.IOException;
-
 import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
 import org.elasticsearch.search.internal.SearchContext;
 
+import java.io.IOException;
+
 /**
  * A simple collector that only collects if the docs parent ID is not
  * <code>null</code>
  */
-abstract class ParentIdCollector extends NoopCollector {
-    protected final String type;
+public abstract class ParentIdCollector extends NoopCollector {
+
+    protected final String parentType;
     protected final SearchContext context;
     private IdReaderTypeCache typeCache;
 
     protected ParentIdCollector(String parentType, SearchContext context) {
-        this.type = parentType;
+        this.parentType = parentType;
         this.context = context;
     }
 
@@ -50,10 +51,10 @@ abstract class ParentIdCollector extends NoopCollector {
         }
     }
     
-    protected abstract void collect(int doc, HashedBytesArray parentId) throws IOException;
+    public abstract void collect(int doc, HashedBytesArray parentId) throws IOException;
 
     @Override
     public void setNextReader(AtomicReaderContext readerContext) throws IOException {
-        typeCache = context.idCache().reader(readerContext.reader()).type(type);
+        typeCache = context.idCache().reader(readerContext.reader()).type(parentType);
     }
 }

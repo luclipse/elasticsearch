@@ -37,7 +37,7 @@ import org.elasticsearch.index.mapper.ObjectMappers;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.search.child.ChildFieldComparatorSource;
+import org.elasticsearch.index.search.child.sorting.ChildFieldComparatorSource;
 import org.elasticsearch.index.search.nested.NestedFieldComparatorSource;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.search.SearchParseElement;
