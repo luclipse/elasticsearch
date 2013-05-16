@@ -1,22 +1,25 @@
 package org.elasticsearch.index.search.child;
 
 import gnu.trove.impl.Constants;
-import gnu.trove.map.*;
+import gnu.trove.map.TObjectByteMap;
+import gnu.trove.map.TObjectDoubleMap;
+import gnu.trove.map.TObjectLongMap;
+import gnu.trove.map.TObjectShortMap;
 import gnu.trove.map.hash.*;
 import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.search.FieldComparator;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.bytes.HashedBytesArray;
+import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.trove.ExtTHashMap;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.fieldcomparator.*;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.search.nested.NestedFieldComparatorSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -43,7 +46,11 @@ public class ChildFieldComparatorSource extends IndexFieldData.XFieldComparatorS
         this.sortField = sortField;
         this.missingValue = missingValue;
         this.reversed = reversed;
-        this.count = CacheRecycler.popObjectIntMap();
+        if (sortMode == SortMode.AVG) {
+            this.count = CacheRecycler.popObjectIntMap();
+        } else {
+            this.count = null;
+        }
     }
 
     @Override
@@ -61,32 +68,48 @@ public class ChildFieldComparatorSource extends IndexFieldData.XFieldComparatorS
                 collector = new IntegerVal(parentType, searchContext, (IndexNumericFieldData) indexFieldData, missingValue);
                 break;
             case LONG:
-                collector = new DoubleVal(parentType, searchContext, (IndexNumericFieldData) indexFieldData, missingValue);
+                collector = new IntegerVal(parentType, searchContext, (IndexNumericFieldData) indexFieldData, missingValue);
+//                collector = new LongVal(parentType, searchContext, (IndexNumericFieldData) indexFieldData, missingValue);
                 break;
             case FLOAT:
                 collector = new FloatVal(parentType, searchContext, (IndexNumericFieldData) indexFieldData, missingValue);
                 break;
             case DOUBLE:
                 if (innerFieldComparatorSource instanceof GeoDistanceComparatorSource) {
-                    assert false;
+                    assert false; // TODO: add geo_distance support
                 } else {
                     collector = new DoubleVal(parentType, searchContext, (IndexNumericFieldData) indexFieldData, missingValue);
                 }
                 break;
             case STRING:
+                // TODO: add BytesRefOrdVal based impl
+                if (indexFieldData.valuesOrdered() && indexFieldData instanceof IndexFieldData.WithOrdinals) {
+                } else {
+                }
                 collector = new BytesRefChildFieldValuesCollector(parentType, searchContext, indexFieldData);
                 break;
             default:
                 assert false : "Are we missing a sort field type here? -- " + innerFieldComparatorSource.reducedType();
                 break;
         }
+
+        // If the child is inside one or more nested objects then wrap it.
+        if (innerFieldComparatorSource instanceof NestedFieldComparatorSource) {
+            NestedFieldComparatorSource nestedSource = (NestedFieldComparatorSource) innerFieldComparatorSource;
+            collector = new NestedChildFieldValuesCollector(
+                parentType, searchContext, collector, nestedSource.rootDocumentsFilter(), nestedSource.innerDocumentsFilter()
+            );
+        }
         searchContext.searcher().search(new XFilteredQuery(new MatchAllDocsQuery(), childFilter), collector);
     }
 
     @Override
     public void contextClear() {
+        collector.clear();
         collector = null;
-        CacheRecycler.pushObjectIntMap(count);
+        if (sortMode == SortMode.AVG) {
+            CacheRecycler.pushObjectIntMap(count);
+        }
     }
 
     @Override
@@ -147,28 +170,112 @@ public class ChildFieldComparatorSource extends IndexFieldData.XFieldComparatorS
 
         public abstract AbstractChildFieldComparator getFieldComparator(int numHits, int sortPos, boolean reversed);
 
+        public void clear() {
+
+        }
     }
 
-    private abstract class NaturalNumberBase extends AbstractChildFieldValuesCollector {
+    private class NestedChildFieldValuesCollector extends AbstractChildFieldValuesCollector {
 
-        private final IndexNumericFieldData indexFieldData;
-        LongValues longValues;
+        private final AbstractChildFieldValuesCollector wrapped;
+        private final Filter rootDocumentsFilter;
+        private final Filter innerDocumentsFilter;
 
-        NaturalNumberBase(String parentType, SearchContext context, IndexNumericFieldData indexFieldData) {
+        private FixedBitSet rootDocuments;
+        private FixedBitSet innerDocuments;
+
+        private NestedChildFieldValuesCollector(String parentType, SearchContext context, AbstractChildFieldValuesCollector wrapped, Filter rootDocumentsFilter, Filter innerDocumentsFilter) {
             super(parentType, context);
-            this.indexFieldData = indexFieldData;
+            this.wrapped = wrapped;
+            this.rootDocumentsFilter = rootDocumentsFilter;
+            this.innerDocumentsFilter = innerDocumentsFilter;
+        }
+
+        @Override
+        public AbstractChildFieldComparator getFieldComparator(int numHits, int sortPos, boolean reversed) {
+            return wrapped.getFieldComparator(numHits, sortPos, reversed);
+        }
+
+        @Override
+        protected void collect(int rootDoc, HashedBytesArray parentId) throws IOException {
+            if (rootDoc == 0 || rootDocuments == null || innerDocuments == null) {
+                return;
+            }
+
+            int prevRootDoc = rootDocuments.prevSetBit(rootDoc - 1);
+            int nestedDoc = innerDocuments.nextSetBit(prevRootDoc + 1);
+            if (nestedDoc >= rootDoc || nestedDoc == -1) {
+                return;
+            }
+            do {
+                wrapped.collect(nestedDoc, parentId);
+                nestedDoc = innerDocuments.nextSetBit(nestedDoc + 1);
+            } while (nestedDoc >= rootDoc || nestedDoc == -1);
         }
 
         @Override
         public void setNextReader(AtomicReaderContext readerContext) throws IOException {
             super.setNextReader(readerContext);
-            longValues = indexFieldData.load(readerContext).getLongValues();
-            if (longValues.isMultiValued()) {
-                longValues = new LongValuesComparatorBase.MultiValueWrapper(longValues, sortMode);
+            DocIdSet innerDocuments = innerDocumentsFilter.getDocIdSet(readerContext, null);
+            if (DocIdSets.isEmpty(innerDocuments)) {
+                this.innerDocuments = null;
+            } else if (innerDocuments instanceof FixedBitSet) {
+                this.innerDocuments = (FixedBitSet) innerDocuments;
+            } else {
+                this.innerDocuments = DocIdSets.toFixedBitSet(innerDocuments.iterator(), readerContext.reader().maxDoc());
             }
+            DocIdSet rootDocuments = rootDocumentsFilter.getDocIdSet(readerContext, null);
+            if (DocIdSets.isEmpty(rootDocuments)) {
+                this.rootDocuments = null;
+            } else if (rootDocuments instanceof FixedBitSet) {
+                this.rootDocuments = (FixedBitSet) rootDocuments;
+            } else {
+                this.rootDocuments = DocIdSets.toFixedBitSet(rootDocuments.iterator(), readerContext.reader().maxDoc());
+            }
+            wrapped.setNextReader(readerContext);
+        }
+    }
+
+    /*private class ByteRefOrdChildFieldValuesCollector extends AbstractChildFieldValuesCollector {
+
+        @Override
+        public FieldComparator<BytesRef> setNextReader(AtomicReaderContext context) throws IOException {
+            return BytesRefOrdValComparator.this.setNextReader(context);
         }
 
-    }
+        @Override
+        public int compare(int slot1, int slot2) {
+            return BytesRefOrdValComparator.this.compare(slot1, slot2);
+        }
+
+        @Override
+        public void setBottom(final int bottom) {
+            BytesRefOrdValComparator.this.setBottom(bottom);
+        }
+
+        @Override
+        public BytesRef value(int slot) {
+            return BytesRefOrdValComparator.this.value(slot);
+        }
+
+        @Override
+        public int compareValues(BytesRef val1, BytesRef val2) {
+            if (val1 == null) {
+                if (val2 == null) {
+                    return 0;
+                }
+                return -1;
+            } else if (val2 == null) {
+                return 1;
+            }
+            return val1.compareTo(val2);
+        }
+
+        @Override
+        public int compareDocToValue(int doc, BytesRef value) {
+            return BytesRefOrdValComparator.this.compareDocToValue(doc, value);
+        }
+    }*/
 
     // TODO: Add BytesRefOrd based impl
     private class BytesRefChildFieldValuesCollector extends AbstractChildFieldValuesCollector {
@@ -262,6 +369,27 @@ public class ChildFieldComparatorSource extends IndexFieldData.XFieldComparatorS
                 }
             };
         }
+    }
+
+    private abstract class NaturalNumberBase extends AbstractChildFieldValuesCollector {
+
+        private final IndexNumericFieldData indexFieldData;
+        LongValues longValues;
+
+        NaturalNumberBase(String parentType, SearchContext context, IndexNumericFieldData indexFieldData) {
+            super(parentType, context);
+            this.indexFieldData = indexFieldData;
+        }
+
+        @Override
+        public void setNextReader(AtomicReaderContext readerContext) throws IOException {
+            super.setNextReader(readerContext);
+            longValues = indexFieldData.load(readerContext).getLongValues();
+            if (longValues.isMultiValued()) {
+                longValues = new LongValuesComparatorBase.MultiValueWrapper(longValues, sortMode);
+            }
+        }
+
     }
 
     private class ByteVal extends NaturalNumberBase {
@@ -519,7 +647,7 @@ public class ChildFieldComparatorSource extends IndexFieldData.XFieldComparatorS
     private class IntegerVal extends NaturalNumberBase {
 
         private final int missingValue;
-        private final TObjectIntMap<HashedBytesArray> childValues;
+        private final TObjectIntHashMap<HashedBytesArray> childValues;
 
         private IntegerVal(String parentType, SearchContext context, IndexNumericFieldData indexFieldData, Object rawMissingValue) {
             super(parentType, context, indexFieldData);
@@ -530,9 +658,12 @@ public class ChildFieldComparatorSource extends IndexFieldData.XFieldComparatorS
             } else {
                 this.missingValue = rawMissingValue instanceof Number ? ((Number) rawMissingValue).intValue() : Integer.parseInt(rawMissingValue.toString());
             }
-            this.childValues = new TObjectIntHashMap<HashedBytesArray>(
-                    Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, missingValue
-            );
+            this.childValues = CacheRecycler.popObjectIntMap();
+        }
+
+        @Override
+        public void clear() {
+            CacheRecycler.pushObjectIntMap(childValues);
         }
 
         @Override
@@ -768,12 +899,12 @@ public class ChildFieldComparatorSource extends IndexFieldData.XFieldComparatorS
         }
     }
 
-    private abstract class NaturalNumberBase1 extends AbstractChildFieldValuesCollector {
+    private abstract class FloatingNaturalNumberBase extends AbstractChildFieldValuesCollector {
 
         private final IndexNumericFieldData indexFieldData;
         DoubleValues doubleValues;
 
-        NaturalNumberBase1(String parentType, SearchContext context, IndexNumericFieldData indexFieldData) {
+        FloatingNaturalNumberBase(String parentType, SearchContext context, IndexNumericFieldData indexFieldData) {
             super(parentType, context);
             this.indexFieldData = indexFieldData;
         }
@@ -789,9 +920,9 @@ public class ChildFieldComparatorSource extends IndexFieldData.XFieldComparatorS
 
     }
 
-    private class FloatVal extends NaturalNumberBase1 {
+    private class FloatVal extends FloatingNaturalNumberBase {
 
-        private final TObjectFloatMap<HashedBytesArray> childValues;
+        private final TObjectFloatHashMap<HashedBytesArray> childValues;
         private final float missingValue;
 
         FloatVal(String parentType, SearchContext context, IndexNumericFieldData indexFieldData, Object missingValue) {
@@ -803,9 +934,12 @@ public class ChildFieldComparatorSource extends IndexFieldData.XFieldComparatorS
             } else {
                 this.missingValue = missingValue instanceof Number ? ((Number) missingValue).floatValue() : Float.parseFloat(missingValue.toString());
             }
-            this.childValues = new TObjectFloatHashMap<HashedBytesArray>(
-                    Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, this.missingValue
-            );
+            this.childValues = CacheRecycler.popObjectFloatMap();
+        }
+
+        @Override
+        public void clear() {
+            CacheRecycler.pushObjectFloatMap(childValues);
         }
 
         @Override
@@ -915,7 +1049,7 @@ public class ChildFieldComparatorSource extends IndexFieldData.XFieldComparatorS
         }
     }
 
-    private class DoubleVal extends NaturalNumberBase1 {
+    private class DoubleVal extends FloatingNaturalNumberBase {
 
         private final TObjectDoubleMap<HashedBytesArray> childValues;
         private final double missingValue;

@@ -32,6 +32,7 @@ import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.search.sort.SortBuilders;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -42,7 +43,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.hasChildFilter;
-import static org.elasticsearch.index.query.FilterBuilders.hasParentFilter;
+import static org.elasticsearch.index.query.FilterBuilders.termFilter;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 
@@ -92,7 +93,7 @@ public class ChildSearchBenchmark {
                     for (int k = 0; k < CHILD_COUNT; k++) {
                         request.add(Requests.indexRequest(indexName).type("child").id(Integer.toString(counter) + "_" + k)
                                 .parent(Integer.toString(counter))
-                                .source(childSource(Integer.toString(counter), "tag" + k)));
+                                .source(childSource(Integer.toString(counter), "tag" + k, i)));
                     }
                 }
                 BulkResponse response = request.execute().actionGet();
@@ -160,7 +161,7 @@ public class ChildSearchBenchmark {
             }
         }
 
-        totalQueryTime = 0;
+        /*totalQueryTime = 0;
         for (int j = 0; j < QUERY_COUNT; j++) {
             SearchResponse searchResponse = client.prepareSearch(indexName)
                     .setQuery(
@@ -363,8 +364,27 @@ public class ChildSearchBenchmark {
             }
             totalQueryTime += searchResponse.getTookInMillis();
         }
-        System.out.println("--> has_parent query with match_all Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");
+        System.out.println("--> has_parent query with match_all Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");*/
 
+        System.out.println("--> Running has_child query with child sort");
+        totalQueryTime = 0;
+        for (int j = 0; j < QUERY_COUNT; j++) {
+            SearchResponse searchResponse = client.prepareSearch(indexName)
+                    .setQuery(
+                        filteredQuery(
+                                matchAllQuery(),
+//                                typeFilter("parent")
+                                hasChildFilter("child", termQuery("tag", "tag1"))
+                        )
+                    )
+                    .addSort(SortBuilders.fieldSort("number").setChildType("child").setChildFilter(termFilter("tag", "tag1")))
+                    .execute().actionGet();
+            if (searchResponse.getHits().totalHits() != COUNT) {
+                System.err.println("mismatch on hits");
+            }
+            totalQueryTime += searchResponse.getTookInMillis();
+        }
+        System.out.println("--> has_child query with child sort: " + (totalQueryTime / QUERY_COUNT) + "ms");
 
         System.gc();
         statsResponse = client.admin().cluster().prepareNodesStats()
@@ -381,7 +401,7 @@ public class ChildSearchBenchmark {
         return jsonBuilder().startObject().field("id", id).field("name", nameValue).endObject();
     }
 
-    private static XContentBuilder childSource(String id, String tag) throws IOException {
-        return jsonBuilder().startObject().field("id", id).field("tag", tag).endObject();
+    private static XContentBuilder childSource(String id, String tag, long i) throws IOException {
+        return jsonBuilder().startObject().field("id", id).field("tag", tag).field("number", (int) i).endObject();
     }
 }
