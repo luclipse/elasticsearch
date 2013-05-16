@@ -1,4 +1,4 @@
-package org.elasticsearch.index.search.child.sorting;
+package org.elasticsearch.index.search.child.fieldcomparator.string;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.util.BytesRef;
@@ -10,11 +10,13 @@ import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefValComparator;
 import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
+import org.elasticsearch.index.search.child.fieldcomparator.AbstractChildFieldComparator;
+import org.elasticsearch.index.search.child.fieldcomparator.AbstractChildFieldValuesCollector;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.search.child.sorting.CompareUtil.compareBytesRef;
+import static org.elasticsearch.index.search.child.fieldcomparator.CompareUtil.compareBytesRef;
 
 /**
  */

@@ -1,4 +1,4 @@
-package org.elasticsearch.index.search.child.sorting;
+package org.elasticsearch.index.search.child.fieldcomparator;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.DocIdSet;

@@ -1,4 +1,4 @@
-package org.elasticsearch.index.search.child.sorting;
+package org.elasticsearch.index.search.child.fieldcomparator;
 
 import gnu.trove.map.hash.TObjectIntHashMap;
 import org.apache.lucene.search.FieldComparator;
@@ -13,7 +13,8 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.GeoDistanceComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.search.child.sorting.number.*;
+import org.elasticsearch.index.search.child.fieldcomparator.number.*;
+import org.elasticsearch.index.search.child.fieldcomparator.string.BytesRefChildFieldValuesCollector;
 import org.elasticsearch.index.search.nested.NestedFieldComparatorSource;
 import org.elasticsearch.search.internal.SearchContext;
 

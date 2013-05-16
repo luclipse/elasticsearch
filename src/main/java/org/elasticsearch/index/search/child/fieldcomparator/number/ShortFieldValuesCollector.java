@@ -1,4 +1,4 @@
-package org.elasticsearch.index.search.child.sorting.number;
+package org.elasticsearch.index.search.child.fieldcomparator.number;
 
 import gnu.trove.impl.Constants;
 import gnu.trove.map.TObjectShortMap;
@@ -6,12 +6,12 @@ import gnu.trove.map.hash.TObjectShortHashMap;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
-import org.elasticsearch.index.search.child.sorting.AbstractChildFieldComparator;
+import org.elasticsearch.index.search.child.fieldcomparator.AbstractChildFieldComparator;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.search.child.sorting.CompareUtil.compareShort;
+import static org.elasticsearch.index.search.child.fieldcomparator.CompareUtil.compareShort;
 
 /**
  */

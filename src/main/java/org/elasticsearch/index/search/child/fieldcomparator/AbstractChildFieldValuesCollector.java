@@ -1,4 +1,4 @@
-package org.elasticsearch.index.search.child.sorting;
+package org.elasticsearch.index.search.child.fieldcomparator;
 
 import org.elasticsearch.index.search.child.ParentIdCollector;
 import org.elasticsearch.search.internal.SearchContext;
