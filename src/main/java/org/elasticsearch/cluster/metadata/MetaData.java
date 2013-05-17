@@ -19,10 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
-import com.google.common.collect.UnmodifiableIterator;
+import com.google.common.collect.*;
 import gnu.trove.set.hash.THashSet;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.support.IgnoreIndices;
@@ -271,6 +268,50 @@ public class MetaData implements Iterable<IndexMetaData> {
 
     public ImmutableMap<String, ImmutableMap<String, AliasMetaData>> getAliases() {
         return aliases();
+    }
+
+    /**
+     * Finds the specific index aliases that match with the specified aliases directly or partially via wildcards and
+     * that point to the specified concrete indices or match partially with the indices via wildcards.
+     *
+     * @param aliases The names of the index aliases to find
+     * @param concreteIndices The concrete indexes the index aliases must point to order to be returned.
+     *
+     * @return the found index aliases grouped by index
+     */
+    public ImmutableMap<String, ImmutableList<AliasMetaData>> findAliases(String[] aliases, String[] concreteIndices) {
+        assert aliases != null;
+        assert concreteIndices != null;
+        if (concreteIndices.length == 0) {
+            return ImmutableMap.of();
+        }
+
+        ImmutableMap.Builder<String, ImmutableList<AliasMetaData>> mapBuilder = ImmutableMap.builder();
+        for (Map.Entry<String, IndexMetaData> indexEntry : indices().entrySet()) {
+            boolean contains = false;
+            for (String index : concreteIndices) {
+                if (index.equals(indexEntry.getKey())) {
+                    contains = true;
+                    break;
+                }
+            }
+            if (!contains) {
+                continue;
+            }
+
+            boolean aliasesAdded = false;
+            ImmutableList.Builder<AliasMetaData> listBuilder = ImmutableList.builder();
+            for (Map.Entry<String, AliasMetaData> aliasEntry : indexEntry.getValue().getAliases().entrySet()) {
+                if (Regex.simpleMatch(aliases, aliasEntry.getKey())) {
+                    aliasesAdded = true;
+                    listBuilder.add(aliasEntry.getValue());
+                }
+            }
+            if (aliasesAdded) {
+                mapBuilder.put(indexEntry.getKey(), listBuilder.build());
+            }
+        }
+        return mapBuilder.build();
     }
 
     /**
