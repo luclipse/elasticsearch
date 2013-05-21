@@ -24,10 +24,6 @@ import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-
 /**
  */
 public class IndicesGetAliasesRequestBuilder extends MasterNodeOperationRequestBuilder<IndicesGetAliasesRequest, IndicesGetAliasesResponse, IndicesGetAliasesRequestBuilder> {
@@ -42,9 +38,7 @@ public class IndicesGetAliasesRequestBuilder extends MasterNodeOperationRequestB
     }
 
     public IndicesGetAliasesRequestBuilder addAliases(String... aliases) {
-        List<String> list = new ArrayList<String>(Arrays.asList(request.aliases()));
-        list.addAll(Arrays.asList(aliases));
-        request.aliases(list.toArray(new String[list.size()]));
+        request.aliases(concatenate(request.aliases(), aliases));
         return this;
     }
 
@@ -54,9 +48,7 @@ public class IndicesGetAliasesRequestBuilder extends MasterNodeOperationRequestB
     }
 
     public IndicesGetAliasesRequestBuilder addIndices(String... indices) {
-        List<String> list = new ArrayList<String>(Arrays.asList(request.indices()));
-        list.addAll(Arrays.asList(indices));
-        request.indices(list.toArray(new String[list.size()]));
+        request.indices(concatenate(request.indices(), indices));
         return this;
     }
 
@@ -64,4 +56,12 @@ public class IndicesGetAliasesRequestBuilder extends MasterNodeOperationRequestB
     protected void doExecute(ActionListener<IndicesGetAliasesResponse> listener) {
         ((IndicesAdminClient) client).getAliases(request, listener);
     }
+
+    private static String[] concatenate(String[] array1, String[] array2) {
+        String[] result = new String[array1.length + array2.length];
+        System.arraycopy(array1, 0, result, 0 , array1.length);
+        System.arraycopy(array2, 0, result, array1.length, array2.length);
+        return result;
+    }
+
 }

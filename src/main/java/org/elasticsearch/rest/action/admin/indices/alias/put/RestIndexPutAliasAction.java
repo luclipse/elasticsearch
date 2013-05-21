@@ -42,10 +42,10 @@ import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
  */
-public class RestIndexPutAliasesAction extends BaseRestHandler {
+public class RestIndexPutAliasAction extends BaseRestHandler {
 
     @Inject
-    public RestIndexPutAliasesAction(Settings settings, Client client, RestController controller) {
+    public RestIndexPutAliasAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
         controller.registerHandler(PUT, "/{index}/_alias/{name}", this);
         controller.registerHandler(PUT, "/_alias/{name}", this);
@@ -92,7 +92,7 @@ public class RestIndexPutAliasesAction extends BaseRestHandler {
                         }
                     }
                 }
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 try {
                     channel.sendResponse(new XContentThrowableRestResponse(request, e));
                 } catch (IOException e1) {
