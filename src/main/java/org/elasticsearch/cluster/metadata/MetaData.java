@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import com.google.common.base.Predicate;
 import com.google.common.collect.*;
 import gnu.trove.set.hash.THashSet;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
@@ -279,7 +280,7 @@ public class MetaData implements Iterable<IndexMetaData> {
      *
      * @return the found index aliases grouped by index
      */
-    public ImmutableMap<String, ImmutableList<AliasMetaData>> findAliases(String[] aliases, String[] concreteIndices) {
+    public ImmutableMap<String, ImmutableList<AliasMetaData>> findAliases(final String[] aliases, String[] concreteIndices) {
         assert aliases != null;
         assert concreteIndices != null;
         if (concreteIndices.length == 0) {
@@ -287,28 +288,17 @@ public class MetaData implements Iterable<IndexMetaData> {
         }
 
         ImmutableMap.Builder<String, ImmutableList<AliasMetaData>> mapBuilder = ImmutableMap.builder();
-        for (Map.Entry<String, IndexMetaData> indexEntry : indices().entrySet()) {
-            boolean contains = false;
-            for (String index : concreteIndices) {
-                if (index.equals(indexEntry.getKey())) {
-                    contains = true;
-                    break;
+        Sets.SetView<String> intersection = Sets.intersection(Sets.newHashSet(concreteIndices), indices.keySet());
+        for (String index : intersection) {
+            IndexMetaData indexMetaData = indices.get(index);
+            Collection<AliasMetaData> filteredValues = Maps.filterKeys(indexMetaData.getAliases(), new Predicate<String>() {
+                public boolean apply(String alias) {
+                    // Simon says: we could build and FST out of the alias key and then run a regexp query against it ;)
+                    return Regex.simpleMatch(aliases, alias);
                 }
-            }
-            if (!contains) {
-                continue;
-            }
-
-            boolean aliasesAdded = false;
-            ImmutableList.Builder<AliasMetaData> listBuilder = ImmutableList.builder();
-            for (Map.Entry<String, AliasMetaData> aliasEntry : indexEntry.getValue().getAliases().entrySet()) {
-                if (Regex.simpleMatch(aliases, aliasEntry.getKey())) {
-                    aliasesAdded = true;
-                    listBuilder.add(aliasEntry.getValue());
-                }
-            }
-            if (aliasesAdded) {
-                mapBuilder.put(indexEntry.getKey(), listBuilder.build());
+            }).values();
+            if (!filteredValues.isEmpty()) {
+                mapBuilder.put(index, ImmutableList.copyOf(filteredValues));
             }
         }
         return mapBuilder.build();
