@@ -77,7 +77,7 @@ public abstract class LongValuesComparatorBase<T extends Number> extends NumberC
         return compare(bottom, missingValue);
     }
 
-    private static final class MultiValueWrapper extends LongValues.Filtered {
+    public static final class MultiValueWrapper extends LongValues.Filtered {
 
         private final SortMode sortMode;
 

@@ -75,8 +75,6 @@ public class NestedFieldComparatorSource extends IndexFieldData.XFieldComparator
         return wrappedSource.reducedType();
     }
 
-<<<<<<< HEAD
-=======
     public Filter rootDocumentsFilter() {
         return rootDocumentsFilter;
     }
@@ -84,7 +82,6 @@ public class NestedFieldComparatorSource extends IndexFieldData.XFieldComparator
     public Filter innerDocumentsFilter() {
         return innerDocumentsFilter;
     }
->>>>>>> add nested support
 }
 
 abstract class NestedFieldComparator extends FieldComparator {
