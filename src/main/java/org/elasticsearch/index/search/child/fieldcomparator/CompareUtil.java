@@ -4,29 +4,17 @@ import org.apache.lucene.util.BytesRef;
 
 /**
  */
-public class CompareUtil {
+public final class CompareUtil {
 
     private CompareUtil() {
     }
 
     public static final int compareByte(byte left, byte right) {
-        if (left > right) {
-            return 1;
-        } else if (left < right) {
-            return -1;
-        } else {
-            return 0;
-        }
+        return left - right;
     }
 
     public static final int compareShort(short left, short right) {
-        if (left > right) {
-            return 1;
-        } else if (left < right) {
-            return -1;
-        } else {
-            return 0;
-        }
+        return left - right;
     }
 
     public static final int compareInt(int left, int right) {
