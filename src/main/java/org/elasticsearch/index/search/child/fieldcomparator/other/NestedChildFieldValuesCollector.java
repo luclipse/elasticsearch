@@ -1,4 +1,4 @@
-package org.elasticsearch.index.search.child.fieldcomparator;
+package org.elasticsearch.index.search.child.fieldcomparator.other;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.DocIdSet;
@@ -6,6 +6,8 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
+import org.elasticsearch.index.search.child.fieldcomparator.AbstractChildFieldComparator;
+import org.elasticsearch.index.search.child.fieldcomparator.AbstractChildFieldValuesCollector;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;

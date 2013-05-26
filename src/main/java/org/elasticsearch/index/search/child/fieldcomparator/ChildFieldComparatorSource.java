@@ -1,19 +1,18 @@
 package org.elasticsearch.index.search.child.fieldcomparator;
 
-import gnu.trove.map.hash.TObjectIntHashMap;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.SortField;
-import org.elasticsearch.common.CacheRecycler;
-import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.GeoDistanceComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.search.child.fieldcomparator.number.*;
+import org.elasticsearch.index.search.child.fieldcomparator.number.DoubleFieldValuesCollector;
+import org.elasticsearch.index.search.child.fieldcomparator.number.LongFieldValuesCollector;
+import org.elasticsearch.index.search.child.fieldcomparator.other.NestedChildFieldValuesCollector;
 import org.elasticsearch.index.search.child.fieldcomparator.string.BytesRefChildFieldValuesCollector;
 import org.elasticsearch.index.search.nested.NestedFieldComparatorSource;
 import org.elasticsearch.search.internal.SearchContext;
@@ -30,7 +29,6 @@ public class ChildFieldComparatorSource extends IndexFieldData.XFieldComparatorS
     private final FieldMapper sortField;
     private final Object missingValue;
     private final boolean reversed;
-    private final TObjectIntHashMap<HashedBytesArray> count;
 
     private IndexFieldData.XFieldComparatorSource innerFieldComparatorSource;
     private AbstractChildFieldValuesCollector collector;
@@ -42,11 +40,6 @@ public class ChildFieldComparatorSource extends IndexFieldData.XFieldComparatorS
         this.sortField = sortField;
         this.missingValue = missingValue;
         this.reversed = reversed;
-        if (sortMode == SortMode.AVG) {
-            this.count = CacheRecycler.popObjectIntMap();
-        } else {
-            this.count = null;
-        }
     }
 
     @Override
@@ -55,30 +48,14 @@ public class ChildFieldComparatorSource extends IndexFieldData.XFieldComparatorS
         innerFieldComparatorSource = indexFieldData.comparatorSource(missingValue, sortMode);
         switch (innerFieldComparatorSource.reducedType()) {
             case BYTE:
-                collector = new ByteFieldValuesCollector(
-                    parentType, sortMode, searchContext, (IndexNumericFieldData) indexFieldData, missingValue, reversed
-                );
-                break;
             case SHORT:
-                collector = new ShortFieldValuesCollector(
-                    parentType, sortMode, searchContext, (IndexNumericFieldData) indexFieldData, missingValue, reversed
-                );
-                break;
             case INT:
-                collector = new IntegerFieldValuesCollector(
-                    parentType, sortMode, searchContext, (IndexNumericFieldData) indexFieldData, missingValue, reversed
-                );
-                break;
             case LONG:
                 collector = new LongFieldValuesCollector(
                     parentType, sortMode, searchContext, (IndexNumericFieldData) indexFieldData, missingValue, reversed
                 );
                 break;
             case FLOAT:
-                collector = new FloatFieldValuesCollector(
-                    parentType, sortMode, searchContext, (IndexNumericFieldData) indexFieldData, missingValue, reversed
-                );
-                break;
             case DOUBLE:
                 if (innerFieldComparatorSource instanceof GeoDistanceComparatorSource) {
                     assert false; // TODO: add geo_distance support
@@ -114,9 +91,6 @@ public class ChildFieldComparatorSource extends IndexFieldData.XFieldComparatorS
     public void contextClear() {
         collector.clear();
         collector = null;
-        if (sortMode == SortMode.AVG) {
-            CacheRecycler.pushObjectIntMap(count);
-        }
     }
 
     @Override
@@ -125,7 +99,7 @@ public class ChildFieldComparatorSource extends IndexFieldData.XFieldComparatorS
     }
 
     @Override
-    public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
+    public FieldComparator<?> newComparator(String fieldName, int numHits, int sortPos, boolean reversed) throws IOException {
         return collector.getFieldComparator(numHits, sortPos, reversed);
     }
 
