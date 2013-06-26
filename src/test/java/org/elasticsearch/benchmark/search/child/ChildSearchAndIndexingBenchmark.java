@@ -51,7 +51,7 @@ import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
  */
 public class ChildSearchAndIndexingBenchmark {
 
-    static long COUNT = SizeValue.parseSizeValue("1m").singles();
+    static long COUNT = SizeValue.parseSizeValue("10m").singles();
     static int CHILD_COUNT = 5;
     static int BATCH = 100;
     static int QUERY_COUNT = 50;
@@ -66,7 +66,10 @@ public class ChildSearchAndIndexingBenchmark {
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
                 .build();
 
-        Node node1 = nodeBuilder().settings(settingsBuilder().put(settings).put("name", "node1")).node();
+        Node node1 = nodeBuilder()
+                .clusterName("parent")
+                .settings(settingsBuilder().put(settings).put("name", "node1"))
+                .node();
         Client client = node1.client();
 
         client.admin().cluster().prepareHealth(indexName).setWaitForGreenStatus().setTimeout("10s").execute().actionGet();
