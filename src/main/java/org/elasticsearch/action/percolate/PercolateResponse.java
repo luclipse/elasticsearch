@@ -19,55 +19,57 @@
 
 package org.elasticsearch.action.percolate;
 
-import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 
 /**
  *
  */
-public class PercolateResponse extends ActionResponse implements Iterable<String> {
+public class PercolateResponse extends BroadcastOperationResponse implements Iterable<String> {
 
-    private List<String> matches;
+    private String[] matches;
 
-    PercolateResponse() {
-
-    }
-
-    public PercolateResponse(List<String> matches) {
+    public PercolateResponse(int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures, String[] matches) {
+        super(totalShards, successfulShards, failedShards, shardFailures);
         this.matches = matches;
     }
 
-    public List<String> getMatches() {
+    public PercolateResponse(int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
+        super(totalShards, successfulShards, failedShards, shardFailures);
+    }
+
+    PercolateResponse() {
+    }
+
+    public PercolateResponse(String[] matches) {
+        this.matches = matches;
+    }
+
+    public String[] getMatches() {
         return this.matches;
     }
 
     @Override
     public Iterator<String> iterator() {
-        return matches.iterator();
+        return Arrays.asList(matches).iterator();
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        int size = in.readVInt();
-        matches = new ArrayList<String>(size);
-        for (int i = 0; i < size; i++) {
-            matches.add(in.readString());
-        }
+        matches = in.readStringArray();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeVInt(matches.size());
-        for (String match : matches) {
-            out.writeString(match);
-        }
+        out.writeStringArray(matches);
     }
 }

@@ -33,6 +33,8 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.lucene.search.AndFilter;
+import org.elasticsearch.common.lucene.search.NotFilter;
 import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.regex.Regex;
@@ -45,6 +47,7 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatService;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
+import org.elasticsearch.index.percolator.Percolator;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
@@ -80,6 +83,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     private final boolean dynamic;
 
     private volatile String defaultMappingSource;
+    private volatile String defaultPercolatorMappingSource;
 
     private volatile Map<String, DocumentMapper> mappers = ImmutableMap.of();
 
@@ -148,6 +152,17 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
                 throw new MapperException("Failed to load default mapping source from [" + defaultMappingLocation + "]", e);
             }
         }
+        // TODO: Loading mechanism for default percolator mapping (no push)
+        defaultPercolatorMappingSource = "{\n" +
+                "    \"_percolator\":{\n" +
+                "        \"properties\" : {\n" +
+                "            \"query\" : {\n" +
+                "                \"type\" : \"object\",\n" +
+                "                \"enabled\" : false\n" +
+                "            }\n" +
+                "        }\n" +
+                "    }\n" +
+                "}";
 
         logger.debug("using dynamic[{}], default mapping: default_mapping_location[{}], loaded_from[{}] and source[{}]", dynamic, defaultMappingLocation, defaultMappingUrl, defaultMappingSource);
     }
@@ -198,7 +213,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             if (mapper.type().length() == 0) {
                 throw new InvalidTypeNameException("mapping type name is empty");
             }
-            if (mapper.type().charAt(0) == '_') {
+            if (mapper.type().charAt(0) == '_' && !Percolator.Constants.TYPE_NAME.equals(mapper.type())) {
                 throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] can't start with '_'");
             }
             if (mapper.type().contains("#")) {
@@ -377,6 +392,12 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     }
 
     public DocumentMapper parse(String mappingType, String mappingSource, boolean applyDefault) throws MapperParsingException {
+        String defaultMappingSource;
+        if (Percolator.Constants.TYPE_NAME.equals(mappingType)) {
+            defaultMappingSource = defaultPercolatorMappingSource;
+        } else {
+            defaultMappingSource = this.defaultMappingSource;
+        }
         return documentParser.parse(mappingType, mappingSource, applyDefault ? defaultMappingSource : null);
     }
 
@@ -416,9 +437,27 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
      */
     @Nullable
     public Filter searchFilter(String... types) {
+        boolean filterPercolateType = hasMapping(Percolator.Constants.TYPE_NAME);
+        if (types != null && filterPercolateType) {
+            for (String type : types) {
+                if (Percolator.Constants.TYPE_NAME.equals(type)) {
+                    filterPercolateType = false;
+                    break;
+                }
+            }
+        }
+        Filter excludePercolatorType = null;
+        if (filterPercolateType) {
+            excludePercolatorType = new NotFilter(documentMapper(Percolator.Constants.TYPE_NAME).typeFilter());
+        }
+
         if (types == null || types.length == 0) {
-            if (hasNested) {
+            if (hasNested && filterPercolateType) {
+                return new AndFilter(ImmutableList.of(excludePercolatorType, NonNestedDocsFilter.INSTANCE));
+            } else if (hasNested) {
                 return NonNestedDocsFilter.INSTANCE;
+            } else if (filterPercolateType) {
+                return excludePercolatorType;
             } else {
                 return null;
             }
@@ -445,13 +484,20 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
                 break;
             }
         }
+
         if (useTermsFilter) {
             BytesRef[] typesBytes = new BytesRef[types.length];
             for (int i = 0; i < typesBytes.length; i++) {
                 typesBytes[i] = new BytesRef(types[i]);
             }
-            return new TermsFilter(TypeFieldMapper.NAME, typesBytes);
+            TermsFilter termsFilter = new TermsFilter(TypeFieldMapper.NAME, typesBytes);
+            if (filterPercolateType) {
+                return new AndFilter(ImmutableList.of(excludePercolatorType, termsFilter));
+            } else {
+                return termsFilter;
+            }
         } else {
+            // Current bool filter requires that at least one should clause matches, even with a must clause.
             XBooleanFilter bool = new XBooleanFilter();
             for (String type : types) {
                 DocumentMapper docMapper = documentMapper(type);
@@ -461,6 +507,10 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
                     bool.add(new FilterClause(docMapper.typeFilter(), BooleanClause.Occur.SHOULD));
                 }
             }
+            if (filterPercolateType) {
+                bool.add(excludePercolatorType, BooleanClause.Occur.MUST);
+            }
+
             return bool;
         }
     }

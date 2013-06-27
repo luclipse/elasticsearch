@@ -20,7 +20,7 @@
 package org.elasticsearch.action.percolate;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.single.custom.SingleCustomOperationRequestBuilder;
+import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -32,7 +32,7 @@ import java.util.Map;
 /**
  *
  */
-public class PercolateRequestBuilder extends SingleCustomOperationRequestBuilder<PercolateRequest, PercolateResponse, PercolateRequestBuilder> {
+public class PercolateRequestBuilder extends BroadcastOperationRequestBuilder<PercolateRequest, PercolateResponse, PercolateRequestBuilder> {
 
     public PercolateRequestBuilder(Client client) {
         super((InternalClient) client, new PercolateRequest());
@@ -46,15 +46,23 @@ public class PercolateRequestBuilder extends SingleCustomOperationRequestBuilder
      * Sets the index to percolate the document against.
      */
     public PercolateRequestBuilder setIndex(String index) {
-        request.index(index);
+        request.indices(index);
+        return this;
+    }
+
+    /**
+     * Sets the index the document belongs to.
+     */
+    public PercolateRequestBuilder setDocumentIndex(String index) {
+        request.documentIndex(index);
         return this;
     }
 
     /**
      * Sets the type of the document to percolate.
      */
-    public PercolateRequestBuilder setType(String type) {
-        request.type(type);
+    public PercolateRequestBuilder setDocumentType(String type) {
+        request.documentType(type);
         return this;
     }
 
@@ -64,7 +72,7 @@ public class PercolateRequestBuilder extends SingleCustomOperationRequestBuilder
      * @param source The map to index
      */
     public PercolateRequestBuilder setSource(Map<String, Object> source) {
-        request.source(source);
+        request.documentSource(source);
         return this;
     }
 
@@ -74,7 +82,7 @@ public class PercolateRequestBuilder extends SingleCustomOperationRequestBuilder
      * @param source The map to index
      */
     public PercolateRequestBuilder setSource(Map<String, Object> source, XContentType contentType) {
-        request.source(source, contentType);
+        request.documentSource(source, contentType);
         return this;
     }
 
@@ -85,7 +93,7 @@ public class PercolateRequestBuilder extends SingleCustomOperationRequestBuilder
      * or using the {@link #setSource(byte[])}.
      */
     public PercolateRequestBuilder setSource(String source) {
-        request.source(source);
+        request.documentSource(source);
         return this;
     }
 
@@ -93,7 +101,7 @@ public class PercolateRequestBuilder extends SingleCustomOperationRequestBuilder
      * Sets the content source to index.
      */
     public PercolateRequestBuilder setSource(XContentBuilder sourceBuilder) {
-        request.source(sourceBuilder);
+        request.documentSource(sourceBuilder);
         return this;
     }
 
@@ -101,7 +109,7 @@ public class PercolateRequestBuilder extends SingleCustomOperationRequestBuilder
      * Sets the document to index in bytes form.
      */
     public PercolateRequestBuilder setSource(BytesReference source) {
-        request.source(source, false);
+        request.documentSource(source, false);
         return this;
     }
 
@@ -109,7 +117,7 @@ public class PercolateRequestBuilder extends SingleCustomOperationRequestBuilder
      * Sets the document to index in bytes form.
      */
     public PercolateRequestBuilder setSource(BytesReference source, boolean unsafe) {
-        request.source(source, unsafe);
+        request.documentSource(source, unsafe);
         return this;
     }
 
@@ -117,7 +125,7 @@ public class PercolateRequestBuilder extends SingleCustomOperationRequestBuilder
      * Sets the document to index in bytes form.
      */
     public PercolateRequestBuilder setSource(byte[] source) {
-        request.source(source);
+        request.documentSource(source);
         return this;
     }
 
@@ -130,7 +138,7 @@ public class PercolateRequestBuilder extends SingleCustomOperationRequestBuilder
      * @param length The length of the data
      */
     public PercolateRequestBuilder setSource(byte[] source, int offset, int length) {
-        request.source(source, offset, length);
+        request.documentSource(source, offset, length);
         return this;
     }
 
@@ -143,7 +151,7 @@ public class PercolateRequestBuilder extends SingleCustomOperationRequestBuilder
      * @param unsafe Is the byte array safe to be used form a different thread
      */
     public PercolateRequestBuilder setSource(byte[] source, int offset, int length, boolean unsafe) {
-        request.source(source, offset, length, unsafe);
+        request.documentSource(source, offset, length, unsafe);
         return this;
     }
 

@@ -21,7 +21,6 @@ package org.elasticsearch.benchmark.percolator;
 
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.StopWatch;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
@@ -38,7 +37,8 @@ import org.elasticsearch.index.cache.IndexCacheModule;
 import org.elasticsearch.index.codec.CodecModule;
 import org.elasticsearch.index.engine.IndexEngineModule;
 import org.elasticsearch.index.mapper.MapperServiceModule;
-import org.elasticsearch.index.percolator.PercolatorExecutor;
+import org.elasticsearch.index.percolator.Percolator;
+import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
 import org.elasticsearch.index.query.IndexQueryParserModule;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
@@ -81,13 +81,14 @@ public class EmbeddedPercolatorBenchmarkTest {
                 new AbstractModule() {
                     @Override
                     protected void configure() {
-                        bind(PercolatorExecutor.class).asEagerSingleton();
+                        bind(Percolator.class).asEagerSingleton();
                         bind(ClusterService.class).toProvider(Providers.of((ClusterService) null));
                     }
                 }
         ).createInjector();
 
-        final PercolatorExecutor percolatorExecutor = injector.getInstance(PercolatorExecutor.class);
+        final Percolator percolator = injector.getInstance(Percolator.class);
+        final PercolatorQueriesRegistry registry = null;
 
         XContentBuilder doc = XContentFactory.jsonBuilder().startObject().startObject("doc")
                 .field("field1", 1)
@@ -96,10 +97,10 @@ public class EmbeddedPercolatorBenchmarkTest {
                 .endObject().endObject();
         final byte[] source = doc.bytes().toBytes();
 
-        PercolatorExecutor.Response percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest("type1", new BytesArray(source)));
+//        Percolator.Response percolate = percolatorExecutor.percolate(new Percolator.SourceRequest("type1", new BytesArray(source)));
 
         for (int i = 0; i < NUMBER_OF_QUERIES; i++) {
-            percolatorExecutor.addQuery("test" + i, termQuery("field3", "quick"));
+            registry.addPercolateQuery("test" + i, termQuery("field3", "quick").buildAsBytes());
         }
 
 
@@ -107,7 +108,7 @@ public class EmbeddedPercolatorBenchmarkTest {
         StopWatch stopWatch = new StopWatch().start();
         System.out.println("Running " + 1000);
         for (long i = 0; i < 1000; i++) {
-            percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest("type1", new BytesArray(source)));
+//            percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest("type1", new BytesArray(source)));
         }
         System.out.println("[Warmup] Percolated in " + stopWatch.stop().totalTime() + " TP Millis " + (NUMBER_OF_ITERATIONS / stopWatch.totalTime().millisFrac()));
 
@@ -119,7 +120,10 @@ public class EmbeddedPercolatorBenchmarkTest {
                 @Override
                 public void run() {
                     for (long i = 0; i < NUMBER_OF_ITERATIONS; i++) {
-                        PercolatorExecutor.Response percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest("type1", new BytesArray(source)));
+                        /*
+                        Percolator.Request request = new Percolator.Request()// new PercolatorExecutor.SourceRequest("type1", new BytesArray(source))
+                        Percolator.Response percolate = percolatorExecutor.percolate();
+                        */
                     }
                     latch.countDown();
                 }

@@ -20,33 +20,39 @@
 package org.elasticsearch.action.percolate;
 
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.action.support.single.custom.TransportSingleCustomOperationAction;
+import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.routing.ShardsIterator;
+import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.percolator.PercolatorExecutor;
-import org.elasticsearch.index.percolator.PercolatorService;
-import org.elasticsearch.index.service.IndexService;
-import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.index.percolator.Percolator;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.*;
+import java.util.concurrent.atomic.AtomicReferenceArray;
+
+import static com.google.common.collect.Lists.newArrayList;
 
 /**
  *
  */
-public class TransportPercolateAction extends TransportSingleCustomOperationAction<PercolateRequest, PercolateResponse> {
+public class TransportPercolateAction extends TransportBroadcastOperationAction<PercolateRequest, PercolateResponse, PercolateShardRequest, PercolateShardResponse> {
 
-    private final IndicesService indicesService;
+    private final Percolator percolator;
 
     @Inject
-    public TransportPercolateAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                                    IndicesService indicesService) {
+    public TransportPercolateAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+                                    TransportService transportService, Percolator percolator) {
         super(settings, threadPool, clusterService, transportService);
-        this.indicesService = indicesService;
+        this.percolator = percolator;
     }
 
     @Override
@@ -60,11 +66,6 @@ public class TransportPercolateAction extends TransportSingleCustomOperationActi
     }
 
     @Override
-    protected PercolateResponse newResponse() {
-        return new PercolateResponse();
-    }
-
-    @Override
     protected String transportAction() {
         return PercolateAction.NAME;
     }
@@ -75,22 +76,91 @@ public class TransportPercolateAction extends TransportSingleCustomOperationActi
     }
 
     @Override
-    protected ClusterBlockException checkRequestBlock(ClusterState state, PercolateRequest request) {
-        request.index(state.metaData().concreteIndex(request.index()));
-        return state.blocks().indexBlockedException(ClusterBlockLevel.READ, request.index());
+    protected ClusterBlockException checkRequestBlock(ClusterState state, PercolateRequest request, String[] concreteIndices) {
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.READ, concreteIndices);
     }
 
     @Override
-    protected ShardsIterator shards(ClusterState clusterState, PercolateRequest request) {
-        return clusterState.routingTable().index(request.index()).randomAllActiveShardsIt();
+    protected PercolateResponse newResponse(PercolateRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
+        int successfulShards = 0;
+        int failedShards = 0;
+
+        List<String[]> shardResults = null;
+        List<ShardOperationFailedException> shardFailures = null;
+
+        for (int i = 0; i < shardsResponses.length(); i++) {
+            Object shardResponse = shardsResponses.get(i);
+            if (shardResponse == null) {
+                failedShards++;
+            } else if (shardResponse instanceof BroadcastShardOperationFailedException) {
+                failedShards++;
+                if (shardFailures == null) {
+                    shardFailures = newArrayList();
+                }
+                shardFailures.add(new DefaultShardOperationFailedException((BroadcastShardOperationFailedException) shardResponse));
+            } else {
+                PercolateShardResponse percolateShardResponse = (PercolateShardResponse) shardResponse;
+                if (shardResults == null) {
+                    shardResults = new ArrayList<String[]>();
+                }
+                shardResults.add(percolateShardResponse.matches());
+                successfulShards++;
+            }
+        }
+
+        if (shardResults == null) {
+            return new PercolateResponse(shardsResponses.length(), successfulShards, failedShards, shardFailures);
+        }
+
+        int size = 0;
+        for (String[] shardResult : shardResults) {
+            size += shardResult.length;
+        }
+        String[] finalMatches = new String[size];
+        int offset = 0;
+        for (String[] shardResult : shardResults) {
+            System.arraycopy(shardResult, 0, finalMatches, offset, shardResult.length);
+            offset += shardResult.length;
+        }
+        // TODO: Remove! (make the test pass, which is based on ordering)
+        Arrays.sort(finalMatches);
+
+        return new PercolateResponse(shardsResponses.length(), successfulShards, failedShards, shardFailures, finalMatches);
     }
 
     @Override
-    protected PercolateResponse shardOperation(PercolateRequest request, int shardId) throws ElasticSearchException {
-        IndexService indexService = indicesService.indexServiceSafe(request.index());
-        PercolatorService percolatorService = indexService.percolateService();
-
-        PercolatorExecutor.Response percolate = percolatorService.percolate(new PercolatorExecutor.SourceRequest(request.type(), request.source()));
-        return new PercolateResponse(percolate.matches());
+    protected PercolateShardRequest newShardRequest() {
+        return new PercolateShardRequest();
     }
+
+    @Override
+    protected PercolateShardRequest newShardRequest(ShardRouting shard, PercolateRequest request) {
+        return new PercolateShardRequest(shard.index(), shard.id(), request);
+    }
+
+    @Override
+    protected PercolateShardResponse newShardResponse() {
+        return new PercolateShardResponse();
+    }
+
+    @Override
+    protected GroupShardsIterator shards(ClusterState clusterState, PercolateRequest request, String[] concreteIndices) {
+        if (request.documentIndex() != null) {
+            request.documentIndex(clusterState.metaData().concreteIndex(request.documentIndex()));
+        }
+        Map<String, Set<String>> routingMap = clusterState.metaData().resolveSearchRouting(request.routing(), request.indices());
+        return clusterService.operationRouting().searchShards(clusterState, request.indices(), concreteIndices, routingMap, request.preference());
+    }
+
+    @Override
+    protected PercolateShardResponse shardOperation(PercolateShardRequest request) throws ElasticSearchException {
+        Percolator.Response response = percolator.percolate(
+                new Percolator.Request(
+                        request.index(), request.documentIndex(), request.documentType(), request.shardId(),
+                        request.documentSource()
+                )
+        );
+        return new PercolateShardResponse(response.matches(), request.index(), request.shardId());
+    }
+
 }

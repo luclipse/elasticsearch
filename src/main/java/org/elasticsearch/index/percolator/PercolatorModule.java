@@ -20,6 +20,7 @@
 package org.elasticsearch.index.percolator;
 
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.indices.memory.MemoryIndexPool;
 
 /**
  *
@@ -28,7 +29,7 @@ public class PercolatorModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        bind(PercolatorExecutor.class).asEagerSingleton();
-        bind(PercolatorService.class).asEagerSingleton();
+        bind(MemoryIndexPool.class).asEagerSingleton();
+        bind(Percolator.class).asEagerSingleton();
     }
 }

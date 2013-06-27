@@ -49,7 +49,7 @@ import org.elasticsearch.index.gateway.IndexGateway;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.percolator.PercolatorService;
+import org.elasticsearch.index.percolator.Percolator;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettingsService;
@@ -313,7 +313,7 @@ public class SimpleIdCacheTests {
         }
 
         @Override
-        public PercolatorService percolateService() {
+        public Percolator percolator() {
             return null;
         }
 
