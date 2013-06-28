@@ -135,6 +135,14 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
         logger.info("--> register a queries");
         for (int i = 1; i <= 100; i++) {
             client().prepareIndex("test", "_percolator", Integer.toString(i))
+                    // TODO: Think about the following:
+                    // The range_query only works in this because document with `field1` exists in the this index,
+                    // and is off type long. The range_query now gets parsed to the Lucene NumericRangeQuery.
+                    // If the percolate queries were to be stored in a dedicated index then the range_query would
+                    // have been parsed to the Lucene TermRangeQuery. I think we should add a option (reserved metadata?)
+                    // that specifies the target index (`_index`), so that queries get parsed properly.
+                    //
+                    // Other queries and filter may run into similar issues. For example geo_shape and its precision.
                     .setSource(jsonBuilder().startObject().field("query", rangeQuery("field1").from(0).to(i)).endObject())
                     .execute().actionGet();
         }

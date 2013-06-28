@@ -51,7 +51,7 @@ public class PercolateShardRequest extends BroadcastShardOperationRequest {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        documentIndex = in.readString();
+        documentIndex = in.readOptionalString();
         documentType = in.readString();
         documentSource = in.readBytesReference();
     }
@@ -59,7 +59,7 @@ public class PercolateShardRequest extends BroadcastShardOperationRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(documentIndex);
+        out.writeOptionalString(documentIndex);
         out.writeString(documentType);
         out.writeBytesReference(documentSource);
     }
