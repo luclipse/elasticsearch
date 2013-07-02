@@ -24,6 +24,8 @@ import org.apache.lucene.index.memory.ReusableMemoryIndex;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.percolate.PercolateShardRequest;
+import org.elasticsearch.action.percolate.PercolateShardResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -33,7 +35,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
@@ -67,16 +68,17 @@ public class Percolator extends AbstractComponent {
         this.indicesService = indicesService;
     }
 
-    public Response percolate(Request request) {
-        IndexService percolateIndexService = indicesService.indexServiceSafe(request.percolateIndex());
+    public PercolateShardResponse percolate(PercolateShardRequest request) {
+        String index = request.documentIndex() != null ? request.documentIndex() : request.index();
+        IndexService percolateIndexService = indicesService.indexServiceSafe(index);
         IndexShard indexShard = percolateIndexService.shardSafe(request.shardId());
 
         Map<String, Query> percolateQueries = indexShard.percolateRegistry().percolateQueries();
         if (percolateQueries.isEmpty()) {
-            return new Response(Strings.EMPTY_ARRAY);
+            return new PercolateShardResponse(Strings.EMPTY_ARRAY, request.index(), request.shardId());
         }
 
-        Tuple<ParsedDocument, Query> parseResult = parsePercolate(request);
+        Tuple<ParsedDocument, Query> parseResult = parsePercolate(percolateIndexService, request.documentType(), request.documentSource());
         ParsedDocument parsedDocument = parseResult.v1();
         Query query = parseResult.v2();
 
@@ -140,22 +142,18 @@ public class Percolator extends AbstractComponent {
                 indexCache.clear(searcher.getIndexReader());
                 fieldDataService.clear(searcher.getIndexReader());
             }
-            return new Response(matches.toArray(new String[matches.size()]));
+            return new PercolateShardResponse(matches.toArray(new String[matches.size()]), request.index(), request.shardId());
         } finally {
             memIndexPool.release(memoryIndex);
         }
     }
 
-    Tuple<ParsedDocument, Query> parsePercolate(Request request) throws ElasticSearchException {
-        IndexService documentIndexService = indicesService.indexServiceSafe(request.documentIndex());
-        Index index = new Index(request.documentIndex());
-
+    Tuple<ParsedDocument, Query> parsePercolate(IndexService documentIndexService, String type, BytesReference docSource) throws ElasticSearchException {
         Query query = null;
         ParsedDocument doc = null;
         XContentParser parser = null;
         try {
-
-            parser = XContentFactory.xContent(request.source()).createParser(request.source());
+            parser = XContentFactory.xContent(docSource).createParser(docSource);
             String currentFieldName = null;
             XContentParser.Token token;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -165,8 +163,8 @@ public class Percolator extends AbstractComponent {
                     // the actual document starting
                     if ("doc".equals(currentFieldName)) {
                         MapperService mapperService = documentIndexService.mapperService();
-                        DocumentMapper docMapper = mapperService.documentMapperWithAutoCreate(request.documentType());
-                        doc = docMapper.parse(source(parser).type(request.documentType()).flyweight(true));
+                        DocumentMapper docMapper = mapperService.documentMapperWithAutoCreate(type);
+                        doc = docMapper.parse(source(parser).type(type).flyweight(true));
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if ("query".equals(currentFieldName)) {
@@ -177,7 +175,7 @@ public class Percolator extends AbstractComponent {
                 }
             }
         } catch (IOException e) {
-            throw new PercolatorException(index, "failed to parse request", e);
+            throw new PercolatorException(documentIndexService.index(), "failed to parse request", e);
         } finally {
             if (parser != null) {
                 parser.close();
@@ -185,7 +183,7 @@ public class Percolator extends AbstractComponent {
         }
 
         if (doc == null) {
-            throw new PercolatorException(index, "No doc to percolate in the request");
+            throw new PercolatorException(documentIndexService.index(), "No doc to percolate in the request");
         }
 
         return new Tuple<ParsedDocument, Query>(doc, query);
@@ -195,60 +193,6 @@ public class Percolator extends AbstractComponent {
 
         public static final String TYPE_NAME = "_percolator";
 
-    }
-
-    public static class Request {
-
-        private final String percolateIndex;
-        private final String documentIndex;
-        private final String documentType;
-        private final int shardId;
-        private final BytesReference source;
-
-        public Request(String percolateIndex, String documentIndex, String documentType, int shardId, BytesReference source) {
-            this.percolateIndex = percolateIndex;
-            if (documentIndex != null) {
-                this.documentIndex = documentIndex;
-            } else {
-                this.documentIndex = percolateIndex;
-            }
-            this.documentType = documentType;
-            this.shardId = shardId;
-            this.source = source;
-        }
-
-        public String percolateIndex() {
-            return percolateIndex;
-        }
-
-        public String documentIndex() {
-            return documentIndex;
-        }
-
-        public String documentType() {
-            return documentType;
-        }
-
-        public int shardId() {
-            return shardId;
-        }
-
-        public BytesReference source() {
-            return source;
-        }
-    }
-
-    public static class Response {
-
-        private final String[] matches;
-
-        public Response(String[] matches) {
-            this.matches = matches;
-        }
-
-        public String[] matches() {
-            return matches;
-        }
     }
 
 }
