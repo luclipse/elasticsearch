@@ -45,7 +45,8 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
     private final PercolateTypeListener percolateTypeListener = new PercolateTypeListener();
 
     private final Object lock = new Object();
-    private volatile boolean initialQueriesFetchDone = false;
+    private boolean initialQueriesFetchDone = false;
+    private volatile boolean realTimePercolatorEnabled = false;
 
     @Inject
     public PercolatorQueriesRegistry(ShardId shardId, @IndexSettings Settings indexSettings, IndexQueryParserService queryParserService,
@@ -65,24 +66,48 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
         return percolateQueries;
     }
 
-    public void addPercolateQuery(String uid, BytesReference source) {
+    public void close() {
+        mapperService.removeTypeListener(percolateTypeListener);
+        indicesLifecycle.removeListener(shardLifecycleListener);
+        indexingService.removeListener(realTimePercolatorOperationListener);
+        percolateQueries.clear();
+    }
+
+    void enableRealTimePercolator() {
+        if (realTimePercolatorEnabled) {
+            return;
+        }
+
+        synchronized (lock) {
+            if (!realTimePercolatorEnabled) {
+                indexingService.addListener(realTimePercolatorOperationListener);
+                realTimePercolatorEnabled = true;
+            }
+        }
+    }
+
+    void disableRealTimePercolator() {
+        if (!realTimePercolatorEnabled) {
+            return;
+        }
+
+        synchronized (lock) {
+            indexingService.removeListener(realTimePercolatorOperationListener);
+            realTimePercolatorEnabled = false;
+        }
+    }
+
+    void addPercolateQuery(String uid, BytesReference source) {
         Query query = parseQuery(uid, source);
         synchronized (lock) {
             percolateQueries.put(uid, query);
         }
     }
 
-    public void removePercolateQuery(String uid) {
+    void removePercolateQuery(String uid) {
         synchronized (lock) {
             percolateQueries.remove(uid);
         }
-    }
-
-    public void close() {
-        mapperService.removeTypeListener(percolateTypeListener);
-        indicesLifecycle.removeListener(shardLifecycleListener);
-        indexingService.removeListener(realTimePercolatorOperationListener);
-        percolateQueries.clear();
     }
 
     Query parseQuery(String uid, BytesReference source) {
@@ -124,14 +149,14 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
         @Override
         public void created(String type) {
             if (Percolator.Constants.TYPE_NAME.equals(type)) {
-                indexingService.addListener(realTimePercolatorOperationListener);
+                enableRealTimePercolator();
             }
         }
 
         @Override
         public void removed(String type) {
             if (Percolator.Constants.TYPE_NAME.equals(type)) {
-                indexingService.removeListener(realTimePercolatorOperationListener);
+                disableRealTimePercolator();
             }
         }
 
@@ -142,7 +167,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
         @Override
         public void afterIndexShardCreated(IndexShard indexShard) {
             if (hasPercolatorType(indexShard)) {
-                indexingService.addListener(realTimePercolatorOperationListener);
+                enableRealTimePercolator();
             }
         }
 
