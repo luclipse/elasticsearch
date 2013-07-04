@@ -59,10 +59,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 import static org.elasticsearch.index.mapper.DocumentMapper.MergeFlags.mergeFlags;
@@ -75,7 +72,6 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     public static final String DEFAULT_MAPPING = "_default_";
 
     private final AnalysisService analysisService;
-    private final PostingsFormatService postingsFormatService;
 
     /**
      * Will create types automatically if they do not exists in the mapping definition yet
@@ -103,12 +99,13 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     private final SmartIndexNameSearchAnalyzer searchAnalyzer;
     private final SmartIndexNameSearchQuoteAnalyzer searchQuoteAnalyzer;
 
+    private final List<DocumentTypeListener> typeListeners = new ArrayList<DocumentTypeListener>();
+
     @Inject
     public MapperService(Index index, @IndexSettings Settings indexSettings, Environment environment, AnalysisService analysisService,
                          PostingsFormatService postingsFormatService, SimilarityLookupService similarityLookupService) {
         super(index, indexSettings);
         this.analysisService = analysisService;
-        this.postingsFormatService = postingsFormatService;
         this.documentParser = new DocumentMapperParser(index, indexSettings, analysisService, postingsFormatService, similarityLookupService);
         this.searchAnalyzer = new SmartIndexNameSearchAnalyzer(analysisService.defaultSearchAnalyzer());
         this.searchQuoteAnalyzer = new SmartIndexNameSearchQuoteAnalyzer(analysisService.defaultSearchQuoteAnalyzer());
@@ -190,6 +187,14 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         return this.documentParser;
     }
 
+    public void addTypeListener(DocumentTypeListener listener) {
+        typeListeners.add(listener);
+    }
+
+    public void removeTypeListener(DocumentTypeListener listener) {
+        typeListeners.remove(listener);
+    }
+
     public DocumentMapper merge(String type, String mappingSource, boolean applyDefault) {
         if (DEFAULT_MAPPING.equals(type)) {
             // verify we can parse it
@@ -251,6 +256,9 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
                 mapper.addObjectMapperListener(objectMapperListener, false);
 
                 mappers = newMapBuilder(mappers).put(mapper.type(), mapper).map();
+                for (DocumentTypeListener typeListener : typeListeners) {
+                    typeListener.created(mapper.type());
+                }
                 return mapper;
             }
         }
@@ -324,6 +332,9 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             docMapper.close();
             mappers = newMapBuilder(mappers).remove(type).map();
             removeObjectAndFieldMappers(docMapper);
+            for (DocumentTypeListener typeListener : typeListeners) {
+                typeListener.removed(type);
+            }
         }
     }
 

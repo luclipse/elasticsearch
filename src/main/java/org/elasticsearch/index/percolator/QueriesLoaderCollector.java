@@ -6,6 +6,7 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.index.fieldvisitor.UidAndSourceFieldsVisitor;
 
 import java.io.IOException;
@@ -17,19 +18,17 @@ final class QueriesLoaderCollector extends Collector {
 
     private final Map<String, Query> queries = Maps.newHashMap();
     private final PercolatorQueriesRegistry percolator;
+    private final ESLogger logger;
 
     private AtomicReader reader;
 
-    QueriesLoaderCollector(PercolatorQueriesRegistry percolator) {
+    QueriesLoaderCollector(PercolatorQueriesRegistry percolator, ESLogger logger) {
         this.percolator = percolator;
+        this.logger = logger;
     }
 
     public Map<String, Query> queries() {
         return this.queries;
-    }
-
-    @Override
-    public void setScorer(Scorer scorer) throws IOException {
     }
 
     @Override
@@ -43,21 +42,21 @@ final class QueriesLoaderCollector extends Collector {
             if (parseQuery != null) {
                 queries.put(id, parseQuery);
             } else {
-                // TODO: no push
-                System.err.println("failed to add query");
-//                logger.warn("failed to add query [{}] - parser returned null", id);
+                logger.warn("failed to add query [{}] - parser returned null", id);
             }
 
         } catch (Exception e) {
-            // TODO: no push
-            e.printStackTrace();
-//            logger.warn("failed to add query [{}]", e, id);
+            logger.warn("failed to add query [{}]", e, id);
         }
     }
 
     @Override
     public void setNextReader(AtomicReaderContext context) throws IOException {
         this.reader = context.reader();
+    }
+
+    @Override
+    public void setScorer(Scorer scorer) throws IOException {
     }
 
     @Override

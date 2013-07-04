@@ -10,9 +10,11 @@ import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.indexing.IndexingOperationListener;
 import org.elasticsearch.index.indexing.ShardIndexingService;
+import org.elasticsearch.index.mapper.DocumentTypeListener;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.query.IndexQueryParserService;
@@ -33,26 +35,30 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
     private final IndexQueryParserService queryParserService;
     private final MapperService mapperService;
     private final IndicesLifecycle indicesLifecycle;
+    private final IndexCache indexCache;
+
     private final ShardIndexingService indexingService;
 
     private final Map<String, Query> percolateQueries = new HashMap<String, Query>();
     private final ShardLifecycleListener shardLifecycleListener = new ShardLifecycleListener();
     private final RealTimePercolatorOperationListener realTimePercolatorOperationListener = new RealTimePercolatorOperationListener();
+    private final PercolateTypeListener percolateTypeListener = new PercolateTypeListener();
 
     private final Object lock = new Object();
-    private boolean initialQueriesFetchDone = false;
+    private volatile boolean initialQueriesFetchDone = false;
 
     @Inject
     public PercolatorQueriesRegistry(ShardId shardId, @IndexSettings Settings indexSettings, IndexQueryParserService queryParserService,
-                                     ShardIndexingService indexingService, IndicesLifecycle indicesLifecycle, MapperService mapperService) {
+                                     ShardIndexingService indexingService, IndicesLifecycle indicesLifecycle, MapperService mapperService, IndexCache indexCache) {
         super(shardId, indexSettings);
         this.queryParserService = queryParserService;
         this.mapperService = mapperService;
         this.indicesLifecycle = indicesLifecycle;
         this.indexingService = indexingService;
+        this.indexCache = indexCache;
 
         indicesLifecycle.addListener(shardLifecycleListener);
-        indexingService.addListener(realTimePercolatorOperationListener);
+        mapperService.addTypeListener(percolateTypeListener);
     }
 
     public Map<String, Query> percolateQueries() {
@@ -73,6 +79,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
     }
 
     public void close() {
+        mapperService.removeTypeListener(percolateTypeListener);
         indicesLifecycle.removeListener(shardLifecycleListener);
         indexingService.removeListener(realTimePercolatorOperationListener);
         percolateQueries.clear();
@@ -112,44 +119,31 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
         }
     }
 
-    private class ShardLifecycleListener extends IndicesLifecycle.Listener {
+    private class PercolateTypeListener implements DocumentTypeListener  {
 
-        private boolean hasPercolatorType(IndexShard indexShard) {
-            ShardId otherShardId = indexShard.shardId();
-            return shardId.equals(otherShardId) && mapperService.hasMapping(Percolator.Constants.TYPE_NAME);
-        }
-
-        private void loadQueries(IndexShard shard) {
-            try {
-                shard.refresh(new Engine.Refresh(true));
-                Engine.Searcher searcher = shard.searcher();
-                try {
-                    // create a query to fetch all queries that are registered under the index name (which is the type
-                    // in the percolator).
-                    Query query = new XConstantScoreQuery(
-                            // TODO: no push, cache it
-                            new TermFilter(new Term(TypeFieldMapper.NAME, Percolator.Constants.TYPE_NAME))
-                    );
-                    QueriesLoaderCollector queries = new QueriesLoaderCollector(PercolatorQueriesRegistry.this);
-                    searcher.searcher().search(query, queries);
-                    percolateQueries.putAll(queries.queries());
-                } finally {
-                    searcher.release();
-                }
-            } catch (Exception e) {
-                throw new PercolatorException(shardId.index(), "failed to load queries from percolator index", e);
+        @Override
+        public void created(String type) {
+            if (Percolator.Constants.TYPE_NAME.equals(type)) {
+                indexingService.addListener(realTimePercolatorOperationListener);
             }
         }
 
         @Override
+        public void removed(String type) {
+            if (Percolator.Constants.TYPE_NAME.equals(type)) {
+                indexingService.removeListener(realTimePercolatorOperationListener);
+            }
+        }
+
+    }
+
+    private class ShardLifecycleListener extends IndicesLifecycle.Listener {
+
+        @Override
         public void afterIndexShardCreated(IndexShard indexShard) {
-            // add a listener that will update based on changes done to the _percolate index
-            // the relevant indices with loaded queries
-            // TODO: no push
-            // TODO: Only make realTimePercolatorOperationListener active when there is a _percolate type
-//            if (indexShard.shardId().index().name().equals(INDEX_NAME)) {
-//                indexShard.indexingService().addListener(realTimePercolatorOperationListener);
-//            }
+            if (hasPercolatorType(indexShard)) {
+                indexingService.addListener(realTimePercolatorOperationListener);
+            }
         }
 
         @Override
@@ -167,23 +161,34 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
                     initialQueriesFetchDone = true;
                 }
             }
+        }
 
-            // TODO: Figure out why we check it twice???
-            if (!hasPercolatorType(indexShard)) {
-                return;
-            }
+        private boolean hasPercolatorType(IndexShard indexShard) {
+            ShardId otherShardId = indexShard.shardId();
+            return shardId.equals(otherShardId) && mapperService.hasMapping(Percolator.Constants.TYPE_NAME);
+        }
 
-            synchronized (lock) {
-                if (initialQueriesFetchDone) {
-                    return;
+        private void loadQueries(IndexShard shard) {
+            try {
+                shard.refresh(new Engine.Refresh(true));
+                Engine.Searcher searcher = shard.searcher();
+                try {
+                    Query query = new XConstantScoreQuery(
+                            indexCache.filter().cache(
+                                    new TermFilter(new Term(TypeFieldMapper.NAME, Percolator.Constants.TYPE_NAME))
+                            )
+                    );
+                    QueriesLoaderCollector queries = new QueriesLoaderCollector(PercolatorQueriesRegistry.this, logger);
+                    searcher.searcher().search(query, queries);
+                    percolateQueries.putAll(queries.queries());
+                } finally {
+                    searcher.release();
                 }
-                // we load queries for this index
-                logger.debug("loading percolator queries for index [{}]...", shardId.index());
-                loadQueries(indexShard);
-                logger.trace("done loading percolator queries for index [{}]", shardId.index());
-                initialQueriesFetchDone = true;
+            } catch (Exception e) {
+                throw new PercolatorException(shardId.index(), "failed to load queries from percolator index", e);
             }
         }
+
     }
 
     private class RealTimePercolatorOperationListener extends IndexingOperationListener {
@@ -230,17 +235,14 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
             }
         }
 
-        // TODO:
-        @Override
-        public Engine.DeleteByQuery preDeleteByQuery(Engine.DeleteByQuery deleteByQuery) {
-            return super.preDeleteByQuery(deleteByQuery);
-        }
+        // Updating the live percolate queries for a delete by query is tricky with the current way delete by queries
+        // are handled. It is only possible if we put a big lock around the post delete by query hook...
 
-        // TODO:
-        @Override
-        public void postDeleteByQuery(Engine.DeleteByQuery deleteByQuery) {
-            super.postDeleteByQuery(deleteByQuery);
-        }
+        // If we implement delete by query, that just runs a query and generates delete operations in a bulk, then
+        // updating the live percolator is automatically supported for delete by query.
+//        @Override
+//        public void postDeleteByQuery(Engine.DeleteByQuery deleteByQuery) {
+//        }
     }
 
 }
