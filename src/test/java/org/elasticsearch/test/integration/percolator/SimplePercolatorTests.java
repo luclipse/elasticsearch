@@ -243,6 +243,42 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
     }
 
     @Test
+    public void testPercolateQueriesWithRouting() throws Exception {
+        client().admin().indices().prepareCreate("test")
+                .setSettings(settingsBuilder().put("index.number_of_shards", 2))
+                .execute().actionGet();
+        ensureGreen();
+
+        logger.info("--> register a queries");
+        for (int i = 1; i <= 100; i++) {
+            client().prepareIndex("test", "_percolator", Integer.toString(i))
+                    .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
+                    .setRouting(Integer.toString(i % 2))
+                    .execute().actionGet();
+        }
+
+        logger.info("--> Percolate doc with no routing");
+        PercolateResponse response = client().preparePercolate("test", "type")
+                .setSource(jsonBuilder().startObject().startObject("doc").field("field1", "value").endObject().endObject())
+                .execute().actionGet();
+        assertThat(response.getMatches().length, equalTo(100));
+
+        logger.info("--> Percolate doc with routing=0");
+        response = client().preparePercolate("test", "type")
+                .setSource(jsonBuilder().startObject().startObject("doc").field("field1", "value").endObject().endObject())
+                .setRouting("0")
+                .execute().actionGet();
+        assertThat(response.getMatches().length, equalTo(50));
+
+        logger.info("--> Percolate doc with routing=1");
+        response = client().preparePercolate("test", "type")
+                .setSource(jsonBuilder().startObject().startObject("doc").field("field1", "value").endObject().endObject())
+                .setRouting("1")
+                .execute().actionGet();
+        assertThat(response.getMatches().length, equalTo(50));
+    }
+
+    @Test
     public void percolateOnRecreatedIndex() throws Exception {
         prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
         ensureGreen();
@@ -367,7 +403,7 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
 
         for (int i = 0; i < 10; i++) {
             PercolateResponse percolate = client().preparePercolate("test", "type1")
-//                    .setPreferLocal(false) TODO: add support for preference option
+                    .setPreference("_local")
                     .setSource(jsonBuilder().startObject().startObject("doc").field("field1", "value1").endObject().endObject())
                     .execute().actionGet();
             assertThat(percolate.getMatches().length, equalTo(1));

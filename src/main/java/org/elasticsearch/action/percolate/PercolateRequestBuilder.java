@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.internal.InternalClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -63,6 +64,32 @@ public class PercolateRequestBuilder extends BroadcastOperationRequestBuilder<Pe
      */
     public PercolateRequestBuilder setDocumentType(String type) {
         request.documentType(type);
+        return this;
+    }
+
+    /**
+     * A comma separated list of routing values to control the shards the search will be executed on.
+     */
+    public PercolateRequestBuilder setRouting(String routing) {
+        request.routing(routing);
+        return this;
+    }
+
+    /**
+     * List of routing values to control the shards the search will be executed on.
+     */
+    public PercolateRequestBuilder setRouting(String... routings) {
+        request.routing(Strings.arrayToCommaDelimitedString(routings));
+        return this;
+    }
+
+    /**
+     * Sets the preference to execute the search. Defaults to randomize across shards. Can be set to
+     * <tt>_local</tt> to prefer local shards, <tt>_primary</tt> to execute only on primary shards, or
+     * a custom value, which guarantees that the same order will be used across different requests.
+     */
+    public PercolateRequestBuilder setPreference(String preference) {
+        request.preference(preference);
         return this;
     }
 
