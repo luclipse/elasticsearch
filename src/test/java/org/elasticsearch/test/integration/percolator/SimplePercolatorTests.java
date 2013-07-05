@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.ImmutableSettings.Builder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.testng.annotations.BeforeClass;
@@ -38,8 +39,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -57,7 +57,7 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
     }
 
     @Test
-    public void testSimple() throws Exception {
+    public void testSimple1() throws Exception {
         client().admin().indices().prepareCreate("test").execute().actionGet();
         ensureGreen();
 
@@ -120,6 +120,75 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
         assertThat(searchResponse.getHits().totalHits(), equalTo(1L));
         assertThat(searchResponse.getHits().getAt(0).type(), equalTo("type"));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
+    }
+
+    @Test
+    public void testSimple2() throws Exception {
+        client().admin().indices().prepareCreate("index").setSettings(
+                ImmutableSettings.settingsBuilder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                        .build()
+        ).execute().actionGet();
+        ensureGreen();
+
+        // introduce the doc
+        XContentBuilder doc = XContentFactory.jsonBuilder().startObject().startObject("doc")
+                .field("field1", 1)
+                .field("field2", "value")
+                .endObject().endObject();
+
+        XContentBuilder docWithType = XContentFactory.jsonBuilder().startObject().startObject("doc").startObject("type1")
+                .field("field1", 1)
+                .field("field2", "value")
+                .endObject().endObject().endObject();
+
+        PercolateResponse response = client().preparePercolate("index", "type1").setSource(doc)
+                .execute().actionGet();
+        assertThat(response.getMatches().length, equalTo(0));
+
+        // add a query
+        client().prepareIndex("test", "_percolator", "test1")
+                .setSource(XContentFactory.jsonBuilder().startObject().field("query", termQuery("field2", "value")).endObject())
+                .execute().actionGet();
+
+        response = client().preparePercolate("test", "type1").setSource(doc).execute().actionGet();
+        assertThat(Arrays.asList(response.getMatches()), hasSize(1));
+        assertThat(Arrays.asList(response.getMatches()), hasItem("test1"));
+
+        response = client().preparePercolate("test", "type1").setSource(docWithType).execute().actionGet();
+        assertThat(Arrays.asList(response.getMatches()), hasSize(1));
+        assertThat(Arrays.asList(response.getMatches()), hasItem("test1"));
+
+        client().prepareIndex("test", "_percolator", "test2")
+                .setSource(XContentFactory.jsonBuilder().startObject().field("query", termQuery("field1", 1)).endObject())
+                .execute().actionGet();
+
+        response = client().preparePercolate("test", "type1")
+                .setSource(doc)
+                .execute().actionGet();
+        assertThat(Arrays.asList(response.getMatches()), hasSize(2));
+        assertThat(Arrays.asList(response.getMatches()), hasItems("test1", "test2"));
+
+
+        client().prepareDelete("test", "_percolator", "test2").execute().actionGet();
+        response = client().preparePercolate("test", "type1").setSource(doc).execute().actionGet();
+        assertThat(Arrays.asList(response.getMatches()), hasSize(1));
+        assertThat(Arrays.asList(response.getMatches()), hasItem("test1"));
+
+        // add a range query (cached)
+        // add a query
+        client().prepareIndex("test1", "_percolator")
+                .setSource(
+                        XContentFactory.jsonBuilder().startObject().field("query",
+                                constantScoreQuery(FilterBuilders.rangeFilter("field2").from("value").includeLower(true))
+                        ).endObject()
+                )
+                .execute().actionGet();
+
+        response = client().preparePercolate("test", "type1").setSource(doc).execute().actionGet();
+        assertThat(Arrays.asList(response.getMatches()), hasSize(1));
+        assertThat(Arrays.asList(response.getMatches()), hasItem("test1"));
     }
 
     @Test

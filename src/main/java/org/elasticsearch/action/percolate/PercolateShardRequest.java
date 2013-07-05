@@ -24,6 +24,12 @@ public class PercolateShardRequest extends BroadcastShardOperationRequest {
         this.documentSource = request.documentSource();
     }
 
+    public PercolateShardRequest(String documentIndex, String documentType, BytesReference documentSource) {
+        this.documentIndex = documentIndex;
+        this.documentType = documentType;
+        this.documentSource = documentSource;
+    }
+
     public String documentIndex() {
         return documentIndex;
     }

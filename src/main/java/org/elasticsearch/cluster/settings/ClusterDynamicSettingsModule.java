@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.*;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.indices.cache.filter.IndicesFilterCache;
+import org.elasticsearch.indices.memory.MemoryIndexPool;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
@@ -68,6 +69,9 @@ public class ClusterDynamicSettingsModule extends AbstractModule {
         clusterDynamicSettings.addDynamicSetting(ThreadPool.THREADPOOL_GROUP + "*");
         clusterDynamicSettings.addDynamicSetting(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES, Validator.INTEGER);
         clusterDynamicSettings.addDynamicSetting(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES, Validator.INTEGER);
+        clusterDynamicSettings.addDynamicSetting(MemoryIndexPool.PERCOLATE_POOL_MAX_MEMORY);
+        clusterDynamicSettings.addDynamicSetting(MemoryIndexPool.PERCOLATE_POOL_SIZE);
+        clusterDynamicSettings.addDynamicSetting(MemoryIndexPool.PERCOLATE_TIMEOUT);
     }
 
     public void addDynamicSettings(String... settings) {

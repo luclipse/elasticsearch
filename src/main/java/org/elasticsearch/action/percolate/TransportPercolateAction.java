@@ -32,7 +32,7 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.percolator.Percolator;
+import org.elasticsearch.index.percolator.PercolatorService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -46,13 +46,13 @@ import static com.google.common.collect.Lists.newArrayList;
  */
 public class TransportPercolateAction extends TransportBroadcastOperationAction<PercolateRequest, PercolateResponse, PercolateShardRequest, PercolateShardResponse> {
 
-    private final Percolator percolator;
+    private final PercolatorService percolatorService;
 
     @Inject
     public TransportPercolateAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                    TransportService transportService, Percolator percolator) {
+                                    TransportService transportService, PercolatorService percolatorService) {
         super(settings, threadPool, clusterService, transportService);
-        this.percolator = percolator;
+        this.percolatorService = percolatorService;
     }
 
     @Override
@@ -154,7 +154,7 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
 
     @Override
     protected PercolateShardResponse shardOperation(PercolateShardRequest request) throws ElasticSearchException {
-        return percolator.percolate(request);
+        return percolatorService.percolate(request);
     }
 
 }

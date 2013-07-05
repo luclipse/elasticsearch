@@ -43,7 +43,7 @@ import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 /**
  *
  */
-public class SinglePercolatorStressBenchmark {
+public class PercolatorStressBenchmark {
 
     public static void main(String[] args) throws Exception {
         Settings settings = settingsBuilder()
@@ -119,7 +119,6 @@ public class SinglePercolatorStressBenchmark {
             if (percolate.getMatches().length != expectedMatches) {
                 System.err.println("No matching number of queries");
             }
-
 
             if ((i % 10000) == 0) {
                 System.out.println("Percolated " + i + " took " + stopWatch.stop().lastTaskTime());

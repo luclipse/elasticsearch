@@ -47,7 +47,7 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatService;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.percolator.Percolator;
+import org.elasticsearch.index.percolator.PercolatorService;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
@@ -79,7 +79,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     private final boolean dynamic;
 
     private volatile String defaultMappingSource;
-    private volatile String defaultPercolatorMappingSource;
+    private volatile String percolatorMappingSource;
 
     private volatile Map<String, DocumentMapper> mappers = ImmutableMap.of();
 
@@ -149,19 +149,41 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
                 throw new MapperException("Failed to load default mapping source from [" + defaultMappingLocation + "]", e);
             }
         }
-        // TODO: Loading mechanism for default percolator mapping (no push)
-        defaultPercolatorMappingSource = "{\n" +
-                "    \"_percolator\":{\n" +
-                "        \"properties\" : {\n" +
-                "            \"query\" : {\n" +
-                "                \"type\" : \"object\",\n" +
-                "                \"enabled\" : false\n" +
-                "            }\n" +
-                "        }\n" +
-                "    }\n" +
-                "}";
 
-        logger.debug("using dynamic[{}], default mapping: default_mapping_location[{}], loaded_from[{}] and source[{}]", dynamic, defaultMappingLocation, defaultMappingUrl, defaultMappingSource);
+        String percolatorMappingLocation = componentSettings.get("percolator_mapping_location");
+        URL percolatorMappingUrl = null;
+        if (percolatorMappingLocation != null) {
+            try {
+                percolatorMappingUrl = environment.resolveConfig(percolatorMappingLocation);
+            } catch (FailedToResolveConfigException e) {
+                // not there, default to the built in one
+                try {
+                    percolatorMappingUrl = new File(percolatorMappingLocation).toURI().toURL();
+                } catch (MalformedURLException e1) {
+                    throw new FailedToResolveConfigException("Failed to resolve percolator mapping location [" + defaultMappingLocation + "]");
+                }
+            }
+        }
+        if (percolatorMappingUrl != null) {
+            try {
+                percolatorMappingSource = Streams.copyToString(new InputStreamReader(percolatorMappingUrl.openStream(), Charsets.UTF_8));
+            } catch (IOException e) {
+                throw new MapperException("Failed to load default percolator mapping source from [" + percolatorMappingUrl + "]", e);
+            }
+        } else {
+            percolatorMappingSource = "{\n" +
+                    "    \"_percolator\":{\n" +
+                    "        \"properties\" : {\n" +
+                    "            \"query\" : {\n" +
+                    "                \"type\" : \"object\",\n" +
+                    "                \"enabled\" : false\n" +
+                    "            }\n" +
+                    "        }\n" +
+                    "    }\n" +
+                    "}";
+        }
+
+        logger.debug("using dynamic[{}], default mapping: default_mapping_location[{}], loaded_from[{}] and source[{}], default percolator mapping: location[{}], loaded_from[{}] and source[{}]", dynamic, defaultMappingLocation, defaultMappingUrl, defaultMappingSource, percolatorMappingLocation, percolatorMappingUrl, percolatorMappingSource);
     }
 
     public void close() {
@@ -218,7 +240,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             if (mapper.type().length() == 0) {
                 throw new InvalidTypeNameException("mapping type name is empty");
             }
-            if (mapper.type().charAt(0) == '_' && !Percolator.Constants.TYPE_NAME.equals(mapper.type())) {
+            if (mapper.type().charAt(0) == '_' && !PercolatorService.Constants.TYPE_NAME.equals(mapper.type())) {
                 throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] can't start with '_'");
             }
             if (mapper.type().contains("#")) {
@@ -404,8 +426,8 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
 
     public DocumentMapper parse(String mappingType, String mappingSource, boolean applyDefault) throws MapperParsingException {
         String defaultMappingSource;
-        if (Percolator.Constants.TYPE_NAME.equals(mappingType)) {
-            defaultMappingSource = defaultPercolatorMappingSource;
+        if (PercolatorService.Constants.TYPE_NAME.equals(mappingType)) {
+            defaultMappingSource = percolatorMappingSource;
         } else {
             defaultMappingSource = this.defaultMappingSource;
         }
@@ -448,10 +470,10 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
      */
     @Nullable
     public Filter searchFilter(String... types) {
-        boolean filterPercolateType = hasMapping(Percolator.Constants.TYPE_NAME);
+        boolean filterPercolateType = hasMapping(PercolatorService.Constants.TYPE_NAME);
         if (types != null && filterPercolateType) {
             for (String type : types) {
-                if (Percolator.Constants.TYPE_NAME.equals(type)) {
+                if (PercolatorService.Constants.TYPE_NAME.equals(type)) {
                     filterPercolateType = false;
                     break;
                 }
@@ -459,7 +481,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         }
         Filter excludePercolatorType = null;
         if (filterPercolateType) {
-            excludePercolatorType = new NotFilter(documentMapper(Percolator.Constants.TYPE_NAME).typeFilter());
+            excludePercolatorType = new NotFilter(documentMapper(PercolatorService.Constants.TYPE_NAME).typeFilter());
         }
 
         if (types == null || types.length == 0) {

@@ -28,6 +28,11 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
+ * Each shard will have a percolator registry even if there isn't a _percolator document type in the index.
+ * For shards with indices that have no _percolator document type, this will hold no percolate queries.
+ *
+ * Once a document type has been created, the real-time percolator will start to listen to write events and update the
+ * this registry with queries in real time.
  */
 public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
 
@@ -70,6 +75,10 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
         mapperService.removeTypeListener(percolateTypeListener);
         indicesLifecycle.removeListener(shardLifecycleListener);
         indexingService.removeListener(realTimePercolatorOperationListener);
+        clear();
+    }
+
+    public void clear() {
         percolateQueries.clear();
     }
 
@@ -97,14 +106,14 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
         }
     }
 
-    void addPercolateQuery(String uid, BytesReference source) {
+    public void addPercolateQuery(String uid, BytesReference source) {
         Query query = parseQuery(uid, source);
         synchronized (lock) {
             percolateQueries.put(uid, query);
         }
     }
 
-    void removePercolateQuery(String uid) {
+    public void removePercolateQuery(String uid) {
         synchronized (lock) {
             percolateQueries.remove(uid);
         }
@@ -148,14 +157,14 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
 
         @Override
         public void created(String type) {
-            if (Percolator.Constants.TYPE_NAME.equals(type)) {
+            if (PercolatorService.Constants.TYPE_NAME.equals(type)) {
                 enableRealTimePercolator();
             }
         }
 
         @Override
         public void removed(String type) {
-            if (Percolator.Constants.TYPE_NAME.equals(type)) {
+            if (PercolatorService.Constants.TYPE_NAME.equals(type)) {
                 disableRealTimePercolator();
             }
         }
@@ -190,7 +199,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
 
         private boolean hasPercolatorType(IndexShard indexShard) {
             ShardId otherShardId = indexShard.shardId();
-            return shardId.equals(otherShardId) && mapperService.hasMapping(Percolator.Constants.TYPE_NAME);
+            return shardId.equals(otherShardId) && mapperService.hasMapping(PercolatorService.Constants.TYPE_NAME);
         }
 
         private void loadQueries(IndexShard shard) {
@@ -200,7 +209,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
                 try {
                     Query query = new XConstantScoreQuery(
                             indexCache.filter().cache(
-                                    new TermFilter(new Term(TypeFieldMapper.NAME, Percolator.Constants.TYPE_NAME))
+                                    new TermFilter(new Term(TypeFieldMapper.NAME, PercolatorService.Constants.TYPE_NAME))
                             )
                     );
                     QueriesLoaderCollector queries = new QueriesLoaderCollector(PercolatorQueriesRegistry.this, logger);
@@ -221,7 +230,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
         @Override
         public Engine.Create preCreate(Engine.Create create) {
             // validate the query here, before we index
-            if (Percolator.Constants.TYPE_NAME.equals(create.type())) {
+            if (PercolatorService.Constants.TYPE_NAME.equals(create.type())) {
                 parseQuery(create.id(), create.source());
             }
             return create;
@@ -230,7 +239,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
         @Override
         public void postCreateUnderLock(Engine.Create create) {
             // add the query under a doc lock
-            if (Percolator.Constants.TYPE_NAME.equals(create.type())) {
+            if (PercolatorService.Constants.TYPE_NAME.equals(create.type())) {
                 addPercolateQuery(create.id(), create.source());
             }
         }
@@ -238,7 +247,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
         @Override
         public Engine.Index preIndex(Engine.Index index) {
             // validate the query here, before we index
-            if (Percolator.Constants.TYPE_NAME.equals(index.type())) {
+            if (PercolatorService.Constants.TYPE_NAME.equals(index.type())) {
                 parseQuery(index.id(), index.source());
             }
             return index;
@@ -247,7 +256,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
         @Override
         public void postIndexUnderLock(Engine.Index index) {
             // add the query under a doc lock
-            if (Percolator.Constants.TYPE_NAME.equals(index.type())) {
+            if (PercolatorService.Constants.TYPE_NAME.equals(index.type())) {
                 addPercolateQuery(index.id(), index.source());
             }
         }
@@ -255,7 +264,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
         @Override
         public void postDeleteUnderLock(Engine.Delete delete) {
             // remove the query under a lock
-            if (Percolator.Constants.TYPE_NAME.equals(delete.type())) {
+            if (PercolatorService.Constants.TYPE_NAME.equals(delete.type())) {
                 removePercolateQuery(delete.id());
             }
         }

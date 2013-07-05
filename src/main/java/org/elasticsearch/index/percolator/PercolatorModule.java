@@ -30,6 +30,6 @@ public class PercolatorModule extends AbstractModule {
     @Override
     protected void configure() {
         bind(MemoryIndexPool.class).asEagerSingleton();
-        bind(Percolator.class).asEagerSingleton();
+        bind(PercolatorService.class).asEagerSingleton();
     }
 }

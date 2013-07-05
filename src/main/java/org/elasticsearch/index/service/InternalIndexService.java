@@ -50,8 +50,8 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.merge.policy.MergePolicyModule;
 import org.elasticsearch.index.merge.policy.MergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerModule;
-import org.elasticsearch.index.percolator.Percolator;
 import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
+import org.elasticsearch.index.percolator.PercolatorService;
 import org.elasticsearch.index.percolator.PercolatorShardModule;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.search.stats.ShardSearchModule;
@@ -100,7 +100,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
     private final InternalIndicesLifecycle indicesLifecycle;
 
-    private final Percolator percolator;
+    private final PercolatorService percolatorService;
 
     private final AnalysisService analysisService;
 
@@ -132,7 +132,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
     @Inject
     public InternalIndexService(Injector injector, Index index, @IndexSettings Settings indexSettings, NodeEnvironment nodeEnv, ThreadPool threadPool,
-                                Percolator percolator, AnalysisService analysisService, MapperService mapperService,
+                                PercolatorService percolatorService, AnalysisService analysisService, MapperService mapperService,
                                 IndexQueryParserService queryParserService, SimilarityService similarityService, IndexAliasesService aliasesService,
                                 IndexCache indexCache, IndexEngine indexEngine, IndexGateway indexGateway, IndexStore indexStore, IndexSettingsService settingsService,
                                 IndexFieldDataService indexFieldData) {
@@ -141,7 +141,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         this.nodeEnv = nodeEnv;
         this.threadPool = threadPool;
         this.indexSettings = indexSettings;
-        this.percolator = percolator;
+        this.percolatorService = percolatorService;
         this.analysisService = analysisService;
         this.mapperService = mapperService;
         this.queryParserService = queryParserService;
@@ -228,8 +228,8 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
     }
 
     @Override
-    public Percolator percolator() {
-        return percolator;
+    public PercolatorService percolator() {
+        return percolatorService;
     }
 
     @Override

@@ -2,6 +2,7 @@ package org.elasticsearch.indices.memory;
 
 import org.apache.lucene.index.memory.ReusableMemoryIndex;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -17,7 +18,7 @@ import java.util.concurrent.TimeUnit;
  * Simple {@link org.apache.lucene.index.memory.MemoryIndex} Pool that reuses MemoryIndex instance across threads and
  * allows each of the MemoryIndex instance to reuse its internal memory based on a user configured realtime value.
  */
-final public class MemoryIndexPool implements NodeSettingsService.Listener  {
+final public class MemoryIndexPool extends AbstractComponent implements NodeSettingsService.Listener  {
 
     /**
      * Realtime index setting to control the number of MemoryIndex instances used to handle
@@ -46,11 +47,12 @@ final public class MemoryIndexPool implements NodeSettingsService.Listener  {
     private int poolMaxSize;
     private int poolCurrentSize;
     private volatile long bytesPerMemoryIndex;
-    private ByteSizeValue maxMemorySize; // only accessed in sync block
+    private volatile ByteSizeValue maxMemorySize;
     private volatile TimeValue timeout;
 
     @Inject
     public MemoryIndexPool(Settings settings, NodeSettingsService nodeSettingsService) {
+        super(settings);
         poolMaxSize = settings.getAsInt(PERCOLATE_POOL_SIZE, 10);
         if (poolMaxSize <= 0) {
             throw new ElasticSearchIllegalArgumentException(PERCOLATE_POOL_SIZE + " size must be > 0 but was [" + poolMaxSize + "]");
@@ -68,33 +70,50 @@ final public class MemoryIndexPool implements NodeSettingsService.Listener  {
         nodeSettingsService.addListener(this);
     }
 
-    public synchronized void onRefreshSettings(Settings settings) {
-        final int newPoolSize = settings.getAsInt(PERCOLATE_POOL_SIZE, poolMaxSize);
-        if (newPoolSize <= 0) {
-            throw new ElasticSearchIllegalArgumentException(PERCOLATE_POOL_SIZE + " size must be > 0 but was [" + newPoolSize + "]");
-        }
-        final ByteSizeValue byteSize = settings.getAsBytesSize(PERCOLATE_POOL_MAX_MEMORY, maxMemorySize);
-        if (byteSize.bytes() < 0) {
-            throw new ElasticSearchIllegalArgumentException(PERCOLATE_POOL_MAX_MEMORY + " must be positive but was [" + byteSize.bytes() + "]");
-        }
-        timeout = settings.getAsTime(PERCOLATE_TIMEOUT, timeout); // always set this!
-        if (timeout.millis() < 0) {
-            throw new ElasticSearchIllegalArgumentException(PERCOLATE_TIMEOUT + " must be positive but was [" + timeout + "]");
-        }
-        if (maxMemorySize.equals(byteSize) && newPoolSize == poolMaxSize) {
-            // nothing changed - return
+    public void onRefreshSettings(Settings settings) {
+        int newPoolMaxSize = settings.getAsInt(PERCOLATE_POOL_SIZE, poolMaxSize);
+        ByteSizeValue newMaxMemorySize = settings.getAsBytesSize(PERCOLATE_POOL_MAX_MEMORY, maxMemorySize);
+        TimeValue newTimeout = settings.getAsTime(PERCOLATE_TIMEOUT, timeout);
+        if (newTimeout.equals(timeout) && newPoolMaxSize == poolMaxSize && newMaxMemorySize.equals(maxMemorySize)) {
             return;
         }
-        maxMemorySize = byteSize;
-        poolMaxSize = newPoolSize;
-        poolCurrentSize = Integer.MAX_VALUE; // prevent new creations until we have the new index in place
+
+        if (newTimeout.millis() < 0) {
+            throw new ElasticSearchIllegalArgumentException(PERCOLATE_TIMEOUT + " must be positive but was [" + timeout + "]");
+        }
+        if (!newTimeout.equals(timeout)) {
+            logger.info("updating [{}] from [{}] to [{}]", PERCOLATE_TIMEOUT, this.timeout, newTimeout);
+            timeout = newTimeout;
+        }
+        if (newPoolMaxSize == poolMaxSize && newMaxMemorySize.equals(maxMemorySize)) {
+            return;
+        }
+
+        if (newMaxMemorySize.bytes() < 0) {
+            throw new ElasticSearchIllegalArgumentException(PERCOLATE_POOL_MAX_MEMORY + " must be positive but was [" + newMaxMemorySize.bytes() + "]");
+        }
+        if (newPoolMaxSize <= 0) {
+            throw new ElasticSearchIllegalArgumentException(PERCOLATE_POOL_SIZE + " size must be > 0 but was [" + newPoolMaxSize + "]");
+        }
+
+        synchronized (this) {
+            if (!newMaxMemorySize.equals(maxMemorySize)) {
+                logger.info("updating [{}] from [{}] to [{}]", PERCOLATE_POOL_MAX_MEMORY, this.maxMemorySize, newMaxMemorySize);
+                maxMemorySize = newMaxMemorySize;
+            }
+            if (newPoolMaxSize != poolMaxSize) {
+                logger.info("updating [{}] from [{}] to [{}]", PERCOLATE_POOL_SIZE, this.poolMaxSize, newPoolMaxSize);
+                poolMaxSize = newPoolMaxSize;
+            }
+            poolCurrentSize = Integer.MAX_VALUE; // prevent new creations until we have the new index in place
             /*
              * if this has changed we simply change the blocking queue instance with a new pool
              * size and reset the
              */
-        bytesPerMemoryIndex = byteSize.bytes() / newPoolSize;
-        memoryIndexQueue = new ArrayBlockingQueue<ReusableMemoryIndex>(newPoolSize);
-        poolCurrentSize = 0; // lets refill the queue
+            bytesPerMemoryIndex = newMaxMemorySize.bytes() / newPoolMaxSize;
+            memoryIndexQueue = new ArrayBlockingQueue<ReusableMemoryIndex>(newPoolMaxSize);
+            poolCurrentSize = 0; // lets refill the queue
+        }
     }
 
     public ReusableMemoryIndex acquire() {

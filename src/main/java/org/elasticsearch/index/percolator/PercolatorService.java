@@ -56,13 +56,13 @@ import static org.elasticsearch.index.mapper.SourceToParse.source;
 
 /**
  */
-public class Percolator extends AbstractComponent {
+public class PercolatorService extends AbstractComponent {
 
     private final MemoryIndexPool memIndexPool;
     private final IndicesService indicesService;
 
     @Inject
-    public Percolator(Settings settings, MemoryIndexPool memIndexPool, IndicesService indicesService) {
+    public PercolatorService(Settings settings, MemoryIndexPool memIndexPool, IndicesService indicesService) {
         super(settings);
         this.memIndexPool = memIndexPool;
         this.indicesService = indicesService;
@@ -189,7 +189,7 @@ public class Percolator extends AbstractComponent {
         return new Tuple<ParsedDocument, Query>(doc, query);
     }
 
-    public static class Constants {
+    public static final class Constants {
 
         public static final String TYPE_NAME = "_percolator";
 
