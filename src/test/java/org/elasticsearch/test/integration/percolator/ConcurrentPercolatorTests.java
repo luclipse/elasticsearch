@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test.unit.index.percolator;
+package org.elasticsearch.test.integration.percolator;
 
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
