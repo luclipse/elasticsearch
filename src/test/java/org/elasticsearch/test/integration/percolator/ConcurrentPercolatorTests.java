@@ -20,6 +20,7 @@
 package org.elasticsearch.test.integration.percolator;
 
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -31,11 +32,13 @@ import org.testng.annotations.Test;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
@@ -157,6 +160,154 @@ public class ConcurrentPercolatorTests extends AbstractSharedClusterTest {
 
         start.countDown();
         for (Thread thread : threads) {
+            thread.join();
+        }
+
+        assertThat(assertionFailure.get(), equalTo(false));
+    }
+
+    @Test
+    public void testConcurrentPerculatingAndAddingQueries() throws InterruptedException, IOException {
+        client().admin().indices().prepareCreate("index").setSettings(
+                ImmutableSettings.settingsBuilder()
+                        .put("index.number_of_shards", 2)
+                        .put("index.number_of_replicas", 1)
+                        .build()
+        ).execute().actionGet();
+        ensureGreen();
+        final int numIndexThreads = 3;
+        final int numPercolateThreads = 6;
+        final int numPercolatorOperationsPerThread = 10000;
+
+        final AtomicBoolean assertionFailure = new AtomicBoolean(false);
+        final CountDownLatch start = new CountDownLatch(1);
+        final AtomicInteger runningPercolateThreads = new AtomicInteger(numPercolateThreads);
+        final AtomicInteger type1 = new AtomicInteger();
+        final AtomicInteger type2 = new AtomicInteger();
+        final AtomicInteger type3 = new AtomicInteger();
+
+        final AtomicInteger idGen = new AtomicInteger();
+
+        Thread[] indexThreads = new Thread[numIndexThreads];
+        for (int i = 0; i < numIndexThreads; i++) {
+            Runnable r = new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        Random r = new Random();
+                        XContentBuilder onlyField1 = XContentFactory.jsonBuilder().startObject()
+                                .field("query", termQuery("field1", "value")).endObject();
+                        XContentBuilder onlyField2 = XContentFactory.jsonBuilder().startObject()
+                                .field("query", termQuery("field2", "value")).endObject();
+                        XContentBuilder field1And2 = XContentFactory.jsonBuilder().startObject()
+                                .field("query", boolQuery().must(termQuery("field1", "value")).must(termQuery("field2", "value"))).endObject();
+
+                        start.await();
+                        while (runningPercolateThreads.get() > 0) {
+                            Thread.sleep(100);
+                            int x = r.nextInt(3);
+                            String id = Integer.toString(idGen.incrementAndGet());
+                            IndexResponse response;
+                            switch (x) {
+                                case 0:
+                                    response = client().prepareIndex("index", "_percolator", id)
+                                            .setSource(onlyField1)
+                                            .execute().actionGet();
+                                    type1.incrementAndGet();
+                                    assertThat(response.getId(), equalTo(id));
+                                    assertThat(response.getVersion(), equalTo(1l));
+                                    break;
+                                case 1:
+                                    response = client().prepareIndex("index", "_percolator", id)
+                                            .setSource(onlyField2)
+                                            .execute().actionGet();
+                                    type2.incrementAndGet();
+                                    break;
+                                case 2:
+                                    response = client().prepareIndex("index", "_percolator", id)
+                                            .setSource(field1And2)
+                                            .execute().actionGet();
+                                    type3.incrementAndGet();
+                                    break;
+                                default:
+                                    throw new IllegalStateException("Illegal x=" + x);
+                            }
+                            assertThat(response.getId(), equalTo(id));
+                            assertThat(response.getVersion(), equalTo(1l));
+                        }
+                    } catch (Throwable t) {
+                        assertionFailure.set(true);
+                        logger.error("Error in indexing thread...", t);
+                    }
+                }
+            };
+            indexThreads[i] = new Thread(r);
+            indexThreads[i].start();
+        }
+
+        Thread[] percolateThreads = new Thread[numPercolateThreads];
+        for (int i = 0; i < numPercolateThreads; i++) {
+            Runnable r = new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        XContentBuilder onlyField1Doc = XContentFactory.jsonBuilder().startObject().startObject("doc")
+                                .field("field1", "value")
+                                .endObject().endObject();
+                        XContentBuilder onlyField2Doc = XContentFactory.jsonBuilder().startObject().startObject("doc")
+                                .field("field2", "value")
+                                .endObject().endObject();
+                        XContentBuilder field1AndField2Doc = XContentFactory.jsonBuilder().startObject().startObject("doc")
+                                .field("field1", "value")
+                                .field("field2", "value")
+                                .endObject().endObject();
+                        Random random = new Random();
+                        start.await();
+                        for (int counter = 0; counter < numPercolatorOperationsPerThread; counter++) {
+                            int x = random.nextInt(3);
+                            int atLeastExpected;
+                            PercolateResponse response;
+                            switch (x) {
+                                case 0:
+                                    atLeastExpected = type1.get();
+                                    response = client().preparePercolate("index", "type")
+                                            .setSource(onlyField1Doc).execute().actionGet();
+                                    assertThat(response.getShardFailures(), emptyArray());
+                                    assertThat(response.getSuccessfulShards(), equalTo(response.getTotalShards()));
+                                    assertThat(response.getMatches().length, greaterThanOrEqualTo(atLeastExpected));
+                                    break;
+                                case 1:
+                                    atLeastExpected = type2.get();
+                                    response = client().preparePercolate("index", "type")
+                                            .setSource(onlyField2Doc).execute().actionGet();
+                                    assertThat(response.getShardFailures(), emptyArray());
+                                    assertThat(response.getSuccessfulShards(), equalTo(response.getTotalShards()));
+                                    assertThat(response.getMatches().length, greaterThanOrEqualTo(atLeastExpected));
+                                    break;
+                                case 2:
+                                    atLeastExpected = type3.get();
+                                    response = client().preparePercolate("index", "type")
+                                            .setSource(field1AndField2Doc).execute().actionGet();
+                                    assertThat(response.getShardFailures(), emptyArray());
+                                    assertThat(response.getSuccessfulShards(), equalTo(response.getTotalShards()));
+                                    assertThat(response.getMatches().length, greaterThanOrEqualTo(atLeastExpected));
+                                    break;
+                            }
+                        }
+                    } catch (Throwable t) {
+                        assertionFailure.set(true);
+                        logger.error("Error in percolate thread...", t);
+                    } finally {
+                        runningPercolateThreads.decrementAndGet();
+                    }
+                }
+            };
+            percolateThreads[i] = new Thread(r);
+            percolateThreads[i].start();
+        }
+
+        start.countDown();
+        for (Thread thread : percolateThreads) {
             thread.join();
         }
 

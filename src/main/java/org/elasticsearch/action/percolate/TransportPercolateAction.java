@@ -122,6 +122,7 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
             System.arraycopy(shardResult, 0, finalMatches, offset, shardResult.length);
             offset += shardResult.length;
         }
+        assert size == offset;
         // TODO: Remove! (make the test pass, which is based on ordering)
         Arrays.sort(finalMatches);
 
@@ -154,7 +155,12 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
 
     @Override
     protected PercolateShardResponse shardOperation(PercolateShardRequest request) throws ElasticSearchException {
-        return percolatorService.percolate(request);
+        try {
+            return percolatorService.percolate(request);
+        } catch (Throwable t) {
+            logger.debug("Error while shard percolating", t);
+            throw new ElasticSearchException("Error while shard percolating.", t);
+        }
     }
 
 }

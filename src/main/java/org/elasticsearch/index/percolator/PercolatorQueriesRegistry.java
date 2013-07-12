@@ -8,6 +8,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.IndexCache;
@@ -24,7 +25,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesLifecycle;
 
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -44,7 +44,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
 
     private final ShardIndexingService indexingService;
 
-    private final Map<String, Query> percolateQueries = new HashMap<String, Query>();
+    private final Map<String, Query> percolateQueries = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
     private final ShardLifecycleListener shardLifecycleListener = new ShardLifecycleListener();
     private final RealTimePercolatorOperationListener realTimePercolatorOperationListener = new RealTimePercolatorOperationListener();
     private final PercolateTypeListener percolateTypeListener = new PercolateTypeListener();
@@ -108,15 +108,11 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
 
     public void addPercolateQuery(String uid, BytesReference source) {
         Query query = parseQuery(uid, source);
-        synchronized (lock) {
-            percolateQueries.put(uid, query);
-        }
+        percolateQueries.put(uid, query);
     }
 
     public void removePercolateQuery(String uid) {
-        synchronized (lock) {
-            percolateQueries.remove(uid);
-        }
+        percolateQueries.remove(uid);
     }
 
     Query parseQuery(String uid, BytesReference source) {
