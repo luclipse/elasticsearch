@@ -49,6 +49,8 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
     private BytesReference documentSource;
     private boolean documentUnsafe;
 
+    long startTime = System.currentTimeMillis();
+
     public PercolateRequest() {
     }
 

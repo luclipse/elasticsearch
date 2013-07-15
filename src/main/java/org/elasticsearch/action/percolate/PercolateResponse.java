@@ -23,6 +23,7 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -34,15 +35,18 @@ import java.util.List;
  */
 public class PercolateResponse extends BroadcastOperationResponse implements Iterable<String> {
 
+    private long tookInMillis;
     private String[] matches;
 
-    public PercolateResponse(int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures, String[] matches) {
+    public PercolateResponse(int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures, String[] matches, long tookInMillis) {
         super(totalShards, successfulShards, failedShards, shardFailures);
+        this.tookInMillis = tookInMillis;
         this.matches = matches;
     }
 
-    public PercolateResponse(int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
+    public PercolateResponse(int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures, long tookInMillis) {
         super(totalShards, successfulShards, failedShards, shardFailures);
+        this.tookInMillis = tookInMillis;
     }
 
     PercolateResponse() {
@@ -50,6 +54,20 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
 
     public PercolateResponse(String[] matches) {
         this.matches = matches;
+    }
+
+    /**
+     * How long the percolate took.
+     */
+    public TimeValue getTook() {
+        return new TimeValue(tookInMillis);
+    }
+
+    /**
+     * How long the percolate took in milliseconds.
+     */
+    public long getTookInMillis() {
+        return tookInMillis;
     }
 
     public String[] getMatches() {
@@ -64,12 +82,14 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
+        tookInMillis = in.readVLong();
         matches = in.readStringArray();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        out.writeVLong(tookInMillis);
         out.writeStringArray(matches);
     }
 }

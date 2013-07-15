@@ -20,6 +20,7 @@
 package org.elasticsearch.test.integration.percolator;
 
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -30,7 +31,6 @@ import org.elasticsearch.indices.memory.MemoryIndexPool;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.testng.annotations.Test;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
@@ -50,7 +50,7 @@ import static org.hamcrest.Matchers.*;
 public class ConcurrentPercolatorTests extends AbstractSharedClusterTest {
 
     @Test
-    public void testSimpleConcurrentPerculator() throws InterruptedException, IOException {
+    public void testSimpleConcurrentPerculator() throws Exception {
         client().admin().indices().prepareCreate("index").setSettings(
                 ImmutableSettings.settingsBuilder()
                         .put("index.number_of_shards", 1)
@@ -167,7 +167,7 @@ public class ConcurrentPercolatorTests extends AbstractSharedClusterTest {
     }
 
     @Test
-    public void testConcurrentPerculatingAndAddingQueries() throws InterruptedException, IOException {
+    public void testConcurrentAddingAndPercolating() throws Exception {
         client().admin().indices().prepareCreate("index").setSettings(
                 ImmutableSettings.settingsBuilder()
                         .put("index.number_of_shards", 2)
@@ -214,8 +214,6 @@ public class ConcurrentPercolatorTests extends AbstractSharedClusterTest {
                                             .setSource(onlyField1)
                                             .execute().actionGet();
                                     type1.incrementAndGet();
-                                    assertThat(response.getId(), equalTo(id));
-                                    assertThat(response.getVersion(), equalTo(1l));
                                     break;
                                 case 1:
                                     response = client().prepareIndex("index", "_percolator", id)
@@ -307,10 +305,101 @@ public class ConcurrentPercolatorTests extends AbstractSharedClusterTest {
         }
 
         start.countDown();
+        for (Thread thread : indexThreads) {
+            thread.join();
+        }
         for (Thread thread : percolateThreads) {
             thread.join();
         }
 
         assertThat(assertionFailure.get(), equalTo(false));
     }
+
+    @Test
+    public void testConcurrentAddingAndRemovingWhilePercolating() throws Exception {
+        client().admin().indices().prepareCreate("index").setSettings(
+                ImmutableSettings.settingsBuilder()
+                        .put("index.number_of_shards", 2)
+                        .put("index.number_of_replicas", 1)
+                        .build()
+        ).execute().actionGet();
+        ensureGreen();
+        final int numIndexThreads = 3;
+        final int numberPercolateOperation = 100;
+
+        final AtomicBoolean assertionFailure = new AtomicBoolean(false);
+        final CountDownLatch start = new CountDownLatch(1);
+        final AtomicInteger indexOperations = new AtomicInteger();
+        final AtomicInteger deleteOperations = new AtomicInteger();
+
+        final AtomicBoolean run = new AtomicBoolean(true);
+        final AtomicBoolean freeze = new AtomicBoolean(false);
+        final CountDownLatch[] latches = new CountDownLatch[2];
+        Thread[] indexThreads = new Thread[numIndexThreads];
+        for (int i = 0; i < indexThreads.length; i++) {
+            Runnable r = new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        Random r = new Random();
+                        XContentBuilder doc = XContentFactory.jsonBuilder().startObject()
+                                .field("query", termQuery("field1", "value")).endObject();
+                        start.await();
+                        while (run.get()) {
+                            if (freeze.get()) {
+                                latches[0].countDown();
+                                latches[1].await();
+                            }
+
+                            if ((indexOperations.get() - deleteOperations.get()) > 0 && r.nextInt(100) < 19) {
+                                String id = Integer.toString(deleteOperations.incrementAndGet());
+                                DeleteResponse response = client().prepareDelete("index", "_percolator", id)
+                                        .execute().actionGet();
+                                assertThat(response.getId(), equalTo(id));
+                                assertThat(response.isNotFound(), equalTo(false));
+                            } else {
+                                String id = Integer.toString(indexOperations.incrementAndGet());
+                                IndexResponse response = client().prepareIndex("index", "_percolator", id)
+                                        .setSource(doc)
+                                        .execute().actionGet();
+                                assertThat(response.getId(), equalTo(id));
+                            }
+                        }
+                    } catch (Throwable t) {
+                        assertionFailure.set(true);
+                        logger.error("Error in indexing thread...", t);
+                    }
+                }
+            };
+            indexThreads[i] = new Thread(r);
+            indexThreads[i].start();
+        }
+
+        XContentBuilder percolateDoc = XContentFactory.jsonBuilder().startObject().startObject("doc")
+                .field("field1", "value")
+                .endObject().endObject();
+        start.countDown();
+        for (int counter = 0; counter < numberPercolateOperation; counter++) {
+            Thread.sleep(100);
+            latches[0] = new CountDownLatch(numIndexThreads);
+            latches[1] = new CountDownLatch(1);
+            freeze.set(true);
+            latches[0].await();
+
+            int atLeastExpected = indexOperations.get() - deleteOperations.get();
+            PercolateResponse response = client().preparePercolate("index", "type")
+                    .setSource(percolateDoc).execute().actionGet();
+            assertThat(response.getShardFailures(), emptyArray());
+            assertThat(response.getSuccessfulShards(), equalTo(response.getTotalShards()));
+            assertThat(response.getMatches().length, equalTo(atLeastExpected));
+            freeze.set(false);
+            latches[1].countDown();
+        }
+        run.set(false);
+        for (Thread thread : indexThreads) {
+            thread.join();
+        }
+        assertThat(assertionFailure.get(), equalTo(false));
+    }
+
 }

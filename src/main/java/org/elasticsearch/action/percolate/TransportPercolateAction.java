@@ -108,8 +108,9 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
             }
         }
 
+        long tookInMillis = System.currentTimeMillis() - request.startTime;
         if (shardResults == null) {
-            return new PercolateResponse(shardsResponses.length(), successfulShards, failedShards, shardFailures);
+            return new PercolateResponse(shardsResponses.length(), successfulShards, failedShards, shardFailures, tookInMillis);
         }
 
         int size = 0;
@@ -126,7 +127,7 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
         // TODO: Remove! (make the test pass, which is based on ordering)
         Arrays.sort(finalMatches);
 
-        return new PercolateResponse(shardsResponses.length(), successfulShards, failedShards, shardFailures, finalMatches);
+        return new PercolateResponse(shardsResponses.length(), successfulShards, failedShards, shardFailures, finalMatches, tookInMillis);
     }
 
     @Override
