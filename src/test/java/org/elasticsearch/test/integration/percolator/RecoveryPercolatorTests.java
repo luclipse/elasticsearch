@@ -36,7 +36,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.*;
 
 @Test
 public class RecoveryPercolatorTests extends AbstractNodesTests {
@@ -80,7 +80,7 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
                 .field("field1", "value1")
                 .endObject().endObject())
                 .execute().actionGet();
-        assertThat(percolate.getMatches().length, equalTo(1));
+        assertThat(percolate.getMatches(), arrayWithSize(1));
 
         client.close();
         closeNode("node1");
@@ -98,7 +98,7 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
                 .field("field1", "value1")
                 .endObject().endObject())
                 .execute().actionGet();
-        assertThat(percolate.getMatches().length, equalTo(1));
+        assertThat(percolate.getMatches(), arrayWithSize(1));
     }
 
     @Test
@@ -128,7 +128,7 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
                 .field("field1", "value1")
                 .endObject().endObject())
                 .execute().actionGet();
-        assertThat(percolate.getMatches().length, equalTo(1));
+        assertThat(percolate.getMatches(), arrayWithSize(1));
 
         client.close();
         closeNode("node1");
@@ -157,7 +157,7 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
                 .field("field1", "value1")
                 .endObject().endObject())
                 .execute().actionGet();
-        assertThat(percolate.getMatches().length, equalTo(0));
+        assertThat(percolate.getMatches(), emptyArray());
 
         logger.info("--> register a query");
         client.prepareIndex("test", "_percolator", "kuku")
@@ -174,6 +174,6 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
                 .field("field1", "value1")
                 .endObject().endObject())
                 .execute().actionGet();
-        assertThat(percolate.getMatches().length, equalTo(1));
+        assertThat(percolate.getMatches(), arrayWithSize(1));
     }
 }

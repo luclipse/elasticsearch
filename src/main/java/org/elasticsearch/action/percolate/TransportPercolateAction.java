@@ -36,7 +36,10 @@ import org.elasticsearch.index.percolator.PercolatorService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 import static com.google.common.collect.Lists.newArrayList;
@@ -124,9 +127,6 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
             offset += shardResult.length;
         }
         assert size == offset;
-        // TODO: Remove! (make the test pass, which is based on ordering)
-        Arrays.sort(finalMatches);
-
         return new PercolateResponse(shardsResponses.length(), successfulShards, failedShards, shardFailures, finalMatches, tookInMillis);
     }
 
@@ -159,7 +159,7 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
         try {
             return percolatorService.percolate(request);
         } catch (Throwable t) {
-            logger.debug("Error while shard percolating", t);
+            logger.trace("Error while shard percolating", t);
             throw new ElasticSearchException("Error while shard percolating.", t);
         }
     }
