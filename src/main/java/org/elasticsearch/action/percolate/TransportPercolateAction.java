@@ -20,6 +20,7 @@
 package org.elasticsearch.action.percolate;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
@@ -36,7 +37,6 @@ import org.elasticsearch.index.percolator.PercolatorService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -56,6 +56,12 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
                                     TransportService transportService, PercolatorService percolatorService) {
         super(settings, threadPool, clusterService, transportService);
         this.percolatorService = percolatorService;
+    }
+
+    @Override
+    protected void doExecute(PercolateRequest request, ActionListener<PercolateResponse> listener) {
+        request.startTime = System.currentTimeMillis();
+        super.doExecute(request, listener);
     }
 
     @Override
@@ -104,7 +110,7 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
             } else {
                 PercolateShardResponse percolateShardResponse = (PercolateShardResponse) shardResponse;
                 if (shardResults == null) {
-                    shardResults = new ArrayList<String[]>();
+                    shardResults = newArrayList();
                 }
                 shardResults.add(percolateShardResponse.matches());
                 successfulShards++;

@@ -49,9 +49,11 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
     private BytesReference documentSource;
     private boolean documentUnsafe;
 
-    long startTime = System.currentTimeMillis();
+    // Used internally in order to compute tookInMillis, TransportBroadcastOperationAction itself doesn't allow
+    // to hold it temporarily in a easy way
+    long startTime;
 
-    public PercolateRequest() {
+    PercolateRequest() {
     }
 
     public PercolateRequest(String index, String documentType) {
@@ -177,6 +179,7 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
+        startTime = in.readVLong();
         documentIndex = in.readString();
         documentType = in.readString();
         documentUnsafe = false;
@@ -186,6 +189,7 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        out.writeVLong(startTime);
         out.writeString(documentIndex);
         out.writeString(documentType);
         out.writeBytesReference(documentSource);

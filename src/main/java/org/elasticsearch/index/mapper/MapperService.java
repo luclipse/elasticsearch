@@ -60,6 +60,7 @@ import java.io.InputStreamReader;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 import static org.elasticsearch.index.mapper.DocumentMapper.MergeFlags.mergeFlags;
@@ -99,7 +100,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     private final SmartIndexNameSearchAnalyzer searchAnalyzer;
     private final SmartIndexNameSearchQuoteAnalyzer searchQuoteAnalyzer;
 
-    private final List<DocumentTypeListener> typeListeners = new ArrayList<DocumentTypeListener>();
+    private final List<DocumentTypeListener> typeListeners = new CopyOnWriteArrayList<DocumentTypeListener>();
 
     @Inject
     public MapperService(Index index, @IndexSettings Settings indexSettings, Environment environment, AnalysisService analysisService,

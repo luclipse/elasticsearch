@@ -35,12 +35,12 @@ import java.util.Map;
  */
 public class PercolateRequestBuilder extends BroadcastOperationRequestBuilder<PercolateRequest, PercolateResponse, PercolateRequestBuilder> {
 
-    public PercolateRequestBuilder(Client client) {
-        super((InternalClient) client, new PercolateRequest());
-    }
-
     public PercolateRequestBuilder(Client client, String index, String type) {
         super((InternalClient) client, new PercolateRequest(index, type));
+    }
+
+    PercolateRequestBuilder(Client client) {
+        super((InternalClient) client, new PercolateRequest());
     }
 
     /**
