@@ -69,8 +69,7 @@ public class PercolatorService extends AbstractComponent {
     }
 
     public PercolateShardResponse percolate(PercolateShardRequest request) {
-        String index = request.documentIndex() != null ? request.documentIndex() : request.index();
-        IndexService percolateIndexService = indicesService.indexServiceSafe(index);
+        IndexService percolateIndexService = indicesService.indexServiceSafe(request.index());
         IndexShard indexShard = percolateIndexService.shardSafe(request.shardId());
 
         Map<String, Query> percolateQueries = indexShard.percolateRegistry().percolateQueries();

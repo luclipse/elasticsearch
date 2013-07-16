@@ -153,9 +153,6 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
 
     @Override
     protected GroupShardsIterator shards(ClusterState clusterState, PercolateRequest request, String[] concreteIndices) {
-        if (request.documentIndex() != null) {
-            request.documentIndex(clusterState.metaData().concreteIndex(request.documentIndex()));
-        }
         Map<String, Set<String>> routingMap = clusterState.metaData().resolveSearchRouting(request.routing(), request.indices());
         return clusterService.operationRouting().searchShards(clusterState, request.indices(), concreteIndices, routingMap, request.preference());
     }

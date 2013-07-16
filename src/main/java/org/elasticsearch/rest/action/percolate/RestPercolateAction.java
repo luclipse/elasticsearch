@@ -52,7 +52,6 @@ public class RestPercolateAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         PercolateRequest percolateRequest = new PercolateRequest(request.param("index"), request.param("type"));
-        percolateRequest.documentIndex(request.param("document_index"));
         percolateRequest.routing(request.param("routing"));
         percolateRequest.preference(request.param("preference"));
         percolateRequest.listenerThreaded(false);

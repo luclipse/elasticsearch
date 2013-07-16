@@ -52,14 +52,6 @@ public class PercolateRequestBuilder extends BroadcastOperationRequestBuilder<Pe
     }
 
     /**
-     * Sets the index the document belongs to.
-     */
-    public PercolateRequestBuilder setDocumentIndex(String index) {
-        request.documentIndex(index);
-        return this;
-    }
-
-    /**
      * Sets the type of the document to percolate.
      */
     public PercolateRequestBuilder setDocumentType(String type) {

@@ -9,6 +9,8 @@ import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.IndexCache;
@@ -19,6 +21,7 @@ import org.elasticsearch.index.mapper.DocumentTypeListener;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.query.IndexQueryParserService;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
@@ -107,7 +110,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
     }
 
     public void addPercolateQuery(String uid, BytesReference source) {
-        Query query = parseQuery(uid, source);
+        Query query = parsePercolatorDocument(uid, source);
         percolateQueries.put(uid, query);
     }
 
@@ -115,11 +118,13 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
         percolateQueries.remove(uid);
     }
 
-    Query parseQuery(String uid, BytesReference source) {
+    Query parsePercolatorDocument(String uid, BytesReference source) {
+        String type = null;
+        BytesReference querySource = null;
+
         XContentParser parser = null;
         try {
             parser = XContentHelper.createParser(source);
-            Query query = null;
             String currentFieldName = null;
             XContentParser.Token token = parser.nextToken(); // move the START_OBJECT
             if (token != XContentParser.Token.START_OBJECT) {
@@ -130,22 +135,53 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if ("query".equals(currentFieldName)) {
-                        query = queryParserService.parse(parser).query();
-                        break;
+                        if (type != null) {
+                            return parseQuery(type, null, parser);
+                        } else {
+                            XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
+                            builder.copyCurrentStructure(parser);
+                            querySource = builder.bytes();
+                            builder.close();
+                        }
                     } else {
                         parser.skipChildren();
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {
                     parser.skipChildren();
+                } else if (token.isValue()) {
+                    if ("type".equals(currentFieldName)) {
+                        type = parser.text();
+                    }
                 }
             }
-            return query;
+            return parseQuery(type, querySource, null);
         } catch (Exception e) {
             throw new ElasticSearchException("failed to parse query [" + uid + "]", e);
         } finally {
             if (parser != null) {
                 parser.close();
             }
+        }
+    }
+
+    private Query parseQuery(String type, BytesReference querySource, XContentParser parser) {
+        if (type == null) {
+            if (parser != null) {
+                return queryParserService.parse(parser).query();
+            } else {
+                return queryParserService.parse(querySource).query();
+            }
+        }
+
+        String[] previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{type});
+        try {
+            if (parser != null) {
+                return queryParserService.parse(parser).query();
+            } else {
+                return queryParserService.parse(querySource).query();
+            }
+        } finally {
+            QueryParseContext.setTypes(previousTypes);
         }
     }
 
@@ -227,7 +263,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
         public Engine.Create preCreate(Engine.Create create) {
             // validate the query here, before we index
             if (PercolatorService.Constants.TYPE_NAME.equals(create.type())) {
-                parseQuery(create.id(), create.source());
+                parsePercolatorDocument(create.id(), create.source());
             }
             return create;
         }
@@ -244,7 +280,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
         public Engine.Index preIndex(Engine.Index index) {
             // validate the query here, before we index
             if (PercolatorService.Constants.TYPE_NAME.equals(index.type())) {
-                parseQuery(index.id(), index.source());
+                parsePercolatorDocument(index.id(), index.source());
             }
             return index;
         }

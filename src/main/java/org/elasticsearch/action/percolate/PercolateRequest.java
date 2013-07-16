@@ -41,7 +41,6 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest> {
 
-    private String documentIndex;
     private String documentType;
     private String routing;
     private String preference;
@@ -50,7 +49,7 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
     private boolean documentUnsafe;
 
     // Used internally in order to compute tookInMillis, TransportBroadcastOperationAction itself doesn't allow
-    // to hold it temporarily in a easy way
+    // to hold it temporarily in an easy way
     long startTime;
 
     PercolateRequest() {
@@ -59,14 +58,6 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
     public PercolateRequest(String index, String documentType) {
         super(new String[]{index});
         this.documentType = documentType;
-    }
-
-    public String documentIndex() {
-        return documentIndex;
-    }
-
-    public void documentIndex(String documentIndex) {
-        this.documentIndex = documentIndex;
     }
 
     public String documentType() {
@@ -164,7 +155,7 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
-        if (documentIndex == null && (indices == null || indices.length == 0)) {
+        if (indices == null || indices.length == 0) {
             validationException = addValidationError("index is missing", validationException);
         }
         if (documentType == null) {
@@ -180,7 +171,6 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         startTime = in.readVLong();
-        documentIndex = in.readString();
         documentType = in.readString();
         documentUnsafe = false;
         documentSource = in.readBytesReference();
@@ -190,7 +180,6 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVLong(startTime);
-        out.writeString(documentIndex);
         out.writeString(documentType);
         out.writeBytesReference(documentSource);
     }

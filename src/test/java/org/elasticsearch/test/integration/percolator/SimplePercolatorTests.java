@@ -125,6 +125,12 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
                         .put("index.number_of_replicas", 0)
                         .build()
         ).execute().actionGet();
+        client().admin().indices().prepareCreate("test").setSettings(
+                ImmutableSettings.settingsBuilder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                        .build()
+        ).execute().actionGet();
         ensureGreen();
 
         // introduce the doc
@@ -142,7 +148,7 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
                 .execute().actionGet();
         assertThat(response.getMatches(), emptyArray());
 
-        // add a query
+        // add first query...
         client().prepareIndex("test", "_percolator", "test1")
                 .setSource(XContentFactory.jsonBuilder().startObject().field("query", termQuery("field2", "value")).endObject())
                 .execute().actionGet();
@@ -155,6 +161,7 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
         assertThat(response.getMatches(), arrayWithSize(1));
         assertThat(response.getMatches(), arrayContaining("test1"));
 
+        // add second query...
         client().prepareIndex("test", "_percolator", "test2")
                 .setSource(XContentFactory.jsonBuilder().startObject().field("query", termQuery("field1", 1)).endObject())
                 .execute().actionGet();
@@ -193,26 +200,24 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
                 .execute().actionGet();
         ensureGreen();
 
-        logger.info("--> Add dummy doc");
-        client().prepareIndex("test", "type", "1").setSource("field1", 0).execute().actionGet();
+        logger.info("--> Add dummy docs");
+        client().prepareIndex("test", "type1", "1").setSource("field1", 0).execute().actionGet();
+        client().prepareIndex("test", "type2", "1").setSource("field1", "0").execute().actionGet();
 
         logger.info("--> register a queries");
         for (int i = 1; i <= 100; i++) {
             client().prepareIndex("test", "_percolator", Integer.toString(i))
-                    // TODO: Think about the following:
-                    // The range_query only works in this because document with `field1` exists in the this index,
-                    // and is off type long. The range_query now gets parsed to the Lucene NumericRangeQuery.
-                    // If the percolate queries were to be stored in a dedicated index then the range_query would
-                    // have been parsed to the Lucene TermRangeQuery. I think we should add a option (reserved metadata?)
-                    // that specifies the target index (`_index`), so that queries get parsed properly.
-                    //
-                    // Other queries and filter may run into similar issues. For example geo_shape and its precision.
-                    .setSource(jsonBuilder().startObject().field("query", rangeQuery("field1").from(0).to(i)).endObject())
+                    .setSource(jsonBuilder().startObject()
+                            .field("query", rangeQuery("field1").from(0).to(i))
+                            // The type must be set now, because two fields with the same name exist in different types.
+                            // Setting the type to `type1`, makes sure that the range query gets parsed to a Lucene NumericRangeQuery.
+                            .field("type", "type1")
+                            .endObject())
                     .execute().actionGet();
         }
 
         logger.info("--> Percolate doc with field1=95");
-        PercolateResponse response = client().preparePercolate("test", "type")
+        PercolateResponse response = client().preparePercolate("test", "type1")
                 .setSource(jsonBuilder().startObject().startObject("doc").field("field1", 95).endObject().endObject())
                 .execute().actionGet();
         assertThat(response.getMatches(), arrayWithSize(6));
@@ -225,7 +230,7 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
         ensureGreen();
 
         logger.info("--> Percolate doc with field1=100");
-        response = client().preparePercolate("test", "type")
+        response = client().preparePercolate("test", "type1")
                 .setSource(jsonBuilder().startObject().startObject("doc").field("field1", 100).endObject().endObject())
                 .execute().actionGet();
         assertThat(response.getMatches(), arrayWithSize(1));
@@ -353,12 +358,10 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
 
         PercolateResponse percolate = client().preparePercolate("my-percolate-index", "type1")
                 .setSource(jsonBuilder().startObject().startObject("doc").field("field1", "value1").endObject().endObject())
-                .setDocumentIndex("test")
                 .execute().actionGet();
         assertThat(percolate.getMatches(), arrayWithSize(1));
 
         percolate = client().preparePercolate("my-percolate-index", "type1")
-                .setDocumentIndex("test")
                 .setSource(jsonBuilder().startObject().startObject("doc").field("field1", "value1").endObject().field("query", matchAllQuery()).endObject())
                 .execute().actionGet();
         assertThat(percolate.getMatches(), arrayWithSize(1));

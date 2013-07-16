@@ -38,7 +38,7 @@ final class QueriesLoaderCollector extends Collector {
         reader.document(doc, fieldsVisitor);
         String id = fieldsVisitor.uid().id();
         try {
-            final Query parseQuery = percolator.parseQuery(id, fieldsVisitor.source());
+            final Query parseQuery = percolator.parsePercolatorDocument(id, fieldsVisitor.source());
             if (parseQuery != null) {
                 queries.put(id, parseQuery);
             } else {
