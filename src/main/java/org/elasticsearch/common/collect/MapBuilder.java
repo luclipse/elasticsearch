@@ -21,6 +21,7 @@ package org.elasticsearch.common.collect;
 
 import com.google.common.collect.ImmutableMap;
 
+import java.util.Collections;
 import java.util.Map;
 
 import static com.google.common.collect.Maps.newHashMap;
@@ -78,6 +79,10 @@ public class MapBuilder<K, V> {
 
     public Map<K, V> map() {
         return this.map;
+    }
+
+    public Map<K, V> readOnlyMap() {
+        return Collections.unmodifiableMap(map);
     }
 
     public ImmutableMap<K, V> immutableMap() {

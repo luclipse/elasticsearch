@@ -105,9 +105,9 @@ public class MetaData implements Iterable<IndexMetaData> {
     private final Settings transientSettings;
     private final Settings persistentSettings;
     private final Settings settings;
-    private final ImmutableMap<String, IndexMetaData> indices;
-    private final ImmutableMap<String, IndexTemplateMetaData> templates;
-    private final ImmutableMap<String, Custom> customs;
+    private final Map<String, IndexMetaData> indices;
+    private final Map<String, IndexTemplateMetaData> templates;
+    private final Map<String, Custom> customs;
 
     private final transient int totalNumberOfShards; // Transient ? not serializable anyway?
     private final int numberOfShards;
@@ -117,17 +117,16 @@ public class MetaData implements Iterable<IndexMetaData> {
     private final ImmutableSet<String> allIndicesSet;
     private final String[] allOpenIndices;
 
-    private final ImmutableMap<String, ImmutableMap<String, AliasMetaData>> aliases;
+    private final Map<String, Map<String, AliasMetaData>> aliases;
 
-    private final ImmutableMap<String, ImmutableMap<String, ImmutableSet<String>>> aliasToIndexToSearchRoutingMap;
+    private final Map<String, Map<String, Set<String>>> aliasToIndexToSearchRoutingMap;
 
     // This map indicates if an alias associated with an index is filtering alias
-    private final ImmutableMap<String, ImmutableMap<String, Boolean>> indexToAliasFilteringRequiredMap;
+    private final Map<String, Map<String, Boolean>> indexToAliasFilteringRequiredMap;
 
-    private final ImmutableMap<String, String[]> aliasAndIndexToIndexMap;
+    private final Map<String, String[]> aliasAndIndexToIndexMap;
 
-
-    MetaData(long version, Settings transientSettings, Settings persistentSettings, ImmutableMap<String, IndexMetaData> indices, ImmutableMap<String, IndexTemplateMetaData> templates, ImmutableMap<String, Custom> customs) {
+    MetaData(long version, Settings transientSettings, Settings persistentSettings, Map<String, IndexMetaData> indices, Map<String, IndexTemplateMetaData> templates, Map<String, Custom> customs) {
         this.version = version;
         this.transientSettings = transientSettings;
         this.persistentSettings = persistentSettings;
@@ -173,36 +172,36 @@ public class MetaData implements Iterable<IndexMetaData> {
                 indexAliasMap.put(index, aliasMd);
             }
         }
-        MapBuilder<String, ImmutableMap<String, AliasMetaData>> aliases = newMapBuilder();
+        MapBuilder<String, Map<String, AliasMetaData>> aliases = newMapBuilder();
         for (Map.Entry<String, MapBuilder<String, AliasMetaData>> alias : tmpAliasesMap.map().entrySet()) {
-            aliases.put(alias.getKey(), alias.getValue().immutableMap());
+            aliases.put(alias.getKey(), alias.getValue().readOnlyMap());
         }
-        this.aliases = aliases.immutableMap();
+        this.aliases = aliases.readOnlyMap();
 
         // build routing aliases set
-        MapBuilder<String, MapBuilder<String, ImmutableSet<String>>> tmpAliasToIndexToSearchRoutingMap = newMapBuilder();
+        MapBuilder<String, MapBuilder<String, Set<String>>> tmpAliasToIndexToSearchRoutingMap = newMapBuilder();
         for (IndexMetaData indexMetaData : indices.values()) {
             for (AliasMetaData aliasMd : indexMetaData.aliases().values()) {
-                MapBuilder<String, ImmutableSet<String>> indexToSearchRoutingMap = tmpAliasToIndexToSearchRoutingMap.get(aliasMd.alias());
+                MapBuilder<String, Set<String>> indexToSearchRoutingMap = tmpAliasToIndexToSearchRoutingMap.get(aliasMd.alias());
                 if (indexToSearchRoutingMap == null) {
                     indexToSearchRoutingMap = newMapBuilder();
                     tmpAliasToIndexToSearchRoutingMap.put(aliasMd.alias(), indexToSearchRoutingMap);
                 }
                 if (aliasMd.searchRouting() != null) {
-                    indexToSearchRoutingMap.put(indexMetaData.index(), ImmutableSet.copyOf(Strings.splitStringByCommaToSet(aliasMd.searchRouting())));
+                    indexToSearchRoutingMap.put(indexMetaData.index(), Collections.unmodifiableSet(Strings.splitStringByCommaToSet(aliasMd.searchRouting())));
                 } else {
                     indexToSearchRoutingMap.put(indexMetaData.index(), ImmutableSet.<String>of());
                 }
             }
         }
-        MapBuilder<String, ImmutableMap<String, ImmutableSet<String>>> aliasToIndexToSearchRoutingMap = newMapBuilder();
-        for (Map.Entry<String, MapBuilder<String, ImmutableSet<String>>> alias : tmpAliasToIndexToSearchRoutingMap.map().entrySet()) {
-            aliasToIndexToSearchRoutingMap.put(alias.getKey(), alias.getValue().immutableMap());
+        MapBuilder<String, Map<String, Set<String>>> aliasToIndexToSearchRoutingMap = newMapBuilder();
+        for (Map.Entry<String, MapBuilder<String, Set<String>>> alias : tmpAliasToIndexToSearchRoutingMap.map().entrySet()) {
+            aliasToIndexToSearchRoutingMap.put(alias.getKey(), alias.getValue().readOnlyMap());
         }
-        this.aliasToIndexToSearchRoutingMap = aliasToIndexToSearchRoutingMap.immutableMap();
+        this.aliasToIndexToSearchRoutingMap = aliasToIndexToSearchRoutingMap.readOnlyMap();
 
         // build filtering required map
-        MapBuilder<String, ImmutableMap<String, Boolean>> filteringRequiredMap = newMapBuilder();
+        MapBuilder<String, Map<String, Boolean>> filteringRequiredMap = newMapBuilder();
         for (IndexMetaData indexMetaData : indices.values()) {
             MapBuilder<String, Boolean> indexFilteringRequiredMap = newMapBuilder();
             // Filtering is not required for the index itself
@@ -214,9 +213,9 @@ public class MetaData implements Iterable<IndexMetaData> {
                     indexFilteringRequiredMap.put(aliasMetaData.alias(), false);
                 }
             }
-            filteringRequiredMap.put(indexMetaData.index(), indexFilteringRequiredMap.immutableMap());
+            filteringRequiredMap.put(indexMetaData.index(), indexFilteringRequiredMap.readOnlyMap());
         }
-        indexToAliasFilteringRequiredMap = filteringRequiredMap.immutableMap();
+        indexToAliasFilteringRequiredMap = filteringRequiredMap.readOnlyMap();
 
         // build aliasAndIndex to Index map
         MapBuilder<String, Set<String>> tmpAliasAndIndexToIndexBuilder = newMapBuilder();
@@ -242,7 +241,7 @@ public class MetaData implements Iterable<IndexMetaData> {
         for (Map.Entry<String, Set<String>> entry : tmpAliasAndIndexToIndexBuilder.map().entrySet()) {
             aliasAndIndexToIndexBuilder.put(entry.getKey(), entry.getValue().toArray(new String[entry.getValue().size()]));
         }
-        this.aliasAndIndexToIndexMap = aliasAndIndexToIndexBuilder.immutableMap();
+        this.aliasAndIndexToIndexMap = aliasAndIndexToIndexBuilder.readOnlyMap();
     }
 
     public long version() {
@@ -264,11 +263,11 @@ public class MetaData implements Iterable<IndexMetaData> {
         return this.persistentSettings;
     }
 
-    public ImmutableMap<String, ImmutableMap<String, AliasMetaData>> aliases() {
+    public Map<String, Map<String, AliasMetaData>> aliases() {
         return this.aliases;
     }
 
-    public ImmutableMap<String, ImmutableMap<String, AliasMetaData>> getAliases() {
+    public Map<String, Map<String, AliasMetaData>> getAliases() {
         return aliases();
     }
 
@@ -438,7 +437,7 @@ public class MetaData implements Iterable<IndexMetaData> {
      */
     public String resolveIndexRouting(@Nullable String routing, String aliasOrIndex) {
         // Check if index is specified by an alias
-        ImmutableMap<String, AliasMetaData> indexAliases = aliases.get(aliasOrIndex);
+        Map<String, AliasMetaData> indexAliases = aliases.get(aliasOrIndex);
         if (indexAliases == null || indexAliases.isEmpty()) {
             return routing;
         }
@@ -486,9 +485,9 @@ public class MetaData implements Iterable<IndexMetaData> {
         }
 
         for (String aliasOrIndex : aliasesOrIndices) {
-            ImmutableMap<String, ImmutableSet<String>> indexToRoutingMap = aliasToIndexToSearchRoutingMap.get(aliasOrIndex);
+            Map<String, Set<String>> indexToRoutingMap = aliasToIndexToSearchRoutingMap.get(aliasOrIndex);
             if (indexToRoutingMap != null && !indexToRoutingMap.isEmpty()) {
-                for (Map.Entry<String, ImmutableSet<String>> indexRouting : indexToRoutingMap.entrySet()) {
+                for (Map.Entry<String, Set<String>> indexRouting : indexToRoutingMap.entrySet()) {
                     if (!norouting.contains(indexRouting.getKey())) {
                         if (!indexRouting.getValue().isEmpty()) {
                             // Routing alias
@@ -558,10 +557,10 @@ public class MetaData implements Iterable<IndexMetaData> {
             paramRouting = Strings.splitStringByCommaToSet(routing);
         }
 
-        ImmutableMap<String, ImmutableSet<String>> indexToRoutingMap = aliasToIndexToSearchRoutingMap.get(aliasOrIndex);
+        Map<String, Set<String>> indexToRoutingMap = aliasToIndexToSearchRoutingMap.get(aliasOrIndex);
         if (indexToRoutingMap != null && !indexToRoutingMap.isEmpty()) {
             // It's an alias
-            for (Map.Entry<String, ImmutableSet<String>> indexRouting : indexToRoutingMap.entrySet()) {
+            for (Map.Entry<String, Set<String>> indexRouting : indexToRoutingMap.entrySet()) {
                 if (!indexRouting.getValue().isEmpty()) {
                     // Routing alias
                     Set<String> r = new THashSet<String>(indexRouting.getValue());
@@ -780,27 +779,27 @@ public class MetaData implements Iterable<IndexMetaData> {
         return indices.get(index);
     }
 
-    public ImmutableMap<String, IndexMetaData> indices() {
+    public Map<String, IndexMetaData> indices() {
         return this.indices;
     }
 
-    public ImmutableMap<String, IndexMetaData> getIndices() {
+    public Map<String, IndexMetaData> getIndices() {
         return indices();
     }
 
-    public ImmutableMap<String, IndexTemplateMetaData> templates() {
+    public Map<String, IndexTemplateMetaData> templates() {
         return this.templates;
     }
 
-    public ImmutableMap<String, IndexTemplateMetaData> getTemplates() {
+    public Map<String, IndexTemplateMetaData> getTemplates() {
         return this.templates;
     }
 
-    public ImmutableMap<String, Custom> customs() {
+    public Map<String, Custom> customs() {
         return this.customs;
     }
 
-    public ImmutableMap<String, Custom> getCustoms() {
+    public Map<String, Custom> getCustoms() {
         return this.customs;
     }
 
@@ -835,7 +834,7 @@ public class MetaData implements Iterable<IndexMetaData> {
         // optimize for the most common single index/alias scenario
         if (indices.length == 1) {
             String alias = indices[0];
-            ImmutableMap<String, Boolean> aliasToFilteringRequiredMap = indexToAliasFilteringRequiredMap.get(index);
+            Map<String, Boolean> aliasToFilteringRequiredMap = indexToAliasFilteringRequiredMap.get(index);
             if (aliasToFilteringRequiredMap == null) {
                 // Shouldn't happen
                 throw new IndexMissingException(new Index(index));
@@ -848,7 +847,7 @@ public class MetaData implements Iterable<IndexMetaData> {
         }
         List<String> filteringAliases = null;
         for (String alias : indices) {
-            ImmutableMap<String, Boolean> aliasToFilteringRequiredMap = indexToAliasFilteringRequiredMap.get(index);
+            Map<String, Boolean> aliasToFilteringRequiredMap = indexToAliasFilteringRequiredMap.get(index);
             if (aliasToFilteringRequiredMap == null) {
                 // Shouldn't happen
                 throw new IndexMissingException(new Index(index));
@@ -925,7 +924,7 @@ public class MetaData implements Iterable<IndexMetaData> {
     }
 
     @Override
-    public UnmodifiableIterator<IndexMetaData> iterator() {
+    public Iterator<IndexMetaData> iterator() {
         return indices.values().iterator();
     }
 
@@ -1082,7 +1081,7 @@ public class MetaData implements Iterable<IndexMetaData> {
         }
 
         public MetaData build() {
-            return new MetaData(version, transientSettings, persistentSettings, indices.immutableMap(), templates.immutableMap(), customs.immutableMap());
+            return new MetaData(version, transientSettings, persistentSettings, indices.readOnlyMap(), templates.readOnlyMap(), customs.readOnlyMap());
         }
 
         public static String toXContent(MetaData metaData) throws IOException {
