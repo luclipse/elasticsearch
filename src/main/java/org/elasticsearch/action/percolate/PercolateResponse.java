@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.percolate;
 
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -31,11 +32,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.percolator.PercolatorService;
 import org.elasticsearch.rest.action.support.RestActions;
+import org.elasticsearch.search.highlight.HighlightField;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 
 /**
  *
@@ -166,11 +166,20 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
         private Text index;
         private Text id;
         private float score;
+        private Map<String, HighlightField> hl;
+
+        public Match(Text index, Text id, float score, Map<String, HighlightField> hl) {
+            this.id = id;
+            this.score = score;
+            this.index = index;
+            this.hl = hl;
+        }
 
         public Match(Text index, Text id, float score) {
             this.id = id;
             this.score = score;
             this.index = index;
+            this.hl = ImmutableMap.of();
         }
 
         Match() {
@@ -192,6 +201,10 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
             return index();
         }
 
+        public Map<String, HighlightField> hl() {
+            return hl;
+        }
+
         public Text getId() {
             return id();
         }
@@ -200,11 +213,20 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
             return score();
         }
 
+        public Map<String, HighlightField> getHl() {
+            return hl;
+        }
+
         @Override
         public void readFrom(StreamInput in) throws IOException {
             id = in.readText();
             index = in.readText();
             score = in.readFloat();
+            int size = in.readVInt();
+            hl = new HashMap<String, HighlightField>(size);
+            for (int j = 0; j < size; j++) {
+                hl.put(in.readString(), HighlightField.readHighlightField(in));
+            }
         }
 
         @Override
@@ -212,6 +234,11 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
             out.writeText(id);
             out.writeText(index);
             out.writeFloat(score);
+            out.writeVInt(hl.size());
+            for (Map.Entry<String, HighlightField> entry : hl.entrySet()) {
+                out.writeString(entry.getKey());
+                entry.getValue().writeTo(out);
+            }
         }
     }
 

@@ -40,6 +40,7 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.script.ScriptScoreFunctionBuilder;
+import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.junit.Test;
 
@@ -1294,6 +1295,42 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
                 .execute().actionGet();
         assertNoFailures(response);
         assertThat(response.getCount(), equalTo(0l));
+    }
+
+    @Test
+    public void testHl() throws Exception {
+        client().admin().indices().prepareCreate("test").execute().actionGet();
+        ensureGreen();
+
+
+        logger.info("--> register a queries");
+        client().prepareIndex("test", "_percolator", "1")
+                .setSource(jsonBuilder().startObject().field("query", termQuery("field1", "b")).endObject())
+                .execute().actionGet();
+        client().prepareIndex("test", "_percolator", "2")
+                .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "c")).endObject())
+                .execute().actionGet();
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
+
+        logger.info("--> Percolate doc with field1=b");
+        PercolateResponse response = client().preparePercolate()
+                .setIndices("test").setDocumentType("type")
+                .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", "c b c").endObject()))
+                .setHighlightBuilder(new HighlightBuilder().field("field1"))
+                .execute().actionGet();
+        assertThat(response.getMatches(), arrayWithSize(2));
+        assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContainingInAnyOrder("1", "2"));
+
+        PercolateResponse.Match[] matches = response.getMatches();
+        Arrays.sort(matches, new Comparator<PercolateResponse.Match>() {
+            @Override
+            public int compare(PercolateResponse.Match a, PercolateResponse.Match b) {
+                return a.id().compareTo(b.id());
+            }
+        });
+
+        assertThat(matches[0].getHl().get("field1").fragments()[0].string(), equalTo("c <em>b</em> c"));
+        assertThat(matches[1].getHl().get("field1").fragments()[0].string(), equalTo("<em>c</em> b <em>c</em>"));
     }
 
     public static String[] convertFromTextArray(PercolateResponse.Match[] matches, String index) {

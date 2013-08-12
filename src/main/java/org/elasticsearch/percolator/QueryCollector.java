@@ -37,7 +37,7 @@ abstract class QueryCollector extends Collector {
         this.logger = logger;
         this.queries = context.percolateQueries;
         this.searcher = context.docSearcher;
-        this.idFieldData = context.fieldData.getForField(
+        this.idFieldData = context.fieldDataService.getForField(
                 new FieldMapper.Names(IdFieldMapper.NAME),
                 new FieldDataType("string", ImmutableSettings.builder().put("format", "paged_bytes"))
         );

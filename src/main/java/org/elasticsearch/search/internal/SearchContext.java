@@ -213,6 +213,22 @@ public class SearchContext implements Releasable {
         aliasFilter = indexService.aliasesService().aliasFilter(request.filteringAliases());
     }
 
+    public SearchContext() {
+        this.id = -1;
+        this.request = null;
+        this.searchType = null;
+        this.shardTarget = null;
+        this.engineSearcher = null;
+        this.scriptService = null;
+        this.cacheRecycler = null;
+        this.dfsResult = null;
+        this.queryResult = null;
+        this.fetchResult = null;
+        this.indexShard = null;
+        this.indexService = null;
+        this.searcher = null;
+    }
+
     @Override
     public boolean release() throws ElasticSearchException {
         if (scanContext != null) {
