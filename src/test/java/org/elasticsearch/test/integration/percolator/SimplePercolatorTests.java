@@ -1318,6 +1318,7 @@ public class SimplePercolatorTests extends AbstractSharedClusterTest {
                 .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", "c b c").endObject()))
                 .setHighlightBuilder(new HighlightBuilder().field("field1"))
                 .execute().actionGet();
+        assertNoFailures(response);
         assertThat(response.getMatches(), arrayWithSize(2));
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContainingInAnyOrder("1", "2"));
 

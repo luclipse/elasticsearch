@@ -36,6 +36,7 @@ import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.percolate.PercolateShardRequest;
 import org.elasticsearch.action.percolate.PercolateShardResponse;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -54,34 +55,49 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
+import org.elasticsearch.index.cache.docset.DocSetCache;
+import org.elasticsearch.index.cache.filter.FilterCache;
+import org.elasticsearch.index.cache.id.IdCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fieldvisitor.JustSourceFieldsVisitor;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.internal.IdFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.percolator.stats.ShardPercolateService;
+import org.elasticsearch.index.query.IndexQueryParserService;
+import org.elasticsearch.index.query.ParsedFilter;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
+import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchParseElement;
+import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.dfs.DfsSearchResult;
+import org.elasticsearch.search.facet.SearchContextFacets;
+import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.FetchSubPhase;
+import org.elasticsearch.search.fetch.partial.PartialFieldsContext;
+import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
+import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.HighlightField;
 import org.elasticsearch.search.highlight.HighlightPhase;
-import org.elasticsearch.search.internal.InternalSearchHit;
-import org.elasticsearch.search.internal.InternalSearchHitField;
-import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.highlight.SearchContextHighlight;
+import org.elasticsearch.search.internal.*;
+import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.rescore.RescoreSearchContext;
+import org.elasticsearch.search.scan.ScanContext;
+import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -104,17 +120,12 @@ public class PercolatorService extends AbstractComponent {
     private final IndicesService indicesService;
     private final TByteObjectHashMap<PercolatorType> percolatorTypes;
 
-    private final CacheRecycler cacheRecycler;
-    private final ScriptService scriptService;
-
     private final HighlightPhase highlightPhase;
 
     @Inject
-    public PercolatorService(Settings settings, IndicesService indicesService, CacheRecycler cacheRecycler, ScriptService scriptService, HighlightPhase highlightPhase) {
+    public PercolatorService(Settings settings, IndicesService indicesService, HighlightPhase highlightPhase) {
         super(settings);
         this.indicesService = indicesService;
-        this.cacheRecycler = cacheRecycler;
-        this.scriptService = scriptService;
         this.highlightPhase = highlightPhase;
 
         final long maxReuseBytes = settings.getAsBytesSize("indices.memory.memory_index.size_per_thread", new ByteSizeValue(1, ByteSizeUnit.MB)).bytes();
@@ -149,11 +160,10 @@ public class PercolatorService extends AbstractComponent {
         long startTime = System.nanoTime();
 
         try {
-            final PercolateContext context = new PercolateContext();
+            final PercolateContext context = new PercolateContext(request.documentType());
             context.percolateQueries = indexShard.percolateRegistry().percolateQueries();
             context.indexShard = indexShard;
             context.percolateIndexService = percolateIndexService;
-            context.searchContext = new SearchContext();
             ParsedDocument parsedDocument = parsePercolate(percolateIndexService, request, context);
             if (context.percolateQueries.isEmpty()) {
                 return new PercolateShardResponse(context, request.index(), request.shardId());
@@ -218,7 +228,7 @@ public class PercolatorService extends AbstractComponent {
                 context.docSearcher = memoryIndex.createSearcher();
                 context.fieldDataService = percolateIndexService.fieldData();
 
-                if (context.searchContext.highlight() != null) {
+                if (context.highlight() != null) {
                     final IndexReader topLevelReader = context.docSearcher.getIndexReader();
                     AtomicReaderContext readerContext = topLevelReader.leaves().get(0);
                     Engine.Searcher searcher = new Engine.Searcher() {
@@ -237,21 +247,15 @@ public class PercolatorService extends AbstractComponent {
                             return true;
                         }
                     };
-                    SearchContext searchContext = new SearchContext(0,
-                            new ShardSearchRequest().types(new String[]{request.documentType()}),
-                            null, searcher, percolateIndexService, indexShard,
-                            scriptService, cacheRecycler);
-                    searchContext.highlight(context.searchContext.highlight());
-                    context.searchContext = searchContext;
 
                     context.hitContext = new FetchSubPhase.HitContext();
-                    context.searchContext.lookup().setNextReader(readerContext);
-                    context.searchContext.lookup().setNextDocId(0);
-                    context.searchContext.lookup().source().setNextSource(parsedDocument.source());
+                    context.lookup().setNextReader(readerContext);
+                    context.lookup().setNextDocId(0);
+                    context.lookup().source().setNextSource(parsedDocument.source());
 
                     Map<String, SearchHitField> fields = new HashMap<String, SearchHitField>();
                     for (IndexableField field : parsedDocument.rootDoc().getFields()) {
-                        List<Object> values = context.searchContext.lookup().source().extractRawValues(field.name());
+                        List<Object> values = context.lookup().source().extractRawValues(field.name());
                         fields.put(field.name(), new InternalSearchHitField(field.name(), values));
                     }
                     context.hitContext.reset(new InternalSearchHit(0, "unknown", new StringText(request.documentType()), fields), readerContext, 0, topLevelReader, 0, new JustSourceFieldsVisitor());
@@ -285,7 +289,7 @@ public class PercolatorService extends AbstractComponent {
         XContentParser parser = null;
 
         // Some queries (function_score query when for decay functions) rely on SearchContext being set:
-        SearchContext searchContext = new SearchContext(0,
+        SearchContext searchContext = new DefaultSearchContext(0,
                 new ShardSearchRequest().types(new String[0]),
                 null, context.indexShard.searcher(), context.percolateIndexService, context.indexShard,
                 null, null);
@@ -315,7 +319,7 @@ public class PercolatorService extends AbstractComponent {
 
                     SearchParseElement element = hlElements.get(currentFieldName);
                     if (element != null) {
-                        element.parse(parser, context.searchContext);
+                        element.parse(parser, context);
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if ("query".equals(currentFieldName)) {
@@ -507,8 +511,8 @@ public class PercolatorService extends AbstractComponent {
 
             for (Map.Entry<HashedBytesRef, Query> entry : context.percolateQueries.entrySet()) {
                 collector.reset();
-                if (context.searchContext.highlight() != null) {
-                    context.searchContext.parsedQuery(new ParsedQuery(entry.getValue(), ImmutableMap.<String, Filter>of()));
+                if (context.highlight() != null) {
+                    context.parsedQuery(new ParsedQuery(entry.getValue(), ImmutableMap.<String, Filter>of()));
                 }
                 try {
                     context.docSearcher.search(entry.getValue(), collector);
@@ -519,8 +523,8 @@ public class PercolatorService extends AbstractComponent {
                 if (collector.exists()) {
                     if (!context.limit || count < context.size) {
                         matches.add(entry.getKey().bytes);
-                        if (context.searchContext.highlight() != null) {
-                            highlightPhase.hitExecute(context.searchContext, context.hitContext);
+                        if (context.highlight() != null) {
+                            highlightPhase.hitExecute(context, context.hitContext);
                             hls.add(context.hitContext.hit().getHighlightFields());
                         }
                     }
@@ -718,26 +722,6 @@ public class PercolatorService extends AbstractComponent {
         percolatorSearcher.searcher().search(query, collector);
     }
 
-    public class PercolateContext {
-
-        public boolean limit;
-        public int size;
-        public boolean score;
-        public boolean sort;
-        public byte percolatorTypeId;
-
-        Query query;
-        ConcurrentMap<HashedBytesRef, Query> percolateQueries;
-        IndexSearcher docSearcher;
-        IndexShard indexShard;
-        IndexFieldDataService fieldDataService;
-        IndexService percolateIndexService;
-
-        SearchContext searchContext;
-        FetchSubPhase.HitContext hitContext;
-
-    }
-
     public final static class ReduceResult {
 
         private final long count;
@@ -766,6 +750,489 @@ public class PercolatorService extends AbstractComponent {
 
         public static final String TYPE_NAME = "_percolator";
 
+    }
+
+    public class PercolateContext extends SearchContext {
+
+        public boolean limit;
+        public int size;
+        public boolean score;
+        public boolean sort;
+        public byte percolatorTypeId;
+
+        Query query;
+        ConcurrentMap<HashedBytesRef, Query> percolateQueries;
+        IndexSearcher docSearcher;
+        IndexShard indexShard;
+        IndexFieldDataService fieldDataService;
+        IndexService percolateIndexService;
+
+        FetchSubPhase.HitContext hitContext;
+
+        private final String documentType;
+
+        public PercolateContext(String documentType) {
+            this.documentType = documentType;
+        }
+
+        @Override
+        public void preProcess() {
+        }
+
+        @Override
+        public Filter searchFilter(String[] types) {
+            return null;
+        }
+
+        @Override
+        public long id() {
+            return 0;
+        }
+
+        @Override
+        public ShardSearchRequest request() {
+            return null;
+        }
+
+        @Override
+        public SearchType searchType() {
+            return null;
+        }
+
+        @Override
+        public SearchContext searchType(SearchType searchType) {
+            return null;
+        }
+
+        @Override
+        public SearchShardTarget shardTarget() {
+            return null;
+        }
+
+        @Override
+        public int numberOfShards() {
+            return 0;
+        }
+
+        @Override
+        public boolean hasTypes() {
+            return false;
+        }
+
+        @Override
+        public String[] types() {
+            return new String[0];
+        }
+
+        @Override
+        public float queryBoost() {
+            return 0;
+        }
+
+        @Override
+        public SearchContext queryBoost(float queryBoost) {
+            return null;
+        }
+
+        @Override
+        public long nowInMillis() {
+            return 0;
+        }
+
+        @Override
+        public Scroll scroll() {
+            return null;
+        }
+
+        @Override
+        public SearchContext scroll(Scroll scroll) {
+            return null;
+        }
+
+        @Override
+        public SearchContextFacets facets() {
+            return null;
+        }
+
+        @Override
+        public SearchContext facets(SearchContextFacets facets) {
+            return null;
+        }
+
+        private SearchContextHighlight highlight;
+
+        @Override
+        public SearchContextHighlight highlight() {
+            return highlight;
+        }
+
+        @Override
+        public void highlight(SearchContextHighlight highlight) {
+            this.highlight = highlight;
+        }
+
+        @Override
+        public SuggestionSearchContext suggest() {
+            return null;
+        }
+
+        @Override
+        public void suggest(SuggestionSearchContext suggest) {
+        }
+
+        @Override
+        public RescoreSearchContext rescore() {
+            return null;
+        }
+
+        @Override
+        public void rescore(RescoreSearchContext rescore) {
+        }
+
+        @Override
+        public boolean hasScriptFields() {
+            return false;
+        }
+
+        @Override
+        public ScriptFieldsContext scriptFields() {
+            return null;
+        }
+
+        @Override
+        public boolean hasPartialFields() {
+            return false;
+        }
+
+        @Override
+        public PartialFieldsContext partialFields() {
+            return null;
+        }
+
+        @Override
+        public boolean sourceRequested() {
+            return false;
+        }
+
+        @Override
+        public boolean hasFetchSourceContext() {
+            return false;
+        }
+
+        @Override
+        public FetchSourceContext fetchSourceContext() {
+            return null;
+        }
+
+        @Override
+        public SearchContext fetchSourceContext(FetchSourceContext fetchSourceContext) {
+            return null;
+        }
+
+        @Override
+        public ContextIndexSearcher searcher() {
+            return null;
+        }
+
+        @Override
+        public IndexShard indexShard() {
+            return null;
+        }
+
+        @Override
+        public MapperService mapperService() {
+            return percolateIndexService.mapperService();
+        }
+
+        @Override
+        public AnalysisService analysisService() {
+            return null;
+        }
+
+        @Override
+        public IndexQueryParserService queryParserService() {
+            return null;
+        }
+
+        @Override
+        public SimilarityService similarityService() {
+            return null;
+        }
+
+        @Override
+        public ScriptService scriptService() {
+            return null;
+        }
+
+        @Override
+        public CacheRecycler cacheRecycler() {
+            return null;
+        }
+
+        @Override
+        public FilterCache filterCache() {
+            return null;
+        }
+
+        @Override
+        public DocSetCache docSetCache() {
+            return null;
+        }
+
+        @Override
+        public IndexFieldDataService fieldData() {
+            return fieldDataService;
+        }
+
+        @Override
+        public IdCache idCache() {
+            return null;
+        }
+
+        @Override
+        public long timeoutInMillis() {
+            return 0;
+        }
+
+        @Override
+        public void timeoutInMillis(long timeoutInMillis) {
+        }
+
+        @Override
+        public SearchContext minimumScore(float minimumScore) {
+            return null;
+        }
+
+        @Override
+        public Float minimumScore() {
+            return null;
+        }
+
+        @Override
+        public SearchContext sort(Sort sort) {
+            return null;
+        }
+
+        @Override
+        public Sort sort() {
+            return null;
+        }
+
+        @Override
+        public SearchContext trackScores(boolean trackScores) {
+            return null;
+        }
+
+        @Override
+        public boolean trackScores() {
+            return false;
+        }
+
+        @Override
+        public SearchContext parsedFilter(ParsedFilter filter) {
+            return null;
+        }
+
+        @Override
+        public ParsedFilter parsedFilter() {
+            return null;
+        }
+
+        @Override
+        public Filter aliasFilter() {
+            return null;
+        }
+
+        private ParsedQuery parsedQuery;
+
+        @Override
+        public SearchContext parsedQuery(ParsedQuery query) {
+            this.parsedQuery = query;
+            return this;
+        }
+
+        @Override
+        public ParsedQuery parsedQuery() {
+            return parsedQuery;
+        }
+
+        @Override
+        public Query query() {
+            return null;
+        }
+
+        @Override
+        public boolean queryRewritten() {
+            return false;
+        }
+
+        @Override
+        public SearchContext updateRewriteQuery(Query rewriteQuery) {
+            return null;
+        }
+
+        @Override
+        public int from() {
+            return 0;
+        }
+
+        @Override
+        public SearchContext from(int from) {
+            return null;
+        }
+
+        @Override
+        public int size() {
+            return 0;
+        }
+
+        @Override
+        public SearchContext size(int size) {
+            return null;
+        }
+
+        @Override
+        public boolean hasFieldNames() {
+            return false;
+        }
+
+        @Override
+        public List<String> fieldNames() {
+            return null;
+        }
+
+        @Override
+        public void emptyFieldNames() {
+        }
+
+        @Override
+        public boolean explain() {
+            return false;
+        }
+
+        @Override
+        public void explain(boolean explain) {
+        }
+
+        @Override
+        public List<String> groupStats() {
+            return null;
+        }
+
+        @Override
+        public void groupStats(List<String> groupStats) {
+        }
+
+        @Override
+        public boolean version() {
+            return false;
+        }
+
+        @Override
+        public void version(boolean version) {
+        }
+
+        @Override
+        public int[] docIdsToLoad() {
+            return new int[0];
+        }
+
+        @Override
+        public int docIdsToLoadFrom() {
+            return 0;
+        }
+
+        @Override
+        public int docIdsToLoadSize() {
+            return 0;
+        }
+
+        @Override
+        public SearchContext docIdsToLoad(int[] docIdsToLoad, int docsIdsToLoadFrom, int docsIdsToLoadSize) {
+            return null;
+        }
+
+        @Override
+        public void accessed(long accessTime) {
+        }
+
+        @Override
+        public long lastAccessTime() {
+            return 0;
+        }
+
+        @Override
+        public long keepAlive() {
+            return 0;
+        }
+
+        @Override
+        public void keepAlive(long keepAlive) {
+        }
+
+        private SearchLookup searchLookup;
+
+        @Override
+        public SearchLookup lookup() {
+            if (searchLookup == null) {
+                searchLookup = new SearchLookup(mapperService(), fieldData(), new String[] {documentType});
+            }
+            return searchLookup;
+        }
+
+        @Override
+        public DfsSearchResult dfsResult() {
+            return null;
+        }
+
+        @Override
+        public QuerySearchResult queryResult() {
+            return null;
+        }
+
+        @Override
+        public FetchSearchResult fetchResult() {
+            return null;
+        }
+
+        @Override
+        public void addRewrite(Rewrite rewrite) {
+        }
+
+        @Override
+        public List<Rewrite> rewrites() {
+            return null;
+        }
+
+        @Override
+        public ScanContext scanContext() {
+            return null;
+        }
+
+        @Override
+        public MapperService.SmartNameFieldMappers smartFieldMappers(String name) {
+            return null;
+        }
+
+        @Override
+        public FieldMappers smartNameFieldMappers(String name) {
+            return null;
+        }
+
+        @Override
+        public FieldMapper smartNameFieldMapper(String name) {
+            return null;
+        }
+
+        @Override
+        public MapperService.SmartNameObjectMapper smartNameObjectMapper(String name) {
+            return null;
+        }
+
+        @Override
+        public boolean release() throws ElasticSearchException {
+            return true;
+        }
     }
 
 }
