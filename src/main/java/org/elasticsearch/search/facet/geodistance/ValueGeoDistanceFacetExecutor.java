@@ -19,15 +19,14 @@
 
 package org.elasticsearch.search.facet.geodistance;
 
-import java.io.IOException;
-
 import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.search.internal.SearchContext;
+
+import java.io.IOException;
 
 /**
  *
@@ -37,8 +36,8 @@ public class ValueGeoDistanceFacetExecutor extends GeoDistanceFacetExecutor {
     private final IndexNumericFieldData valueIndexFieldData;
 
     public ValueGeoDistanceFacetExecutor(IndexGeoPointFieldData indexFieldData, double lat, double lon, DistanceUnit unit, GeoDistance geoDistance,
-                                         GeoDistanceFacet.Entry[] entries, SearchContext context, IndexNumericFieldData valueIndexFieldData) {
-        super(indexFieldData, lat, lon, unit, geoDistance, entries, context);
+                                         GeoDistanceFacet.Entry[] entries, IndexNumericFieldData valueIndexFieldData) {
+        super(indexFieldData, lat, lon, unit, geoDistance, entries);
         this.valueIndexFieldData = valueIndexFieldData;
     }
 

@@ -26,8 +26,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchSubPhase;
+import org.elasticsearch.search.internal.FetchContext;
 import org.elasticsearch.search.internal.InternalSearchHit;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -49,21 +49,21 @@ public class FetchSourceSubPhase implements FetchSubPhase {
     }
 
     @Override
-    public boolean hitsExecutionNeeded(SearchContext context) {
+    public boolean hitsExecutionNeeded(FetchContext context) {
         return false;
     }
 
     @Override
-    public void hitsExecute(SearchContext context, InternalSearchHit[] hits) throws ElasticSearchException {
+    public void hitsExecute(FetchContext context, InternalSearchHit[] hits) throws ElasticSearchException {
     }
 
     @Override
-    public boolean hitExecutionNeeded(SearchContext context) {
+    public boolean hitExecutionNeeded(FetchContext context) {
         return context.sourceRequested();
     }
 
     @Override
-    public void hitExecute(SearchContext context, HitContext hitContext) throws ElasticSearchException {
+    public void hitExecute(FetchContext context, HitContext hitContext) throws ElasticSearchException {
         FetchSourceContext fetchSourceContext = context.fetchSourceContext();
         assert fetchSourceContext.fetchSource();
         if (fetchSourceContext.includes().length == 0 && fetchSourceContext.excludes().length == 0) {

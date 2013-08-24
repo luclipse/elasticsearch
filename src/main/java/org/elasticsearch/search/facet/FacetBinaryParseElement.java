@@ -22,7 +22,7 @@ package org.elasticsearch.search.facet;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchParseContext;
 
 /**
  *
@@ -35,7 +35,7 @@ public class FacetBinaryParseElement extends FacetParseElement {
     }
 
     @Override
-    public void parse(XContentParser parser, SearchContext context) throws Exception {
+    public void parse(XContentParser parser, SearchParseContext context) throws Exception {
         byte[] facetSource = parser.binaryValue();
         XContentParser fSourceParser = XContentFactory.xContent(facetSource).createParser(facetSource);
         try {

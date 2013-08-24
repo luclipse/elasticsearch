@@ -32,7 +32,7 @@ import org.elasticsearch.search.facet.DoubleFacetAggregatorBase;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
 import org.elasticsearch.search.facet.termsstats.TermsStatsFacet;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchParseContext;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -53,7 +53,7 @@ public class TermsStatsDoubleFacetExecutor extends FacetExecutor {
     long missing;
 
     public TermsStatsDoubleFacetExecutor(IndexNumericFieldData keyIndexFieldData, IndexNumericFieldData valueIndexFieldData, SearchScript script,
-                                         int size, TermsStatsFacet.ComparatorType comparatorType, SearchContext context) {
+                                         int size, TermsStatsFacet.ComparatorType comparatorType, SearchParseContext context) {
         this.size = size;
         this.comparatorType = comparatorType;
         this.keyIndexFieldData = keyIndexFieldData;

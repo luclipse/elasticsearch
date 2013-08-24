@@ -25,7 +25,6 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.search.facet.DoubleFacetAggregatorBase;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
@@ -38,7 +37,7 @@ public class RangeFacetExecutor extends FacetExecutor {
 
     private final RangeFacet.Entry[] entries;
 
-    public RangeFacetExecutor(IndexNumericFieldData indexFieldData, RangeFacet.Entry[] entries, SearchContext context) {
+    public RangeFacetExecutor(IndexNumericFieldData indexFieldData, RangeFacet.Entry[] entries) {
         this.indexFieldData = indexFieldData;
         this.entries = entries;
     }

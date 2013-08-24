@@ -28,7 +28,7 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.search.facet.DoubleFacetAggregatorBase;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchParseContext;
 
 import java.io.IOException;
 
@@ -44,7 +44,7 @@ public class CountHistogramFacetExecutor extends FacetExecutor {
 
     final Recycler.V<TLongLongHashMap> counts;
 
-    public CountHistogramFacetExecutor(IndexNumericFieldData indexFieldData, long interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
+    public CountHistogramFacetExecutor(IndexNumericFieldData indexFieldData, long interval, HistogramFacet.ComparatorType comparatorType, SearchParseContext context) {
         this.comparatorType = comparatorType;
         this.indexFieldData = indexFieldData;
         this.interval = interval;

@@ -37,7 +37,7 @@ import org.elasticsearch.index.search.nested.NestedFieldComparatorSource;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchParseContext;
 
 import java.util.List;
 
@@ -70,7 +70,7 @@ public class SortParseElement implements SearchParseElement {
     }
 
     @Override
-    public void parse(XContentParser parser, SearchContext context) throws Exception {
+    public void parse(XContentParser parser, SearchParseContext context) throws Exception {
         XContentParser.Token token = parser.currentToken();
         List<SortField> sortFields = Lists.newArrayListWithCapacity(2);
         if (token == XContentParser.Token.START_ARRAY) {
@@ -109,7 +109,7 @@ public class SortParseElement implements SearchParseElement {
         }
     }
 
-    private void addCompoundSortField(XContentParser parser, SearchContext context, List<SortField> sortFields) throws Exception {
+    private void addCompoundSortField(XContentParser parser, SearchParseContext context, List<SortField> sortFields) throws Exception {
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -174,7 +174,7 @@ public class SortParseElement implements SearchParseElement {
         }
     }
 
-    private void addSortField(SearchContext context, List<SortField> sortFields, String fieldName, boolean reverse, boolean ignoreUnmapped, @Nullable final String missing, SortMode sortMode, String nestedPath, Filter nestedFilter) {
+    private void addSortField(SearchParseContext context, List<SortField> sortFields, String fieldName, boolean reverse, boolean ignoreUnmapped, @Nullable final String missing, SortMode sortMode, String nestedPath, Filter nestedFilter) {
         if (SCORE_FIELD_NAME.equals(fieldName)) {
             if (reverse) {
                 sortFields.add(SORT_SCORE_REVERSE);

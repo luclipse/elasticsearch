@@ -21,7 +21,7 @@ package org.elasticsearch.search.fetch.explain;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseElement;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchParseContext;
 
 /**
  *
@@ -29,7 +29,7 @@ import org.elasticsearch.search.internal.SearchContext;
 public class ExplainParseElement implements SearchParseElement {
 
     @Override
-    public void parse(XContentParser parser, SearchContext context) throws Exception {
+    public void parse(XContentParser parser, SearchParseContext context) throws Exception {
         XContentParser.Token token = parser.currentToken();
         if (token.isValue()) {
             context.explain(parser.booleanValue());

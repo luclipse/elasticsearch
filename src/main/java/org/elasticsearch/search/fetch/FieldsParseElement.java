@@ -23,7 +23,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchParseContext;
 
 /**
  *
@@ -31,7 +31,7 @@ import org.elasticsearch.search.internal.SearchContext;
 public class FieldsParseElement implements SearchParseElement {
 
     @Override
-    public void parse(XContentParser parser, SearchContext context) throws Exception {
+    public void parse(XContentParser parser, SearchParseContext context) throws Exception {
         XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.START_ARRAY) {
             boolean added = false;

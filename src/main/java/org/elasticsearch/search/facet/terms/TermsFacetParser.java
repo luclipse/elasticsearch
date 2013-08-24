@@ -41,7 +41,7 @@ import org.elasticsearch.search.facet.terms.strings.ScriptTermsStringFieldFacetE
 import org.elasticsearch.search.facet.terms.strings.TermsStringFacetExecutor;
 import org.elasticsearch.search.facet.terms.strings.TermsStringOrdinalsFacetExecutor;
 import org.elasticsearch.search.facet.terms.unmapped.UnmappedFieldExecutor;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchParseContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -79,7 +79,7 @@ public class TermsFacetParser extends AbstractComponent implements FacetParser {
     }
 
     @Override
-    public FacetExecutor parse(String facetName, XContentParser parser, SearchContext context) throws IOException {
+    public FacetExecutor parse(String facetName, XContentParser parser, SearchParseContext context) throws IOException {
         String field = null;
         int size = 10;
 
@@ -190,17 +190,17 @@ public class TermsFacetParser extends AbstractComponent implements FacetParser {
         if (indexFieldData instanceof IndexNumericFieldData) {
             IndexNumericFieldData indexNumericFieldData = (IndexNumericFieldData) indexFieldData;
             if (indexNumericFieldData.getNumericType().isFloatingPoint()) {
-                return new TermsDoubleFacetExecutor(indexNumericFieldData, size, comparatorType, allTerms, context, excluded, searchScript, context.cacheRecycler());
+                return new TermsDoubleFacetExecutor(indexNumericFieldData, size, comparatorType, allTerms, excluded, searchScript, context.cacheRecycler());
             } else {
-                return new TermsLongFacetExecutor(indexNumericFieldData, size, comparatorType, allTerms, context, excluded, searchScript, context.cacheRecycler());
+                return new TermsLongFacetExecutor(indexNumericFieldData, size, comparatorType, allTerms, excluded, searchScript, context.cacheRecycler());
             }
         } else {
             if (script != null || "map".equals(executionHint)) {
-                return new TermsStringFacetExecutor(indexFieldData, size, comparatorType, allTerms, context, excluded, pattern, searchScript);
+                return new TermsStringFacetExecutor(indexFieldData, size, comparatorType, allTerms, excluded, pattern, searchScript);
             } else if (indexFieldData instanceof IndexFieldData.WithOrdinals) {
                 return new TermsStringOrdinalsFacetExecutor((IndexFieldData.WithOrdinals) indexFieldData, size, comparatorType, allTerms, context, excluded, pattern, ordinalsCacheAbove);
             } else {
-                return new TermsStringFacetExecutor(indexFieldData, size, comparatorType, allTerms, context, excluded, pattern, searchScript);
+                return new TermsStringFacetExecutor(indexFieldData, size, comparatorType, allTerms, excluded, pattern, searchScript);
             }
         }
     }

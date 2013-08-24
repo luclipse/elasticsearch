@@ -17,15 +17,17 @@ package org.elasticsearch.search.rescore;
  * specific language governing permissions and limitations
  * under the License.
  */
-import java.io.IOException;
-import java.util.Set;
-
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.search.internal.FetchContext;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchParseContext;
+
+import java.io.IOException;
+import java.util.Set;
 
 /**
  * A query rescorer interface used to re-rank the Top-K results of a previously 
@@ -50,23 +52,24 @@ public interface Rescorer {
     public void rescore(TopDocs topDocs, SearchContext context, RescoreSearchContext rescoreContext) throws IOException;
     
     /**
-     * Executes an {@link Explanation} phase on the rescorer. 
+     * Executes an {@link Explanation} phase on the rescorer.
      * @param topLevelDocId the global / top-level document ID to explain
-     * @param context the current {@link SearchContext}
+     * @param context the current {@link FetchContext}
      * @param rescoreContext TODO
      * @return the explain for the given top level document ID.
      * @throws IOException if an {@link IOException} occurs
      */
-    public Explanation explain(int topLevelDocId, SearchContext context, RescoreSearchContext rescoreContext) throws IOException;
+    public Explanation explain(int topLevelDocId, FetchContext context, RescoreSearchContext rescoreContext) throws IOException;
     
     /**
      * Parses the {@link RescoreSearchContext} for this impelementation
+     *
      * @param parser the parser to read the context from
      * @param context the current search context
      * @return the parsed {@link RescoreSearchContext}
      * @throws IOException if an {@link IOException} occurs while parsing the context
      */
-    public RescoreSearchContext parse(XContentParser parser, SearchContext context) throws IOException;
+    public RescoreSearchContext parse(XContentParser parser, SearchParseContext context) throws IOException;
 
     /**
      * Extracts all terms needed to exectue this {@link Rescorer}. This method

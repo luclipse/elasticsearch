@@ -28,7 +28,7 @@ import org.apache.lucene.search.vectorhighlight.BoundaryScanner;
 import org.apache.lucene.search.vectorhighlight.XFieldFragList.WeightedFragInfo;
 import org.apache.lucene.search.vectorhighlight.XScoreOrderFragmentsBuilder;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.FetchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -41,9 +41,9 @@ public class SourceScoreOrderFragmentsBuilder extends XScoreOrderFragmentsBuilde
 
     private final FieldMapper<?> mapper;
 
-    private final SearchContext searchContext;
+    private final FetchContext searchContext;
 
-    public SourceScoreOrderFragmentsBuilder(FieldMapper<?> mapper, SearchContext searchContext,
+    public SourceScoreOrderFragmentsBuilder(FieldMapper<?> mapper, FetchContext searchContext,
                                             String[] preTags, String[] postTags, BoundaryScanner boundaryScanner) {
         super(preTags, postTags, boundaryScanner);
         this.mapper = mapper;

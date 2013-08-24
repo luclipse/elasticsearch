@@ -20,12 +20,12 @@
 package org.elasticsearch.search;
 
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchParseContext;
 
 /**
  *
  */
 public interface SearchParseElement {
 
-    void parse(XContentParser parser, SearchContext context) throws Exception;
+    void parse(XContentParser parser, SearchParseContext context) throws Exception;
 }

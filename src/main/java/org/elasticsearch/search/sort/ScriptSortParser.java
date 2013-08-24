@@ -33,7 +33,7 @@ import org.elasticsearch.index.search.nested.NestedFieldComparatorSource;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.SearchParseException;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchParseContext;
 
 import java.util.Map;
 
@@ -48,7 +48,7 @@ public class ScriptSortParser implements SortParser {
     }
 
     @Override
-    public SortField parse(XContentParser parser, SearchContext context) throws Exception {
+    public SortField parse(XContentParser parser, SearchParseContext context) throws Exception {
         String script = null;
         String scriptLang = null;
         String type = null;

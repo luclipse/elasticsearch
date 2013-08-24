@@ -32,8 +32,8 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchSubPhase;
+import org.elasticsearch.search.internal.FetchContext;
 import org.elasticsearch.search.internal.InternalSearchHit;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.Map;
 import java.util.Set;
@@ -59,21 +59,21 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
     }
 
     @Override
-    public boolean hitsExecutionNeeded(SearchContext context) {
+    public boolean hitsExecutionNeeded(FetchContext context) {
         return false;
     }
 
     @Override
-    public void hitsExecute(SearchContext context, InternalSearchHit[] hits) throws ElasticSearchException {
+    public void hitsExecute(FetchContext context, InternalSearchHit[] hits) throws ElasticSearchException {
     }
 
     @Override
-    public boolean hitExecutionNeeded(SearchContext context) {
+    public boolean hitExecutionNeeded(FetchContext context) {
         return context.highlight() != null;
     }
 
     @Override
-    public void hitExecute(SearchContext context, HitContext hitContext) throws ElasticSearchException {
+    public void hitExecute(FetchContext context, HitContext hitContext) throws ElasticSearchException {
         Map<String, HighlightField> highlightFields = newHashMap();
         for (SearchContextHighlight.Field field : context.highlight().fields()) {
             Set<String> fieldNamesToHighlight;
@@ -85,7 +85,7 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
             }
 
             for (String fieldName : fieldNamesToHighlight) {
-                FieldMapper<?> fieldMapper = getMapperForField(fieldName, context, hitContext);
+                FieldMapper<?> fieldMapper = getMapperForField(fieldName, context.mapperService(), hitContext);
                 if (fieldMapper == null) {
                     continue;
                 }
@@ -111,11 +111,11 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
         hitContext.hit().highlightFields(highlightFields);
     }
 
-    private FieldMapper<?> getMapperForField(String fieldName, SearchContext searchContext, HitContext hitContext) {
-        DocumentMapper documentMapper = searchContext.mapperService().documentMapper(hitContext.hit().type());
+    private FieldMapper<?> getMapperForField(String fieldName, MapperService mapperService, HitContext hitContext) {
+        DocumentMapper documentMapper = mapperService.documentMapper(hitContext.hit().type());
         FieldMapper<?> mapper = documentMapper.mappers().smartNameFieldMapper(fieldName);
         if (mapper == null) {
-            MapperService.SmartNameFieldMappers fullMapper = searchContext.mapperService().smartName(fieldName);
+            MapperService.SmartNameFieldMappers fullMapper = mapperService.smartName(fieldName);
             if (fullMapper == null || !fullMapper.hasDocMapper() || fullMapper.docMapper().type().equals(hitContext.hit().type())) {
                 return null;
             }

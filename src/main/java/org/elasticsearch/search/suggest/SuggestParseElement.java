@@ -24,7 +24,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.SearchParseElement;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchParseContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 
 import java.io.IOException;
@@ -44,7 +44,7 @@ public final class SuggestParseElement implements SearchParseElement {
     }
 
     @Override
-    public void parse(XContentParser parser, SearchContext context) throws Exception {
+    public void parse(XContentParser parser, SearchParseContext context) throws Exception {
         SuggestionSearchContext suggestionSearchContext = parseInternal(parser, context.mapperService(), context.shardTarget().index(), context.shardTarget().shardId());
         context.suggest(suggestionSearchContext);
     }

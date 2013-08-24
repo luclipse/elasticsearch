@@ -20,7 +20,7 @@
 package org.elasticsearch.search.facet;
 
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchParseContext;
 
 import java.io.IOException;
 
@@ -49,5 +49,5 @@ public interface FacetParser {
     /**
      * Parses the facet into a {@link FacetExecutor}.
      */
-    FacetExecutor parse(String facetName, XContentParser parser, SearchContext context) throws IOException;
+    FacetExecutor parse(String facetName, XContentParser parser, SearchParseContext context) throws IOException;
 }

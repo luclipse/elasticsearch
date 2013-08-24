@@ -36,7 +36,7 @@ import org.elasticsearch.index.mapper.ObjectMappers;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.search.nested.NestedFieldComparatorSource;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchParseContext;
 
 /**
  *
@@ -49,7 +49,7 @@ public class GeoDistanceSortParser implements SortParser {
     }
 
     @Override
-    public SortField parse(XContentParser parser, SearchContext context) throws Exception {
+    public SortField parse(XContentParser parser, SearchParseContext context) throws Exception {
         String fieldName = null;
         GeoPoint point = new GeoPoint();
         DistanceUnit unit = DistanceUnit.KILOMETERS;

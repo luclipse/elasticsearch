@@ -33,7 +33,7 @@ import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
 import org.elasticsearch.search.facet.terms.support.EntryPriorityQueue;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchParseContext;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -51,18 +51,16 @@ public class ScriptTermsStringFieldFacetExecutor extends FacetExecutor {
     private final SearchScript script;
     private final Matcher matcher;
     private final ImmutableSet<BytesRef> excluded;
-    private final int numberOfShards;
 
     final Recycler.V<TObjectIntHashMap<BytesRef>> facets;
     long missing;
     long total;
 
-    public ScriptTermsStringFieldFacetExecutor(int size, InternalStringTermsFacet.ComparatorType comparatorType, SearchContext context,
+    public ScriptTermsStringFieldFacetExecutor(int size, InternalStringTermsFacet.ComparatorType comparatorType, SearchParseContext context,
                                                ImmutableSet<BytesRef> excluded, Pattern pattern, String scriptLang, String script, Map<String, Object> params,
                                                CacheRecycler cacheRecycler) {
         this.size = size;
         this.comparatorType = comparatorType;
-        this.numberOfShards = context.numberOfShards();
         this.script = context.scriptService().search(context.lookup(), scriptLang, script, params);
 
         this.excluded = excluded;

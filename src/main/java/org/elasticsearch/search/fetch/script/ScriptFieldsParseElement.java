@@ -22,7 +22,7 @@ package org.elasticsearch.search.fetch.script;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.SearchParseElement;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchParseContext;
 
 import java.util.Map;
 
@@ -43,7 +43,7 @@ import java.util.Map;
 public class ScriptFieldsParseElement implements SearchParseElement {
 
     @Override
-    public void parse(XContentParser parser, SearchContext context) throws Exception {
+    public void parse(XContentParser parser, SearchParseContext context) throws Exception {
         XContentParser.Token token;
         String currentFieldName = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {

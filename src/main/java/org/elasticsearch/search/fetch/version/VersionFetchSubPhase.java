@@ -26,8 +26,8 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchSubPhase;
+import org.elasticsearch.search.internal.FetchContext;
 import org.elasticsearch.search.internal.InternalSearchHit;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -43,21 +43,21 @@ public class VersionFetchSubPhase implements FetchSubPhase {
     }
 
     @Override
-    public boolean hitsExecutionNeeded(SearchContext context) {
+    public boolean hitsExecutionNeeded(FetchContext context) {
         return false;
     }
 
     @Override
-    public void hitsExecute(SearchContext context, InternalSearchHit[] hits) throws ElasticSearchException {
+    public void hitsExecute(FetchContext context, InternalSearchHit[] hits) throws ElasticSearchException {
     }
 
     @Override
-    public boolean hitExecutionNeeded(SearchContext context) {
+    public boolean hitExecutionNeeded(FetchContext context) {
         return context.version();
     }
 
     @Override
-    public void hitExecute(SearchContext context, HitContext hitContext) throws ElasticSearchException {
+    public void hitExecute(FetchContext context, HitContext hitContext) throws ElasticSearchException {
         // it might make sense to cache the TermDocs on a shared fetch context and just skip here)
         // it is going to mean we work on the high level multi reader and not the lower level reader as is
         // the case below...

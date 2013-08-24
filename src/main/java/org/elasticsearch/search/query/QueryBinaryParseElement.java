@@ -22,7 +22,7 @@ package org.elasticsearch.search.query;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseElement;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchParseContext;
 
 /**
  *
@@ -30,7 +30,7 @@ import org.elasticsearch.search.internal.SearchContext;
 public class QueryBinaryParseElement implements SearchParseElement {
 
     @Override
-    public void parse(XContentParser parser, SearchContext context) throws Exception {
+    public void parse(XContentParser parser, SearchParseContext context) throws Exception {
         byte[] querySource = parser.binaryValue();
         XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource);
         try {

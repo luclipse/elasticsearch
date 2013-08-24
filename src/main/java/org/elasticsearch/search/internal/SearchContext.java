@@ -20,7 +20,6 @@
 package org.elasticsearch.search.internal;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
@@ -28,7 +27,6 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.search.AndFilter;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
@@ -41,7 +39,6 @@ import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.index.cache.id.IdCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParserService;
@@ -73,7 +70,7 @@ import java.util.List;
 /**
  *
  */
-public class SearchContext implements Releasable {
+public class SearchContext implements FetchContext {
 
     private static ThreadLocal<SearchContext> current = new ThreadLocal<SearchContext>();
 
@@ -106,6 +103,8 @@ public class SearchContext implements Releasable {
 
     private final SearchShardTarget shardTarget;
 
+    private final SearchParseContext searchParseContext;
+
     private SearchType searchType;
 
     private final Engine.Searcher engineSearcher;
@@ -129,40 +128,7 @@ public class SearchContext implements Releasable {
     // lazy initialized only if needed
     private ScanContext scanContext;
 
-    private float queryBoost = 1.0f;
-
-    // timeout in millis
-    private long timeoutInMillis = -1;
-
-
-    private List<String> groupStats;
-
     private Scroll scroll;
-
-    private boolean explain;
-
-    private boolean version = false; // by default, we don't return versions
-
-    private List<String> fieldNames;
-    private ScriptFieldsContext scriptFields;
-    private PartialFieldsContext partialFields;
-    private FetchSourceContext fetchSourceContext;
-
-    private int from = -1;
-
-    private int size = -1;
-
-    private Sort sort;
-
-    private Float minimumScore;
-
-    private boolean trackScores = false; // when sorting, track scores as well...
-
-    private ParsedQuery originalQuery;
-
-    private Query query;
-
-    private ParsedFilter filter;
 
     private Filter aliasFilter;
 
@@ -171,14 +137,6 @@ public class SearchContext implements Releasable {
     private int docsIdsToLoadFrom;
 
     private int docsIdsToLoadSize;
-
-    private SearchContextFacets facets;
-
-    private SearchContextHighlight highlight;
-
-    private SuggestionSearchContext suggest;
-
-    private RescoreSearchContext rescore;
 
     private SearchLookup searchLookup;
 
@@ -198,6 +156,7 @@ public class SearchContext implements Releasable {
         this.request = request;
         this.searchType = request.searchType();
         this.shardTarget = shardTarget;
+        this.searchParseContext = new SearchParseContext(shardTarget, indexService, request.types(), scriptService, cacheRecycler);
         this.engineSearcher = engineSearcher;
         this.scriptService = scriptService;
         this.cacheRecycler = cacheRecycler;
@@ -211,22 +170,6 @@ public class SearchContext implements Releasable {
 
         // initialize the filtering alias based on the provided filters
         aliasFilter = indexService.aliasesService().aliasFilter(request.filteringAliases());
-    }
-
-    public SearchContext() {
-        this.id = -1;
-        this.request = null;
-        this.searchType = null;
-        this.shardTarget = null;
-        this.engineSearcher = null;
-        this.scriptService = null;
-        this.cacheRecycler = null;
-        this.dfsResult = null;
-        this.queryResult = null;
-        this.fetchResult = null;
-        this.indexShard = null;
-        this.indexService = null;
-        this.searcher = null;
     }
 
     @Override
@@ -253,7 +196,7 @@ public class SearchContext implements Releasable {
             parsedQuery(ParsedQuery.parsedMatchAllQuery());
         }
         if (queryBoost() != 1.0f) {
-            parsedQuery(new ParsedQuery(new FunctionScoreQuery(query(), new BoostScoreFunction(queryBoost)), parsedQuery()));
+            parsedQuery(new ParsedQuery(new FunctionScoreQuery(query(), new BoostScoreFunction(searchParseContext.queryBoost())), parsedQuery()));
         }
         Filter searchFilter = searchFilter(types());
         if (searchFilter != null) {
@@ -301,6 +244,10 @@ public class SearchContext implements Releasable {
         return this.shardTarget;
     }
 
+    public SearchParseContext searchParseContext() {
+        return searchParseContext;
+    }
+
     public int numberOfShards() {
         return request.numberOfShards();
     }
@@ -314,12 +261,7 @@ public class SearchContext implements Releasable {
     }
 
     public float queryBoost() {
-        return queryBoost;
-    }
-
-    public SearchContext queryBoost(float queryBoost) {
-        this.queryBoost = queryBoost;
-        return this;
+        return searchParseContext.queryBoost();
     }
 
     public long nowInMillis() {
@@ -336,79 +278,55 @@ public class SearchContext implements Releasable {
     }
 
     public SearchContextFacets facets() {
-        return facets;
-    }
-
-    public SearchContext facets(SearchContextFacets facets) {
-        this.facets = facets;
-        return this;
+        return searchParseContext.facets();
     }
 
     public SearchContextHighlight highlight() {
-        return highlight;
-    }
-
-    public void highlight(SearchContextHighlight highlight) {
-        this.highlight = highlight;
+        return searchParseContext.highlight();
     }
 
     public SuggestionSearchContext suggest() {
-        return suggest;
-    }
-
-    public void suggest(SuggestionSearchContext suggest) {
-        this.suggest = suggest;
+        return searchParseContext.suggest();
     }
 
     public RescoreSearchContext rescore() {
-        return this.rescore;
-    }
-
-    public void rescore(RescoreSearchContext rescore) {
-        this.rescore = rescore;
+        return searchParseContext.rescore();
     }
 
     public boolean hasScriptFields() {
-        return scriptFields != null;
+        return searchParseContext.hasScriptFields();
     }
 
     public ScriptFieldsContext scriptFields() {
-        if (scriptFields == null) {
-            scriptFields = new ScriptFieldsContext();
-        }
-        return this.scriptFields;
+        return searchParseContext.scriptFields();
     }
 
     public boolean hasPartialFields() {
-        return partialFields != null;
+        return searchParseContext.hasPartialFields();
     }
 
     public PartialFieldsContext partialFields() {
-        if (partialFields == null) {
-            partialFields = new PartialFieldsContext();
-        }
-        return this.partialFields;
+        return searchParseContext.partialFields();
     }
 
     /**
      * A shortcut function to see whether there is a fetchSourceContext and it says the source is requested.
-     *
-     * @return
      */
     public boolean sourceRequested() {
-        return fetchSourceContext != null && fetchSourceContext.fetchSource();
+        return searchParseContext.sourceRequested();
     }
 
     public boolean hasFetchSourceContext() {
-        return fetchSourceContext != null;
+        return searchParseContext.fetchSourceContext() != null;
     }
 
     public FetchSourceContext fetchSourceContext() {
-        return this.fetchSourceContext;
+        return searchParseContext.fetchSourceContext();
     }
 
+    // TODO: check
     public SearchContext fetchSourceContext(FetchSourceContext fetchSourceContext) {
-        this.fetchSourceContext = fetchSourceContext;
+        this.searchParseContext.fetchSourceContext(fetchSourceContext);
         return this;
     }
 
@@ -461,47 +379,28 @@ public class SearchContext implements Releasable {
     }
 
     public long timeoutInMillis() {
-        return timeoutInMillis;
-    }
-
-    public void timeoutInMillis(long timeoutInMillis) {
-        this.timeoutInMillis = timeoutInMillis;
+        return searchParseContext.timeoutInMillis();
     }
 
     public SearchContext minimumScore(float minimumScore) {
-        this.minimumScore = minimumScore;
+        searchParseContext.minimumScore(minimumScore);
         return this;
     }
 
     public Float minimumScore() {
-        return this.minimumScore;
-    }
-
-    public SearchContext sort(Sort sort) {
-        this.sort = sort;
-        return this;
+        return searchParseContext.minimumScore();
     }
 
     public Sort sort() {
-        return this.sort;
-    }
-
-    public SearchContext trackScores(boolean trackScores) {
-        this.trackScores = trackScores;
-        return this;
+        return searchParseContext.sort();
     }
 
     public boolean trackScores() {
-        return this.trackScores;
-    }
-
-    public SearchContext parsedFilter(ParsedFilter filter) {
-        this.filter = filter;
-        return this;
+        return searchParseContext.trackScores();
     }
 
     public ParsedFilter parsedFilter() {
-        return this.filter;
+        return searchParseContext.parsedFilter();
     }
 
     public Filter aliasFilter() {
@@ -510,20 +409,19 @@ public class SearchContext implements Releasable {
 
     public SearchContext parsedQuery(ParsedQuery query) {
         queryRewritten = false;
-        this.originalQuery = query;
-        this.query = query.query();
+        searchParseContext.parsedQuery(query);
         return this;
     }
 
     public ParsedQuery parsedQuery() {
-        return this.originalQuery;
+        return searchParseContext.parsedQuery();
     }
 
     /**
      * The query to execute, might be rewritten.
      */
     public Query query() {
-        return this.query;
+        return searchParseContext.query();
     }
 
     /**
@@ -537,67 +435,48 @@ public class SearchContext implements Releasable {
      * Rewrites the query and updates it. Only happens once.
      */
     public SearchContext updateRewriteQuery(Query rewriteQuery) {
-        query = rewriteQuery;
+        searchParseContext.query(rewriteQuery);
         queryRewritten = true;
         return this;
     }
 
     public int from() {
-        return from;
+        return searchParseContext.from();
     }
 
     public SearchContext from(int from) {
-        this.from = from;
+        this.searchParseContext.from(from);
         return this;
     }
 
     public int size() {
-        return size;
+        return searchParseContext.size();
     }
 
     public SearchContext size(int size) {
-        this.size = size;
+        this.searchParseContext.size(size);
         return this;
     }
 
     public boolean hasFieldNames() {
-        return fieldNames != null;
+        return searchParseContext.hasFieldNames();
     }
 
     public List<String> fieldNames() {
-        if (fieldNames == null) {
-            fieldNames = Lists.newArrayList();
-        }
-        return fieldNames;
-    }
-
-    public void emptyFieldNames() {
-        this.fieldNames = ImmutableList.of();
+        return searchParseContext.fieldNames();
     }
 
     public boolean explain() {
-        return explain;
-    }
-
-    public void explain(boolean explain) {
-        this.explain = explain;
+        return searchParseContext.explain();
     }
 
     @Nullable
     public List<String> groupStats() {
-        return this.groupStats;
-    }
-
-    public void groupStats(List<String> groupStats) {
-        this.groupStats = groupStats;
+        return searchParseContext.groupStats();
     }
 
     public boolean version() {
-        return version;
-    }
-
-    public void version(boolean version) {
-        this.version = version;
+        return searchParseContext.version();
     }
 
     public int[] docIdsToLoad() {
@@ -673,19 +552,8 @@ public class SearchContext implements Releasable {
         return scanContext;
     }
 
-    public MapperService.SmartNameFieldMappers smartFieldMappers(String name) {
-        return mapperService().smartName(name, request.types());
-    }
-
     public FieldMappers smartNameFieldMappers(String name) {
         return mapperService().smartNameFieldMappers(name, request.types());
     }
 
-    public FieldMapper smartNameFieldMapper(String name) {
-        return mapperService().smartNameFieldMapper(name, request.types());
-    }
-
-    public MapperService.SmartNameObjectMapper smartNameObjectMapper(String name) {
-        return mapperService().smartNameObjectMapper(name, request.types());
-    }
 }

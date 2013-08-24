@@ -33,7 +33,7 @@ import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.highlight.vectorhighlight.SimpleFragmentsBuilder;
 import org.elasticsearch.search.highlight.vectorhighlight.SourceScoreOrderFragmentsBuilder;
 import org.elasticsearch.search.highlight.vectorhighlight.SourceSimpleFragmentsBuilder;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.FetchContext;
 
 import java.util.Map;
 
@@ -60,7 +60,7 @@ public class FastVectorHighlighter implements Highlighter {
     @Override
     public HighlightField highlight(HighlighterContext highlighterContext) {
         SearchContextHighlight.Field field = highlighterContext.field;
-        SearchContext context = highlighterContext.context;
+        FetchContext context = highlighterContext.context;
         FetchSubPhase.HitContext hitContext = highlighterContext.hitContext;
         FieldMapper<?> mapper = highlighterContext.mapper;
 

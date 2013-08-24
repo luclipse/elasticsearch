@@ -60,8 +60,8 @@ public class TermsLongFacetExecutor extends FacetExecutor {
     long missing;
     long total;
 
-    public TermsLongFacetExecutor(IndexNumericFieldData indexFieldData, int size, TermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
-                                  ImmutableSet<BytesRef> excluded, SearchScript script, CacheRecycler cacheRecycler) {
+    public TermsLongFacetExecutor(IndexNumericFieldData indexFieldData, int size, TermsFacet.ComparatorType comparatorType,
+                                  boolean allTerms, ImmutableSet<BytesRef> excluded, SearchScript script, CacheRecycler cacheRecycler) {
         this.indexFieldData = indexFieldData;
         this.size = size;
         this.comparatorType = comparatorType;
@@ -70,7 +70,8 @@ public class TermsLongFacetExecutor extends FacetExecutor {
         this.facets = cacheRecycler.longIntMap(-1);
 
         if (allTerms) {
-            for (AtomicReaderContext readerContext : context.searcher().getTopReaderContext().leaves()) {
+            SearchContext searchContext = SearchContext.current();
+            for (AtomicReaderContext readerContext : searchContext.searcher().getTopReaderContext().leaves()) {
                 int maxDoc = readerContext.reader().maxDoc();
                 LongValues values = indexFieldData.load(readerContext).getLongValues();
                 if (values instanceof LongValues.WithOrdinals) {

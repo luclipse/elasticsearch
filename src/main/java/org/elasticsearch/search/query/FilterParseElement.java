@@ -22,7 +22,7 @@ package org.elasticsearch.search.query;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.ParsedFilter;
 import org.elasticsearch.search.SearchParseElement;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchParseContext;
 
 /**
  *
@@ -30,7 +30,7 @@ import org.elasticsearch.search.internal.SearchContext;
 public class FilterParseElement implements SearchParseElement {
 
     @Override
-    public void parse(XContentParser parser, SearchContext context) throws Exception {
+    public void parse(XContentParser parser, SearchParseContext context) throws Exception {
         ParsedFilter filter = context.queryParserService().parseInnerFilter(parser);
         if (filter == null) {
             filter = ParsedFilter.EMPTY;

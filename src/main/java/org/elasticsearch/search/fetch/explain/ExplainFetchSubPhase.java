@@ -20,14 +20,13 @@
 package org.elasticsearch.search.fetch.explain;
 
 import com.google.common.collect.ImmutableMap;
-
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
+import org.elasticsearch.search.internal.FetchContext;
 import org.elasticsearch.search.internal.InternalSearchHit;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.rescore.Rescorer;
 
@@ -45,21 +44,21 @@ public class ExplainFetchSubPhase implements FetchSubPhase {
     }
 
     @Override
-    public boolean hitsExecutionNeeded(SearchContext context) {
+    public boolean hitsExecutionNeeded(FetchContext context) {
         return false;
     }
 
     @Override
-    public void hitsExecute(SearchContext context, InternalSearchHit[] hits) throws ElasticSearchException {
+    public void hitsExecute(FetchContext context, InternalSearchHit[] hits) throws ElasticSearchException {
     }
 
     @Override
-    public boolean hitExecutionNeeded(SearchContext context) {
+    public boolean hitExecutionNeeded(FetchContext context) {
         return context.explain();
     }
 
     @Override
-    public void hitExecute(SearchContext context, HitContext hitContext) throws ElasticSearchException {
+    public void hitExecute(FetchContext context, HitContext hitContext) throws ElasticSearchException {
         try {
             final int topLevelDocId = hitContext.hit().docId();
             Explanation explanation;

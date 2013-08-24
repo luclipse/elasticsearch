@@ -24,7 +24,7 @@ import org.apache.lucene.search.Scorer;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchParseContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -39,7 +39,7 @@ public class ScriptRangeFacetExecutor extends FacetExecutor {
 
     private final RangeFacet.Entry[] entries;
 
-    public ScriptRangeFacetExecutor(String scriptLang, String keyScript, String valueScript, Map<String, Object> params, RangeFacet.Entry[] entries, SearchContext context) {
+    public ScriptRangeFacetExecutor(String scriptLang, String keyScript, String valueScript, Map<String, Object> params, RangeFacet.Entry[] entries, SearchParseContext context) {
         this.keyScript = context.scriptService().search(context.lookup(), scriptLang, keyScript, params);
         this.valueScript = context.scriptService().search(context.lookup(), scriptLang, valueScript, params);
         this.entries = entries;

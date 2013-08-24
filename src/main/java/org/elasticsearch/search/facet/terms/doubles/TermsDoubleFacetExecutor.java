@@ -60,8 +60,8 @@ public class TermsDoubleFacetExecutor extends FacetExecutor {
     long missing;
     long total;
 
-    public TermsDoubleFacetExecutor(IndexNumericFieldData indexFieldData, int size, TermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
-                                    ImmutableSet<BytesRef> excluded, SearchScript script, CacheRecycler cacheRecycler) {
+    public TermsDoubleFacetExecutor(IndexNumericFieldData indexFieldData, int size, TermsFacet.ComparatorType comparatorType,
+                                    boolean allTerms, ImmutableSet<BytesRef> excluded, SearchScript script, CacheRecycler cacheRecycler) {
         this.indexFieldData = indexFieldData;
         this.size = size;
         this.comparatorType = comparatorType;
@@ -71,7 +71,8 @@ public class TermsDoubleFacetExecutor extends FacetExecutor {
         this.facets = cacheRecycler.doubleIntMap(-1);
 
         if (allTerms) {
-            for (AtomicReaderContext readerContext : context.searcher().getTopReaderContext().leaves()) {
+            SearchContext searchContext = SearchContext.current();
+            for (AtomicReaderContext readerContext : searchContext.searcher().getTopReaderContext().leaves()) {
                 int maxDoc = readerContext.reader().maxDoc();
                 DoubleValues values = indexFieldData.load(readerContext).getDoubleValues();
                 if (values instanceof DoubleValues.WithOrdinals) {

@@ -36,7 +36,7 @@ import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchParseContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -50,7 +50,7 @@ public class NestedFacetExecutor extends FacetExecutor {
     private final Filter parentFilter;
     private final Filter childFilter;
 
-    public NestedFacetExecutor(FacetExecutor facetExecutor, SearchContext context, String nestedPath) {
+    public NestedFacetExecutor(FacetExecutor facetExecutor, SearchParseContext context, String nestedPath) {
         this.facetExecutor = facetExecutor;
         MapperService.SmartNameObjectMapper mapper = context.smartNameObjectMapper(nestedPath);
         if (mapper == null) {

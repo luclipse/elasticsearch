@@ -20,7 +20,7 @@ package org.elasticsearch.search.highlight;
 
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.FetchContext;
 
 /**
  *
@@ -30,10 +30,10 @@ public class HighlighterContext {
     public String fieldName;
     public SearchContextHighlight.Field field;
     public FieldMapper<?> mapper;
-    public SearchContext context;
+    public FetchContext context;
     public FetchSubPhase.HitContext hitContext;
 
-    public HighlighterContext(String fieldName, SearchContextHighlight.Field field, FieldMapper<?> mapper, SearchContext context, FetchSubPhase.HitContext hitContext) {
+    public HighlighterContext(String fieldName, SearchContextHighlight.Field field, FieldMapper<?> mapper, FetchContext context, FetchSubPhase.HitContext hitContext) {
         this.fieldName = fieldName;
         this.field = field;
         this.mapper = mapper;

@@ -52,8 +52,8 @@ public class TermsStringFacetExecutor extends FacetExecutor {
     private final boolean allTerms;
     private final HashedAggregator aggregator;
 
-    public TermsStringFacetExecutor(IndexFieldData indexFieldData, int size, TermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
-                                    ImmutableSet<BytesRef> excluded, Pattern pattern, SearchScript script) {
+    public TermsStringFacetExecutor(IndexFieldData indexFieldData, int size, TermsFacet.ComparatorType comparatorType,
+                                    boolean allTerms, ImmutableSet<BytesRef> excluded, Pattern pattern, SearchScript script) {
         this.indexFieldData = indexFieldData;
         this.size = size;
         this.comparatorType = comparatorType;
@@ -67,7 +67,7 @@ public class TermsStringFacetExecutor extends FacetExecutor {
         }
 
         if (allTerms) {
-            loadAllTerms(context, indexFieldData, aggregator);
+            loadAllTerms(indexFieldData, aggregator);
         }
     }
 
@@ -123,8 +123,9 @@ public class TermsStringFacetExecutor extends FacetExecutor {
         }
     }
 
-    static void loadAllTerms(SearchContext context, IndexFieldData indexFieldData, HashedAggregator aggregator) {
-        for (AtomicReaderContext readerContext : context.searcher().getTopReaderContext().leaves()) {
+    static void loadAllTerms(IndexFieldData indexFieldData, HashedAggregator aggregator) {
+        SearchContext searchContext = SearchContext.current();
+        for (AtomicReaderContext readerContext : searchContext.searcher().getTopReaderContext().leaves()) {
             int maxDoc = readerContext.reader().maxDoc();
             if (indexFieldData instanceof IndexFieldData.WithOrdinals) {
                 BytesValues.WithOrdinals values = ((IndexFieldData.WithOrdinals) indexFieldData).load(readerContext).getBytesValues();

@@ -29,7 +29,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchParseContext;
 
 import java.io.IOException;
 import java.util.regex.Pattern;
@@ -47,7 +47,7 @@ public class FieldsTermsStringFacetExecutor extends FacetExecutor {
     long missing;
     long total;
 
-    public FieldsTermsStringFacetExecutor(String facetName, FieldMapper[] fieldMappers, int size, InternalStringTermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
+    public FieldsTermsStringFacetExecutor(String facetName, FieldMapper[] fieldMappers, int size, InternalStringTermsFacet.ComparatorType comparatorType, boolean allTerms, SearchParseContext context,
                                           ImmutableSet<BytesRef> excluded, Pattern pattern, SearchScript script) {
         this.size = size;
         this.comparatorType = comparatorType;
@@ -65,7 +65,7 @@ public class FieldsTermsStringFacetExecutor extends FacetExecutor {
 
         if (allTerms) {
             for (int i = 0; i < fieldMappers.length; i++) {
-                TermsStringFacetExecutor.loadAllTerms(context, indexFieldDatas[i], aggregator);
+                TermsStringFacetExecutor.loadAllTerms(indexFieldDatas[i], aggregator);
             }
         }
     }

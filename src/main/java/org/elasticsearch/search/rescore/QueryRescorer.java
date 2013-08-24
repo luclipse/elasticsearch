@@ -17,6 +17,7 @@ package org.elasticsearch.search.rescore;
  * specific language governing permissions and limitations
  * under the License.
  */
+
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
@@ -27,12 +28,13 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
+import org.elasticsearch.search.internal.FetchContext;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchParseContext;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Set;
-import java.lang.Math;
 
 final class QueryRescorer implements Rescorer {
 
@@ -114,9 +116,9 @@ final class QueryRescorer implements Rescorer {
     }
 
     @Override
-    public Explanation explain(int topLevelDocId, SearchContext context, RescoreSearchContext rescoreContext) throws IOException {
+    public Explanation explain(int topLevelDocId, FetchContext context, RescoreSearchContext rescoreContext) throws IOException {
         QueryRescoreContext rescore = ((QueryRescoreContext) context.rescore());
-        ContextIndexSearcher searcher = context.searcher();
+        IndexSearcher searcher = context.searcher();
         Explanation primaryExplain = searcher.explain(context.query(), topLevelDocId);
         if (primaryExplain == null) {
             // this should not happen but just in case
@@ -150,7 +152,7 @@ final class QueryRescorer implements Rescorer {
     }
 
     @Override
-    public RescoreSearchContext parse(XContentParser parser, SearchContext context) throws IOException {
+    public RescoreSearchContext parse(XContentParser parser, SearchParseContext context) throws IOException {
         Token token;
         String fieldName = null;
         QueryRescoreContext rescoreContext = new QueryRescoreContext(this);

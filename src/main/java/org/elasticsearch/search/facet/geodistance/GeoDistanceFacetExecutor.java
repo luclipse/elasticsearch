@@ -19,8 +19,6 @@
 
 package org.elasticsearch.search.facet.geodistance;
 
-import java.io.IOException;
-
 import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -30,7 +28,8 @@ import org.elasticsearch.index.fielddata.GeoPointValues.Iter;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
-import org.elasticsearch.search.internal.SearchContext;
+
+import java.io.IOException;
 
 /**
  *
@@ -47,7 +46,7 @@ public class GeoDistanceFacetExecutor extends FacetExecutor {
     final GeoDistanceFacet.Entry[] entries;
 
     public GeoDistanceFacetExecutor(IndexGeoPointFieldData indexFieldData, double lat, double lon, DistanceUnit unit, GeoDistance geoDistance,
-                                    GeoDistanceFacet.Entry[] entries, SearchContext context) {
+                                    GeoDistanceFacet.Entry[] entries) {
         this.lat = lat;
         this.lon = lon;
         this.unit = unit;

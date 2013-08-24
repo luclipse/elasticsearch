@@ -29,7 +29,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.FacetParser;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchParseContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -62,7 +62,7 @@ public class RangeFacetParser extends AbstractComponent implements FacetParser {
     }
 
     @Override
-    public FacetExecutor parse(String facetName, XContentParser parser, SearchContext context) throws IOException {
+    public FacetExecutor parse(String facetName, XContentParser parser, SearchParseContext context) throws IOException {
         String keyField = null;
         String valueField = null;
         String scriptLang = null;
@@ -154,7 +154,7 @@ public class RangeFacetParser extends AbstractComponent implements FacetParser {
         IndexNumericFieldData keyIndexFieldData = context.fieldData().getForField(keyFieldMapper);
 
         if (valueField == null || keyField.equals(valueField)) {
-            return new RangeFacetExecutor(keyIndexFieldData, rangeEntries, context);
+            return new RangeFacetExecutor(keyIndexFieldData, rangeEntries);
         } else {
             FieldMapper valueFieldMapper = context.smartNameFieldMapper(valueField);
             if (valueFieldMapper == null) {
@@ -162,7 +162,7 @@ public class RangeFacetParser extends AbstractComponent implements FacetParser {
             }
             IndexNumericFieldData valueIndexFieldData = context.fieldData().getForField(valueFieldMapper);
             // we have a value field, and its different than the key
-            return new KeyValueRangeFacetExecutor(keyIndexFieldData, valueIndexFieldData, rangeEntries, context);
+            return new KeyValueRangeFacetExecutor(keyIndexFieldData, valueIndexFieldData, rangeEntries);
         }
     }
 }

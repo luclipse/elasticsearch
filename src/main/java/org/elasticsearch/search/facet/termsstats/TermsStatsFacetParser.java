@@ -34,7 +34,7 @@ import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.facet.termsstats.doubles.TermsStatsDoubleFacetExecutor;
 import org.elasticsearch.search.facet.termsstats.longs.TermsStatsLongFacetExecutor;
 import org.elasticsearch.search.facet.termsstats.strings.TermsStatsStringFacetExecutor;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchParseContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -63,7 +63,7 @@ public class TermsStatsFacetParser extends AbstractComponent implements FacetPar
     }
 
     @Override
-    public FacetExecutor parse(String facetName, XContentParser parser, SearchContext context) throws IOException {
+    public FacetExecutor parse(String facetName, XContentParser parser, SearchParseContext context) throws IOException {
         String keyField = null;
         String valueField = null;
         int size = 10;

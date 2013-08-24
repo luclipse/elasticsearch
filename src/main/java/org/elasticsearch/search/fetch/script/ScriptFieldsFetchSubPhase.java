@@ -25,9 +25,9 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchSubPhase;
+import org.elasticsearch.search.internal.FetchContext;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHitField;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -51,21 +51,21 @@ public class ScriptFieldsFetchSubPhase implements FetchSubPhase {
     }
 
     @Override
-    public boolean hitsExecutionNeeded(SearchContext context) {
+    public boolean hitsExecutionNeeded(FetchContext context) {
         return false;
     }
 
     @Override
-    public void hitsExecute(SearchContext context, InternalSearchHit[] hits) throws ElasticSearchException {
+    public void hitsExecute(FetchContext context, InternalSearchHit[] hits) throws ElasticSearchException {
     }
 
     @Override
-    public boolean hitExecutionNeeded(SearchContext context) {
+    public boolean hitExecutionNeeded(FetchContext context) {
         return context.hasScriptFields();
     }
 
     @Override
-    public void hitExecute(SearchContext context, HitContext hitContext) throws ElasticSearchException {
+    public void hitExecute(FetchContext context, HitContext hitContext) throws ElasticSearchException {
         for (ScriptFieldsContext.ScriptField scriptField : context.scriptFields().fields()) {
             scriptField.script().setNextReader(hitContext.readerContext());
             scriptField.script().setNextDocId(hitContext.docId());

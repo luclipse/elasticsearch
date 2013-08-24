@@ -30,7 +30,7 @@ import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.FacetParser;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchParseContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -63,7 +63,7 @@ public class StatisticalFacetParser extends AbstractComponent implements FacetPa
     }
 
     @Override
-    public FacetExecutor parse(String facetName, XContentParser parser, SearchContext context) throws IOException {
+    public FacetExecutor parse(String facetName, XContentParser parser, SearchParseContext context) throws IOException {
         String field = null;
         String[] fieldsNames = null;
 
@@ -110,7 +110,7 @@ public class StatisticalFacetParser extends AbstractComponent implements FacetPa
                 }
                 indexFieldDatas[i] = context.fieldData().getForField(fieldMapper);
             }
-            return new StatisticalFieldsFacetExecutor(indexFieldDatas, context);
+            return new StatisticalFieldsFacetExecutor(indexFieldDatas);
         }
         if (script == null && field == null) {
             throw new FacetPhaseExecutionException(facetName, "statistical facet requires either [script] or [field] to be set");
@@ -124,7 +124,7 @@ public class StatisticalFacetParser extends AbstractComponent implements FacetPa
                 throw new FacetPhaseExecutionException(facetName, "field [" + field + "] isn't a number field, but a " + fieldMapper.fieldDataType().getType());
             }
             IndexNumericFieldData indexFieldData = context.fieldData().getForField(fieldMapper);
-            return new StatisticalFacetExecutor(indexFieldData, context);
+            return new StatisticalFacetExecutor(indexFieldData);
         } else {
             return new ScriptStatisticalFacetExecutor(scriptLang, script, params, context);
         }

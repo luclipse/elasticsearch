@@ -19,7 +19,9 @@
 
 package org.elasticsearch.search;
 
+import org.elasticsearch.search.internal.FetchContext;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchParseContext;
 
 /**
  *
@@ -27,14 +29,26 @@ import org.elasticsearch.search.internal.SearchContext;
 public class SearchContextException extends SearchException {
 
     public SearchContextException(SearchContext context, String msg) {
-        super(context.shardTarget(), buildMessage(context, msg));
+        super(context.shardTarget(), buildMessage(context.searchParseContext(), msg));
     }
 
     public SearchContextException(SearchContext context, String msg, Throwable t) {
+        super(context.shardTarget(), buildMessage(context.searchParseContext(), msg), t);
+    }
+
+    public SearchContextException(SearchParseContext context, String msg) {
+        super(context.shardTarget(), buildMessage(context, msg));
+    }
+
+    public SearchContextException(SearchParseContext context, String msg, Throwable t) {
         super(context.shardTarget(), buildMessage(context, msg), t);
     }
 
-    private static String buildMessage(SearchContext context, String msg) {
+    public SearchContextException(FetchContext context, String msg, Throwable t) {
+        super(context.shardTarget(), buildMessage(context.searchParseContext(), msg), t);
+    }
+
+    private static String buildMessage(SearchParseContext context, String msg) {
         StringBuilder sb = new StringBuilder();
         sb.append('[').append(context.shardTarget().index()).append("][").append(context.shardTarget().shardId()).append("]: ");
         if (context.parsedQuery() != null) {

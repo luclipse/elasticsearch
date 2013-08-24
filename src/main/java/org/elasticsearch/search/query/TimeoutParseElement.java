@@ -22,14 +22,14 @@ package org.elasticsearch.search.query;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseElement;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchParseContext;
 
 /**
  */
 public class TimeoutParseElement implements SearchParseElement {
 
     @Override
-    public void parse(XContentParser parser, SearchContext context) throws Exception {
+    public void parse(XContentParser parser, SearchParseContext context) throws Exception {
         XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.VALUE_NUMBER) {
             context.timeoutInMillis(parser.longValue());

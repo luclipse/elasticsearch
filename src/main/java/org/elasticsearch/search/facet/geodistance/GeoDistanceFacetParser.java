@@ -22,7 +22,6 @@ package org.elasticsearch.search.facet.geodistance;
 import com.google.common.collect.Lists;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.geo.GeoDistance;
-import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.inject.Inject;
@@ -32,11 +31,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.FacetParser;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchParseContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -69,7 +67,7 @@ public class GeoDistanceFacetParser extends AbstractComponent implements FacetPa
     }
 
     @Override
-    public FacetExecutor parse(String facetName, XContentParser parser, SearchContext context) throws IOException {
+    public FacetExecutor parse(String facetName, XContentParser parser, SearchParseContext context) throws IOException {
         String fieldName = null;
         String valueFieldName = null;
         String valueScript = null;
@@ -167,7 +165,7 @@ public class GeoDistanceFacetParser extends AbstractComponent implements FacetPa
             }
             IndexNumericFieldData valueIndexFieldData = context.fieldData().getForField(valueFieldMapper);
             return new ValueGeoDistanceFacetExecutor(keyIndexFieldData, point.lat(), point.lon(), unit, geoDistance, entries.toArray(new GeoDistanceFacet.Entry[entries.size()]),
-                    context, valueIndexFieldData);
+                    valueIndexFieldData);
         }
 
         if (valueScript != null) {
@@ -175,7 +173,6 @@ public class GeoDistanceFacetParser extends AbstractComponent implements FacetPa
                     context, scriptLang, valueScript, params);
         }
 
-        return new GeoDistanceFacetExecutor(keyIndexFieldData, point.lat(), point.lon(), unit, geoDistance, entries.toArray(new GeoDistanceFacet.Entry[entries.size()]),
-                context);
+        return new GeoDistanceFacetExecutor(keyIndexFieldData, point.lat(), point.lon(), unit, geoDistance, entries.toArray(new GeoDistanceFacet.Entry[entries.size()]));
     }
 }

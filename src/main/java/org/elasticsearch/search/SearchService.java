@@ -54,6 +54,7 @@ import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.*;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchParseContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.*;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
@@ -485,8 +486,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         try {
             context.scroll(request.scroll());
 
-            parseSource(context, request.source());
-            parseSource(context, request.extraSource());
+            parseSource(context.searchParseContext(), request.source());
+            parseSource(context.searchParseContext(), request.extraSource());
 
             // if the from and size are still not set, default them
             if (context.from() == -1) {
@@ -545,7 +546,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         SearchContext.removeCurrent();
     }
 
-    private void parseSource(SearchContext context, BytesReference source) throws SearchParseException {
+    private void parseSource(SearchParseContext context, BytesReference source) throws SearchParseException {
         // nothing to parse...
         if (source == null || source.length() == 0) {
             return;

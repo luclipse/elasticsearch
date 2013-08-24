@@ -25,7 +25,6 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.search.facet.DoubleFacetAggregatorBase;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
@@ -43,7 +42,7 @@ public class StatisticalFacetExecutor extends FacetExecutor {
     long count;
     int missing;
 
-    public StatisticalFacetExecutor(IndexNumericFieldData indexFieldData, SearchContext context) {
+    public StatisticalFacetExecutor(IndexNumericFieldData indexFieldData) {
         this.indexFieldData = indexFieldData;
     }
 

@@ -25,7 +25,7 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.vectorhighlight.BoundaryScanner;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.FetchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -36,9 +36,9 @@ import java.util.List;
  */
 public class SourceSimpleFragmentsBuilder extends SimpleFragmentsBuilder {
 
-    private final SearchContext searchContext;
+    private final FetchContext searchContext;
 
-    public SourceSimpleFragmentsBuilder(FieldMapper<?> mapper, SearchContext searchContext,
+    public SourceSimpleFragmentsBuilder(FieldMapper<?> mapper, FetchContext searchContext,
                                         String[] preTags, String[] postTags, BoundaryScanner boundaryScanner) {
         super(mapper, preTags, postTags, boundaryScanner);
         this.searchContext = searchContext;

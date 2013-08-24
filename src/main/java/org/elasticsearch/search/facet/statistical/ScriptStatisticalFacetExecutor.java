@@ -24,7 +24,7 @@ import org.apache.lucene.search.Scorer;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchParseContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -42,7 +42,7 @@ public class ScriptStatisticalFacetExecutor extends FacetExecutor {
     private double sumOfSquares = 0.0;
     private long count;
 
-    public ScriptStatisticalFacetExecutor(String scriptLang, String script, Map<String, Object> params, SearchContext context) {
+    public ScriptStatisticalFacetExecutor(String scriptLang, String script, Map<String, Object> params, SearchParseContext context) {
         this.script = context.scriptService().search(context.lookup(), scriptLang, script, params);
     }
 

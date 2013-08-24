@@ -24,7 +24,7 @@ import org.apache.lucene.search.vectorhighlight.SimpleBoundaryScanner;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchParseContext;
 
 import java.util.List;
 import java.util.Map;
@@ -62,7 +62,7 @@ public class HighlighterParseElement implements SearchParseElement {
     private static final String[] STYLED_POST_TAGS = {"</em>"};
 
     @Override
-    public void parse(XContentParser parser, SearchContext context) throws Exception {
+    public void parse(XContentParser parser, SearchParseContext context) throws Exception {
         XContentParser.Token token;
         String topLevelFieldName = null;
         List<SearchContextHighlight.Field> fields = newArrayList();

@@ -26,7 +26,7 @@ import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchParseContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -45,7 +45,7 @@ public class ScriptHistogramFacetExecutor extends FacetExecutor {
 
     final Recycler.V<ExtTLongObjectHashMap<InternalFullHistogramFacet.FullEntry>> entries;
 
-    public ScriptHistogramFacetExecutor(String scriptLang, String keyScript, String valueScript, Map<String, Object> params, long interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
+    public ScriptHistogramFacetExecutor(String scriptLang, String keyScript, String valueScript, Map<String, Object> params, long interval, HistogramFacet.ComparatorType comparatorType, SearchParseContext context) {
         this.keyScript = context.scriptService().search(context.lookup(), scriptLang, keyScript, params);
         this.valueScript = context.scriptService().search(context.lookup(), scriptLang, valueScript, params);
         this.interval = interval > 0 ? interval : 0;

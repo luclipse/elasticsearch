@@ -38,6 +38,7 @@ import org.elasticsearch.search.facet.InternalFacet;
 import org.elasticsearch.search.facet.terms.TermsFacet;
 import org.elasticsearch.search.facet.terms.support.EntryPriorityQueue;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchParseContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -65,7 +66,7 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
     long missing;
     long total;
 
-    public TermsStringOrdinalsFacetExecutor(IndexFieldData.WithOrdinals indexFieldData, int size, TermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
+    public TermsStringOrdinalsFacetExecutor(IndexFieldData.WithOrdinals indexFieldData, int size, TermsFacet.ComparatorType comparatorType, boolean allTerms, SearchParseContext context,
                                             ImmutableSet<BytesRef> excluded, Pattern pattern, int ordinalsCacheAbove) {
         this.indexFieldData = indexFieldData;
         this.size = size;
@@ -88,7 +89,8 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
 
         this.cacheRecycler = context.cacheRecycler();
 
-        this.aggregators = new ArrayList<ReaderAggregator>(context.searcher().getIndexReader().leaves().size());
+        SearchContext searchContext = SearchContext.current();
+        this.aggregators = new ArrayList<ReaderAggregator>(searchContext.searcher().getIndexReader().leaves().size());
     }
 
     @Override

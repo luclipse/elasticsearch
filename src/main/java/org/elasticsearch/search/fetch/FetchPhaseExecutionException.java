@@ -20,6 +20,7 @@
 package org.elasticsearch.search.fetch;
 
 import org.elasticsearch.search.SearchContextException;
+import org.elasticsearch.search.internal.FetchContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 /**
@@ -31,7 +32,7 @@ public class FetchPhaseExecutionException extends SearchContextException {
         super(context, "Fetch Failed [" + msg + "]");
     }
 
-    public FetchPhaseExecutionException(SearchContext context, String msg, Throwable t) {
+    public FetchPhaseExecutionException(FetchContext context, String msg, Throwable t) {
         super(context, "Fetch Failed [" + msg + "]", t);
     }
 }
