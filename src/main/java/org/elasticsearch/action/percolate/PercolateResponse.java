@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.percolate;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -127,6 +126,22 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
                     if (score != PercolatorService.NO_SCORE) {
                         builder.field(Fields._SCORE, match.getScore());
                     }
+                    if (match.getHl() != null) {
+                        builder.startObject(Fields.HIGHLIGHT);
+                        for (HighlightField field : match.getHl().values()) {
+                            builder.field(field.name());
+                            if (field.fragments() == null) {
+                                builder.nullValue();
+                            } else {
+                                builder.startArray();
+                                for (Text fragment : field.fragments()) {
+                                    builder.value(fragment);
+                                }
+                                builder.endArray();
+                            }
+                        }
+                        builder.endObject();
+                    }
                     builder.endObject();
                 }
             }
@@ -179,7 +194,6 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
             this.id = id;
             this.score = score;
             this.index = index;
-            this.hl = ImmutableMap.of();
         }
 
         Match() {
@@ -223,9 +237,11 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
             index = in.readText();
             score = in.readFloat();
             int size = in.readVInt();
-            hl = new HashMap<String, HighlightField>(size);
-            for (int j = 0; j < size; j++) {
-                hl.put(in.readString(), HighlightField.readHighlightField(in));
+            if (size > 0) {
+                hl = new HashMap<String, HighlightField>(size);
+                for (int j = 0; j < size; j++) {
+                    hl.put(in.readString(), HighlightField.readHighlightField(in));
+                }
             }
         }
 
@@ -234,10 +250,14 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
             out.writeText(id);
             out.writeText(index);
             out.writeFloat(score);
-            out.writeVInt(hl.size());
-            for (Map.Entry<String, HighlightField> entry : hl.entrySet()) {
-                out.writeString(entry.getKey());
-                entry.getValue().writeTo(out);
+            if (hl != null) {
+                out.writeVInt(hl.size());
+                for (Map.Entry<String, HighlightField> entry : hl.entrySet()) {
+                    out.writeString(entry.getKey());
+                    entry.getValue().writeTo(out);
+                }
+            } else {
+                out.writeVInt(0);
             }
         }
     }
@@ -249,6 +269,7 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
         static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
         static final XContentBuilderString _ID = new XContentBuilderString("_id");
         static final XContentBuilderString _SCORE = new XContentBuilderString("_score");
+        static final XContentBuilderString HIGHLIGHT = new XContentBuilderString("highlight");
     }
 
 }
