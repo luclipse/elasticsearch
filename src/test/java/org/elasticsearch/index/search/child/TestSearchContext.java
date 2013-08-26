@@ -28,17 +28,19 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.docset.DocSetCache;
 import org.elasticsearch.index.cache.filter.FilterCache;
-import org.elasticsearch.index.cache.id.IdCache;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.parentordinals.ParentOrdinalService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedFilter;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.indices.warmer.IndicesWarmer;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchShardTarget;
@@ -59,23 +61,24 @@ import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.scan.ScanContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
+import java.io.IOException;
 import java.util.List;
 
 class TestSearchContext extends SearchContext {
 
     final CacheRecycler cacheRecycler;
-    final IdCache idCache;
     final IndexService indexService;
     final FilterCache filterCache;
+    final ParentOrdinalService parentOrdinalService;
 
     ContextIndexSearcher searcher;
     int size;
 
-    TestSearchContext(CacheRecycler cacheRecycler, IdCache idCache, IndexService indexService, FilterCache filterCache) {
+    TestSearchContext(CacheRecycler cacheRecycler, IndexService indexService, FilterCache filterCache, ParentOrdinalService parentOrdinalService) {
         this.cacheRecycler = cacheRecycler;
-        this.idCache = idCache;
         this.indexService = indexService;
         this.filterCache = filterCache;
+        this.parentOrdinalService = parentOrdinalService;
     }
 
     @Override
@@ -254,8 +257,12 @@ class TestSearchContext extends SearchContext {
         return searcher;
     }
 
-    void setSearcher(ContextIndexSearcher searcher) {
+    void setSearcher(ContextIndexSearcher searcher) throws IOException {
         this.searcher = searcher;
+        IndicesWarmer.WarmerContext warmerContext = new IndicesWarmer.WarmerContext(
+                null, new Engine.SimpleSearcher("test", searcher)
+        );
+        parentOrdinalService.refresh(warmerContext);
     }
 
     @Override
@@ -309,8 +316,8 @@ class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public IdCache idCache() {
-        return idCache;
+    public ParentOrdinalService parentOrdinals() {
+        return parentOrdinalService;
     }
 
     @Override

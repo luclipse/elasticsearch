@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.search.child;
 
-import com.carrotsearch.hppc.ObjectFloatOpenHashMap;
+import com.carrotsearch.hppc.IntFloatOpenHashMap;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
@@ -27,7 +27,6 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.ToStringUtils;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.search.ApplyAcceptedDocsFilter;
@@ -35,7 +34,7 @@ import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.recycler.RecyclerUtils;
-import org.elasticsearch.index.cache.id.IdReaderTypeCache;
+import org.elasticsearch.index.parentordinals.ParentOrdinals;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -44,7 +43,7 @@ import java.util.Set;
 /**
  * A query implementation that executes the wrapped parent query and
  * connects the matching parent docs to the related child documents
- * using the {@link IdReaderTypeCache}.
+ * using the {@link org.elasticsearch.index.parentordinals.ParentOrdinalService}.
  */
 public class ParentQuery extends Query {
 
@@ -93,11 +92,7 @@ public class ParentQuery extends Query {
 
     @Override
     public String toString(String field) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("ParentQuery[").append(parentType).append("](")
-                .append(originalParentQuery.toString(field)).append(')')
-                .append(ToStringUtils.boost(getBoost()));
-        return sb.toString();
+        return "ParentQuery[" + parentType + "](" + originalParentQuery.toString(field) + ')' + ToStringUtils.boost(getBoost());
     }
 
     @Override
@@ -118,9 +113,8 @@ public class ParentQuery extends Query {
     @Override
     public Weight createWeight(IndexSearcher searcher) throws IOException {
         SearchContext searchContext = SearchContext.current();
-        searchContext.idCache().refresh(searchContext.searcher().getTopReaderContext().leaves());
-        Recycler.V<ObjectFloatOpenHashMap<HashedBytesArray>> uidToScore = searchContext.cacheRecycler().objectFloatMap(-1);
-        ParentUidCollector collector = new ParentUidCollector(uidToScore.v(), searchContext, parentType);
+        Recycler.V<IntFloatOpenHashMap> uidToScore = searchContext.cacheRecycler().intFloatMap(-1);
+        ParentOrdsCollector collector = new ParentOrdsCollector(uidToScore.v(), searchContext, parentType);
 
         final Query parentQuery;
         if (rewrittenParentQuery == null) {
@@ -142,29 +136,29 @@ public class ParentQuery extends Query {
         return childWeight;
     }
 
-    private static class ParentUidCollector extends NoopCollector {
+    private static class ParentOrdsCollector extends NoopCollector {
 
-        private final ObjectFloatOpenHashMap<HashedBytesArray> uidToScore;
+        private final IntFloatOpenHashMap ordToScore;
         private final SearchContext searchContext;
         private final String parentType;
 
         private Scorer scorer;
-        private IdReaderTypeCache typeCache;
+        private ParentOrdinals parentOrdinals;
 
-        ParentUidCollector(ObjectFloatOpenHashMap<HashedBytesArray> uidToScore, SearchContext searchContext, String parentType) {
-            this.uidToScore = uidToScore;
+        ParentOrdsCollector(IntFloatOpenHashMap ordToScore, SearchContext searchContext, String parentType) {
+            this.ordToScore = ordToScore;
             this.searchContext = searchContext;
             this.parentType = parentType;
         }
 
         @Override
         public void collect(int doc) throws IOException {
-            if (typeCache == null) {
+            if (parentOrdinals.isEmpty()) {
                 return;
             }
 
-            HashedBytesArray parentUid = typeCache.idByDoc(doc);
-            uidToScore.put(parentUid, scorer.score());
+            int parentOrd = parentOrdinals.ordinal(doc);
+            ordToScore.put(parentOrd, scorer.score());
         }
 
         @Override
@@ -174,7 +168,7 @@ public class ParentQuery extends Query {
 
         @Override
         public void setNextReader(AtomicReaderContext context) throws IOException {
-            typeCache = searchContext.idCache().reader(context.reader()).type(parentType);
+            parentOrdinals = searchContext.parentOrdinals().ordinals(parentType, context);
         }
     }
 
@@ -183,13 +177,13 @@ public class ParentQuery extends Query {
         private final Weight parentWeight;
         private final Filter childrenFilter;
         private final SearchContext searchContext;
-        private final Recycler.V<ObjectFloatOpenHashMap<HashedBytesArray>> uidToScore;
+        private final Recycler.V<IntFloatOpenHashMap> ordToScore;
 
-        private ChildWeight(Weight parentWeight, Filter childrenFilter, SearchContext searchContext, Recycler.V<ObjectFloatOpenHashMap<HashedBytesArray>> uidToScore) {
+        private ChildWeight(Weight parentWeight, Filter childrenFilter, SearchContext searchContext, Recycler.V<IntFloatOpenHashMap> ordToScore) {
             this.parentWeight = parentWeight;
             this.childrenFilter = new ApplyAcceptedDocsFilter(childrenFilter);
             this.searchContext = searchContext;
-            this.uidToScore = uidToScore;
+            this.ordToScore = ordToScore;
         }
 
         @Override
@@ -219,35 +213,35 @@ public class ParentQuery extends Query {
             if (DocIdSets.isEmpty(childrenDocSet)) {
                 return null;
             }
-            IdReaderTypeCache idTypeCache = searchContext.idCache().reader(context.reader()).type(parentType);
-            if (idTypeCache == null) {
+            ParentOrdinals parentOrdinals = searchContext.parentOrdinals().ordinals(parentType, context);
+            if (parentOrdinals.isEmpty()) {
                 return null;
             }
 
-            return new ChildScorer(this, uidToScore.v(), childrenDocSet.iterator(), idTypeCache);
+            return new ChildScorer(this, ordToScore.v(), childrenDocSet.iterator(), parentOrdinals);
         }
 
         @Override
         public boolean release() throws ElasticSearchException {
-            RecyclerUtils.release(uidToScore);
+            RecyclerUtils.release(ordToScore);
             return true;
         }
     }
 
     private static class ChildScorer extends Scorer {
 
-        private final ObjectFloatOpenHashMap<HashedBytesArray> uidToScore;
+        private final IntFloatOpenHashMap ordToScore;
         private final DocIdSetIterator childrenIterator;
-        private final IdReaderTypeCache typeCache;
+        private final ParentOrdinals parentOrdinals;
 
         private int currentChildDoc = -1;
         private float currentScore;
 
-        ChildScorer(Weight weight, ObjectFloatOpenHashMap<HashedBytesArray> uidToScore, DocIdSetIterator childrenIterator, IdReaderTypeCache typeCache) {
+        ChildScorer(Weight weight, IntFloatOpenHashMap ordToScore, DocIdSetIterator childrenIterator, ParentOrdinals parentOrdinals) {
             super(weight);
-            this.uidToScore = uidToScore;
+            this.ordToScore = ordToScore;
             this.childrenIterator = childrenIterator;
-            this.typeCache = typeCache;
+            this.parentOrdinals = parentOrdinals;
         }
 
         @Override
@@ -275,13 +269,13 @@ public class ParentQuery extends Query {
                     return currentChildDoc;
                 }
 
-                HashedBytesArray uid = typeCache.parentIdByDoc(currentChildDoc);
-                if (uid == null) {
+                int ord = parentOrdinals.ordinal(currentChildDoc);
+                if (ord == 0) {
                     continue;
                 }
-                if (uidToScore.containsKey(uid)) {
-                    // Can use lget b/c uidToScore is only used by one thread at the time (via CacheRecycler)
-                    currentScore = uidToScore.lget();
+                if (ordToScore.containsKey(ord)) {
+                    // Can use lget b/c ordToScore is only used by one thread at the time (via CacheRecycler)
+                    currentScore = ordToScore.lget();
                     return currentChildDoc;
                 }
             }
@@ -293,14 +287,14 @@ public class ParentQuery extends Query {
             if (currentChildDoc == DocIdSetIterator.NO_MORE_DOCS) {
                 return currentChildDoc;
             }
-            HashedBytesArray uid = typeCache.parentIdByDoc(currentChildDoc);
-            if (uid == null) {
+            int ord = parentOrdinals.ordinal(currentChildDoc);
+            if (ord == 0) {
                 return nextDoc();
             }
 
-            if (uidToScore.containsKey(uid)) {
-                // Can use lget b/c uidToScore is only used by one thread at the time (via CacheRecycler)
-                currentScore = uidToScore.lget();
+            if (ordToScore.containsKey(ord)) {
+                // Can use lget b/c ordToScore is only used by one thread at the time (via CacheRecycler)
+                currentScore = ordToScore.lget();
                 return currentChildDoc;
             } else {
                 return nextDoc();

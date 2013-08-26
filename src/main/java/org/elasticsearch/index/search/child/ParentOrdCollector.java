@@ -18,42 +18,40 @@
  */
 package org.elasticsearch.index.search.child;
 
-import java.io.IOException;
-
 import org.apache.lucene.index.AtomicReaderContext;
-import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.lucene.search.NoopCollector;
-import org.elasticsearch.index.cache.id.IdReaderTypeCache;
+import org.elasticsearch.index.parentordinals.ParentOrdinals;
 import org.elasticsearch.search.internal.SearchContext;
 
+import java.io.IOException;
+
 /**
- * A simple collector that only collects if the docs parent ID is not
- * <code>null</code>
+ * A simple collector that only collects if the docs parent ordinal is not <code>0</code>
  */
-abstract class ParentIdCollector extends NoopCollector {
+abstract class ParentOrdCollector extends NoopCollector {
     protected final String type;
     protected final SearchContext context;
-    private IdReaderTypeCache typeCache;
+    private ParentOrdinals parentOrdinals;
 
-    protected ParentIdCollector(String parentType, SearchContext context) {
+    protected ParentOrdCollector(String parentType, SearchContext context) {
         this.type = parentType;
         this.context = context;
     }
 
     @Override
     public final void collect(int doc) throws IOException {
-        if (typeCache != null) {
-            HashedBytesArray parentIdByDoc = typeCache.parentIdByDoc(doc);
-            if (parentIdByDoc != null) {
-               collect(doc, parentIdByDoc);
+        if (parentOrdinals != null) {
+            int parentOrd = parentOrdinals.ordinal(doc);
+            if (parentOrd != 0) {
+               collect(doc, parentOrd);
             }
         }
     }
     
-    protected abstract void collect(int doc, HashedBytesArray parentId) throws IOException;
+    protected abstract void collect(int doc, int parentOrd) throws IOException;
 
     @Override
     public void setNextReader(AtomicReaderContext readerContext) throws IOException {
-        typeCache = context.idCache().reader(readerContext.reader()).type(type);
+        parentOrdinals = context.parentOrdinals().ordinals(type, readerContext);
     }
 }

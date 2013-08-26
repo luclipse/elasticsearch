@@ -28,11 +28,14 @@ import org.apache.lucene.util.ToStringUtils;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cache.recycler.CacheRecycler;
-import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.search.EmptyScorer;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.recycler.RecyclerUtils;
+import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
+import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
+import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -107,7 +110,6 @@ public class TopChildrenQuery extends Query {
     public Weight createWeight(IndexSearcher searcher) throws IOException {
         Recycler.V<ObjectObjectOpenHashMap<Object, ParentDoc[]>> parentDocs = cacheRecycler.hashMap(-1);
         SearchContext searchContext = SearchContext.current();
-        searchContext.idCache().refresh(searchContext.searcher().getTopReaderContext().leaves());
 
         int parentHitsResolved;
         int requestedDocs = (searchContext.from() + searchContext.size());
@@ -148,7 +150,7 @@ public class TopChildrenQuery extends Query {
         return new ParentWeight(rewrittenChildQuery.createWeight(searcher), parentDocs);
     }
 
-    int resolveParentDocuments(TopDocs topDocs, SearchContext context, Recycler.V<ObjectObjectOpenHashMap<Object, ParentDoc[]>> parentDocs) {
+    int resolveParentDocuments(TopDocs topDocs, SearchContext context, Recycler.V<ObjectObjectOpenHashMap<Object, ParentDoc[]>> parentDocs) throws IOException {
         int parentHitsResolved = 0;
         Recycler.V<ObjectObjectOpenHashMap<Object, Recycler.V<IntObjectOpenHashMap<ParentDoc>>>> parentDocsPerReader = cacheRecycler.hashMap(context.searcher().getIndexReader().leaves().size());
         for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
@@ -157,40 +159,61 @@ public class TopChildrenQuery extends Query {
             int subDoc = scoreDoc.doc - subContext.docBase;
 
             // find the parent id
-            HashedBytesArray parentId = context.idCache().reader(subContext.reader()).parentIdByDoc(parentType, subDoc);
-            if (parentId == null) {
+            SingleFieldsVisitor fieldsVisitor = new SingleFieldsVisitor(ParentFieldMapper.NAME) {
+
+                @Override
+                public void stringField(FieldInfo fieldInfo, String value) throws IOException {
+                    if (ParentFieldMapper.NAME.equals(fieldInfo.name)) {
+                        uid = Uid.createUid(value);
+                    } else {
+                        assert false : "Shouldn't end up here...";
+                    }
+                }
+            };
+            subContext.reader().document(subDoc, fieldsVisitor);
+            Uid parentUid = fieldsVisitor.uid();
+            if (parentUid == null) {
                 // no parent found
                 continue;
             }
             // now go over and find the parent doc Id and reader tuple
             for (AtomicReaderContext atomicReaderContext : context.searcher().getIndexReader().leaves()) {
                 AtomicReader indexReader = atomicReaderContext.reader();
-                int parentDocId = context.idCache().reader(indexReader).docById(parentType, parentId);
-                Bits liveDocs = indexReader.getLiveDocs();
-                if (parentDocId != -1 && (liveDocs == null || liveDocs.get(parentDocId))) {
-                    // we found a match, add it and break
+                Terms terms = indexReader.terms(UidFieldMapper.NAME);
+                if (terms == null) {
+                    continue;
+                }
 
-                    Recycler.V<IntObjectOpenHashMap<ParentDoc>> readerParentDocs = parentDocsPerReader.v().get(indexReader.getCoreCacheKey());
-                    if (readerParentDocs == null) {
-                        readerParentDocs = cacheRecycler.intObjectMap(indexReader.maxDoc());
-                        parentDocsPerReader.v().put(indexReader.getCoreCacheKey(), readerParentDocs);
-                    }
+                TermsEnum termsEnum = terms.iterator(null);
+                if (!termsEnum.seekExact(parentUid.toBytesRef())) {
+                    continue;
+                }
+                DocsEnum docsEnum = termsEnum.docs(indexReader.getLiveDocs(), null);
+                int parentDocId = docsEnum.nextDoc();
+                if (parentDocId == DocIdSetIterator.NO_MORE_DOCS) {
+                    continue;
+                }
 
-                    ParentDoc parentDoc = readerParentDocs.v().get(parentDocId);
-                    if (parentDoc == null) {
-                        parentHitsResolved++; // we have a hit on a parent
-                        parentDoc = new ParentDoc();
-                        parentDoc.docId = parentDocId;
-                        parentDoc.count = 1;
+                Recycler.V<IntObjectOpenHashMap<ParentDoc>> readerParentDocs = parentDocsPerReader.v().get(indexReader.getCoreCacheKey());
+                if (readerParentDocs == null) {
+                    readerParentDocs = cacheRecycler.intObjectMap(indexReader.maxDoc());
+                    parentDocsPerReader.v().put(indexReader.getCoreCacheKey(), readerParentDocs);
+                }
+
+                ParentDoc parentDoc = readerParentDocs.v().get(parentDocId);
+                if (parentDoc == null) {
+                    parentHitsResolved++; // we have a hit on a parent
+                    parentDoc = new ParentDoc();
+                    parentDoc.docId = parentDocId;
+                    parentDoc.count = 1;
+                    parentDoc.maxScore = scoreDoc.score;
+                    parentDoc.sumScores = scoreDoc.score;
+                    readerParentDocs.v().put(parentDocId, parentDoc);
+                } else {
+                    parentDoc.count++;
+                    parentDoc.sumScores += scoreDoc.score;
+                    if (scoreDoc.score > parentDoc.maxScore) {
                         parentDoc.maxScore = scoreDoc.score;
-                        parentDoc.sumScores = scoreDoc.score;
-                        readerParentDocs.v().put(parentDocId, parentDoc);
-                    } else {
-                        parentDoc.count++;
-                        parentDoc.sumScores += scoreDoc.score;
-                        if (scoreDoc.score > parentDoc.maxScore) {
-                            parentDoc.maxScore = scoreDoc.score;
-                        }
                     }
                 }
             }

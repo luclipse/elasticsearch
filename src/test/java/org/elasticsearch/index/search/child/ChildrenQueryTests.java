@@ -185,13 +185,14 @@ public class ChildrenQueryTests extends ElasticsearchLuceneTestCase {
                     indexWriter.addDocument(document);
                 }
 
-                indexReader.close();
+                IndexReader oldIndexReader = indexReader;
                 indexReader = DirectoryReader.open(indexWriter.w, true);
                 searcher = new IndexSearcher(indexReader);
                 engineSearcher = new Engine.SimpleSearcher(
                         ChildrenConstantScoreQueryTests.class.getSimpleName(), searcher
                 );
                 ((TestSearchContext) SearchContext.current()).setSearcher(new ContextIndexSearcher(SearchContext.current(), engineSearcher));
+                oldIndexReader.close();
             }
 
             String childValue = childValues[random().nextInt(numUniqueChildValues)];

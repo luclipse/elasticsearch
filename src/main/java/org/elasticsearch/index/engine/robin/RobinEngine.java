@@ -1381,7 +1381,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                     try {
                         assert isMergedSegment(reader);
                         final Engine.Searcher searcher = new SimpleSearcher("warmer", new IndexSearcher(reader));
-                        final IndicesWarmer.WarmerContext context = new IndicesWarmer.WarmerContext(shardId, searcher);
+                        final IndicesWarmer.WarmerContext context = new IndicesWarmer.WarmerContext(shardId, searcher, null);
                         if (warmer != null) warmer.warm(context);
                     } catch (Throwable t) {
                         // Don't fail a merge if the warm-up failed
@@ -1590,7 +1590,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
                     if (newSearcher != null) {
                         IndicesWarmer.WarmerContext context = new IndicesWarmer.WarmerContext(shardId,
-                                new SimpleSearcher("warmer", newSearcher));
+                                new SimpleSearcher("warmer", newSearcher), new SimpleSearcher("complete-warmer", searcher));
                         warmer.warm(context);
                     }
                 } catch (Throwable e) {

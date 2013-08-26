@@ -54,6 +54,7 @@ public class ChildSearchBenchmark {
         Settings settings = settingsBuilder()
                 .put("index.engine.robin.refreshInterval", "-1")
                 .put("gateway.type", "local")
+                .put("index.cache.parent-ordinals.type", "expandable")
                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
                 .build();
@@ -66,8 +67,8 @@ public class ChildSearchBenchmark {
         long COUNT = SizeValue.parseSizeValue("10m").singles();
         int CHILD_COUNT = 5;
         int BATCH = 100;
-        int QUERY_WARMUP = 20;
-        int QUERY_COUNT = 50;
+        int QUERY_WARMUP = 10;
+        int QUERY_COUNT = 25;
         String indexName = "test";
 
         client.admin().cluster().prepareHealth(indexName).setWaitForGreenStatus().setTimeout("10s").execute().actionGet();
@@ -139,7 +140,7 @@ public class ChildSearchBenchmark {
         System.out.println("--> Just Child Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");
 
         NodesStatsResponse statsResponse = client.admin().cluster().prepareNodesStats()
-                .setJvm(true).execute().actionGet();
+                .setJvm(true).get();
         System.out.println("--> Committed heap size: " + statsResponse.getNodes()[0].getJvm().getMem().getHeapCommitted());
         System.out.println("--> Used heap size: " + statsResponse.getNodes()[0].getJvm().getMem().getHeapUsed());
         
@@ -279,8 +280,8 @@ public class ChildSearchBenchmark {
             if (searchResponse.getFailedShards() > 0) {
                 System.err.println("Search Failures " + Arrays.toString(searchResponse.getShardFailures()));
             }
-            if (searchResponse.getHits().totalHits() != 5000000) {
-                System.err.println("--> mismatch on hits [" + j + "], got [" + searchResponse.getHits().totalHits() + "], expected [" + 5000000 + "]");
+            if (searchResponse.getHits().totalHits() != 50000000) {
+                System.err.println("--> mismatch on hits [" + j + "], got [" + searchResponse.getHits().totalHits() + "], expected [" + 50000000 + "]");
             }
             totalQueryTime += searchResponse.getTookInMillis();
         }
@@ -328,9 +329,9 @@ public class ChildSearchBenchmark {
         System.out.println("--> top_children, with match_all Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");
 
         statsResponse = client.admin().cluster().prepareNodesStats()
-                .setJvm(true).setIndices(true).execute().actionGet();
+                .setJvm(true)/*.setIndices(true)*/.execute().actionGet();
 
-        System.out.println("--> Id cache size: " + statsResponse.getNodes()[0].getIndices().getIdCache().getMemorySize());
+//        System.out.println("--> Id cache size: " + statsResponse.getNodes()[0].getIndices().getIdCache().getMemorySize());
         System.out.println("--> Used heap size: " + statsResponse.getNodes()[0].getJvm().getMem().getHeapUsed());
 
         System.out.println("--> Running has_child query with score type");
@@ -385,7 +386,7 @@ public class ChildSearchBenchmark {
         }
         System.out.println("--> has_child query with exponential parent results Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");
         
-        /*System.out.println("--> Running has_parent query with score type");
+        System.out.println("--> Running has_parent query with score type");
         // run parent child score query
         for (int j = 0; j < QUERY_WARMUP; j++) {
             SearchResponse searchResponse = client.prepareSearch(indexName).setQuery(hasParentQuery("parent", termQuery("name", "test1")).scoreType("score")).execute().actionGet();
@@ -407,18 +408,18 @@ public class ChildSearchBenchmark {
         totalQueryTime = 0;
         for (int j = 0; j < QUERY_COUNT; j++) {
             SearchResponse searchResponse = client.prepareSearch(indexName).setQuery(hasParentQuery("parent", matchAllQuery()).scoreType("score")).execute().actionGet();
-            if (searchResponse.getHits().totalHits() != 5000000) {
+            if (searchResponse.getHits().totalHits() != 50000000) {
                 System.err.println("mismatch on hits");
             }
             totalQueryTime += searchResponse.getTookInMillis();
         }
-        System.out.println("--> has_parent query with match_all Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");*/
+        System.out.println("--> has_parent query with match_all Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");
 
         System.gc();
         statsResponse = client.admin().cluster().prepareNodesStats()
                 .setJvm(true).setIndices(true).execute().actionGet();
 
-        System.out.println("--> Id cache size: " + statsResponse.getNodes()[0].getIndices().getIdCache().getMemorySize());
+//        System.out.println("--> Id cache size: " + statsResponse.getNodes()[0].getIndices().getIdCache().getMemorySize());
         System.out.println("--> Used heap size: " + statsResponse.getNodes()[0].getJvm().getMem().getHeapUsed());
 
         client.close();

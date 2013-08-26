@@ -45,7 +45,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
+import org.elasticsearch.index.parentordinals.ParentOrdinalService;
 import org.elasticsearch.index.search.stats.StatsGroupsParseElement;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
@@ -66,6 +66,7 @@ import org.elasticsearch.search.query.*;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -135,6 +136,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         this.keepAliveReaper = threadPool.scheduleWithFixedDelay(new Reaper(), keepAliveInterval);
 
         this.indicesWarmer.addListener(new FieldDataWarmer());
+        this.indicesWarmer.addListener(new ParentOrdinalsWarmer());
         this.indicesWarmer.addListener(new SearchWarmer());
     }
 
@@ -634,12 +636,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         public void warm(final IndexShard indexShard, IndexMetaData indexMetaData, final WarmerContext context, ThreadPool threadPool) {
             final MapperService mapperService = indexShard.mapperService();
             final Map<String, FieldMapper<?>> warmUp = new HashMap<String, FieldMapper<?>>();
-            boolean parentChild = false;
             for (DocumentMapper docMapper : mapperService) {
                 for (FieldMapper<?> fieldMapper : docMapper.mappers().mappers()) {
-                    if (fieldMapper instanceof ParentFieldMapper) {
-                        parentChild = true;
-                    }
                     final FieldDataType fieldDataType = fieldMapper.fieldDataType();
                     if (fieldDataType == null) {
                         continue;
@@ -655,7 +653,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                 }
             }
             final IndexFieldDataService indexFieldDataService = indexShard.indexFieldDataService();
-            final int numTasks = warmUp.size() * context.newSearcher().reader().leaves().size() + (parentChild ? 1 : 0);
+            final int numTasks = warmUp.size() * context.newSearcher().reader().leaves().size();
             final CountDownLatch latch = new CountDownLatch(numTasks);
             for (final AtomicReaderContext ctx : context.newSearcher().reader().leaves()) {
                 for (final FieldMapper<?> fieldMapper : warmUp.values()) {
@@ -680,31 +678,24 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                 }
             }
 
-            if (parentChild) {
-                threadPool.executor(executor()).execute(new Runnable() {
-
-                    @Override
-                    public void run() {
-                        try {
-                            final long start = System.nanoTime();
-                            indexShard.indexService().cache().idCache().refresh(context.newSearcher().reader().leaves());
-                            if (indexShard.warmerService().logger().isTraceEnabled()) {
-                                indexShard.warmerService().logger().trace("warmed id_cache, took [{}]", TimeValue.timeValueNanos(System.nanoTime() - start));
-                            }
-                        } catch (Throwable t) {
-                            indexShard.warmerService().logger().warn("failed to warm-up id cache", t);
-                        } finally {
-                            latch.countDown();
-                        }
-                    }
-
-                });
-            }
-
             try {
                 latch.await();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
+            }
+        }
+
+    }
+
+    static class ParentOrdinalsWarmer extends IndicesWarmer.Listener {
+
+        @Override
+        public void warm(IndexShard indexShard, IndexMetaData indexMetaData, WarmerContext context, ThreadPool threadPool) {
+            ParentOrdinalService parentOrdinalService = indexShard.indexService().parentOrdinals();
+            try {
+                parentOrdinalService.refresh(context);
+            } catch (IOException e) {
+                indexShard.warmerService().logger().warn("failed to warm-up parent ordinals", e);
             }
         }
 

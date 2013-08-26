@@ -44,6 +44,7 @@ public class CacheRecycler extends AbstractComponent {
     public final Recycler<ObjectIntOpenHashMap> objectIntMap;
     public final Recycler<IntObjectOpenHashMap> intObjectMap;
     public final Recycler<ObjectFloatOpenHashMap> objectFloatMap;
+    public final Recycler<IntFloatOpenHashMap> intFloatMap;
 
     public void close() {
         hashMap.close();
@@ -58,6 +59,7 @@ public class CacheRecycler extends AbstractComponent {
         objectIntMap.close();
         intObjectMap.close();
         objectFloatMap.close();
+        intFloatMap.close();
     }
 
     @Inject
@@ -199,6 +201,17 @@ public class CacheRecycler extends AbstractComponent {
                 value.clear();
             }
         });
+        intFloatMap = build(type, limit, smartSize, new Recycler.C<IntFloatOpenHashMap>() {
+            @Override
+            public IntFloatOpenHashMap newInstance(int sizing) {
+                return new IntFloatOpenHashMap(size(sizing));
+            }
+
+            @Override
+            public void clear(IntFloatOpenHashMap value) {
+                value.clear();
+            }
+        });
     }
 
     public <K, V> Recycler.V<ObjectObjectOpenHashMap<K, V>> hashMap(int sizing) {
@@ -249,6 +262,10 @@ public class CacheRecycler extends AbstractComponent {
         return (Recycler.V) objectFloatMap.obtain(sizing);
     }
 
+    public  Recycler.V<IntFloatOpenHashMap> intFloatMap(int sizing) {
+        return intFloatMap.obtain(sizing);
+    }
+
     static int size(int sizing) {
         return sizing > 0 ? sizing : 256;
     }
@@ -270,4 +287,5 @@ public class CacheRecycler extends AbstractComponent {
         }
         return recycler;
     }
+
 }

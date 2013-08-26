@@ -27,7 +27,6 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.cache.filter.FilterCacheStats;
-import org.elasticsearch.index.cache.id.IdCacheStats;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.flush.FlushStats;
@@ -88,9 +87,6 @@ public class CommonStats implements Streamable, ToXContent {
                 case FilterCache:
                     filterCache = new FilterCacheStats();
                     break;
-                case IdCache:
-                    idCache = new IdCacheStats();
-                    break;
                 case FieldData:
                     fieldData = new FieldDataStats();
                     break;
@@ -145,9 +141,6 @@ public class CommonStats implements Streamable, ToXContent {
                 case FilterCache:
                     filterCache = indexShard.filterCacheStats();
                     break;
-                case IdCache:
-                    idCache = indexShard.idCacheStats();
-                    break;
                 case FieldData:
                     fieldData = indexShard.fieldDataStats(flags.fieldDataFields());
                     break;
@@ -195,9 +188,6 @@ public class CommonStats implements Streamable, ToXContent {
 
     @Nullable
     public FilterCacheStats filterCache;
-
-    @Nullable
-    public IdCacheStats idCache;
 
     @Nullable
     public FieldDataStats fieldData;
@@ -293,15 +283,6 @@ public class CommonStats implements Streamable, ToXContent {
             filterCache.add(stats.getFilterCache());
         }
 
-        if (idCache == null) {
-            if (stats.getIdCache() != null) {
-                idCache = new IdCacheStats();
-                idCache.add(stats.getIdCache());
-            }
-        } else {
-            idCache.add(stats.getIdCache());
-        }
-
         if (fieldData == null) {
             if (stats.getFieldData() != null) {
                 fieldData = new FieldDataStats();
@@ -387,11 +368,6 @@ public class CommonStats implements Streamable, ToXContent {
     }
 
     @Nullable
-    public IdCacheStats getIdCache() {
-        return this.idCache;
-    }
-
-    @Nullable
     public FieldDataStats getFieldData() {
         return this.fieldData;
     }
@@ -448,9 +424,6 @@ public class CommonStats implements Streamable, ToXContent {
         }
         if (in.readBoolean()) {
             filterCache = FilterCacheStats.readFilterCacheStats(in);
-        }
-        if (in.readBoolean()) {
-            idCache = IdCacheStats.readIdCacheStats(in);
         }
         if (in.readBoolean()) {
             fieldData = FieldDataStats.readFieldDataStats(in);
@@ -532,12 +505,6 @@ public class CommonStats implements Streamable, ToXContent {
             out.writeBoolean(true);
             filterCache.writeTo(out);
         }
-        if (idCache == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            idCache.writeTo(out);
-        }
         if (fieldData == null) {
             out.writeBoolean(false);
         } else {
@@ -600,9 +567,6 @@ public class CommonStats implements Streamable, ToXContent {
         }
         if (filterCache != null) {
             filterCache.toXContent(builder, params);
-        }
-        if (idCache != null) {
-            idCache.toXContent(builder, params);
         }
         if (fieldData != null) {
             fieldData.toXContent(builder, params);

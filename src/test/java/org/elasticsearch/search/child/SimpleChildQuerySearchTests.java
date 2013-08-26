@@ -286,8 +286,9 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         client().admin().indices().prepareRefresh().execute().actionGet();
         // No _parent field yet, there shouldn't be anything in the parent id cache
         IndicesStatsResponse indicesStatsResponse = client().admin().indices()
-                .prepareStats("test").setIdCache(true).execute().actionGet();
-        assertThat(indicesStatsResponse.getTotal().getIdCache().getMemorySizeInBytes(), equalTo(0l));
+                .prepareStats("test").execute().actionGet();
+        fail();
+//        assertThat(indicesStatsResponse.getTotal().getIdCache().getMemorySizeInBytes(), equalTo(0l));
 
         // Now add mapping + children
         client().admin().indices().preparePutMapping("test").setType("child").setSource(jsonBuilder().startObject().startObject("child")
@@ -304,9 +305,9 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         client().admin().indices().prepareRefresh().execute().actionGet();
 
         indicesStatsResponse = client().admin().indices()
-                .prepareStats("test").setIdCache(true).execute().actionGet();
+                .prepareStats("test").execute().actionGet();
         // automatic warm-up has populated the cache since it found a parent field mapper
-        assertThat(indicesStatsResponse.getTotal().getIdCache().getMemorySizeInBytes(), greaterThan(0l));
+//        assertThat(indicesStatsResponse.getTotal().getIdCache().getMemorySizeInBytes(), greaterThan(0l));
 
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field", "blue"))))
@@ -315,13 +316,13 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
         indicesStatsResponse = client().admin().indices()
-                .prepareStats("test").setIdCache(true).execute().actionGet();
-        assertThat(indicesStatsResponse.getTotal().getIdCache().getMemorySizeInBytes(), greaterThan(0l));
+                .prepareStats("test").execute().actionGet();
+//        assertThat(indicesStatsResponse.getTotal().getIdCache().getMemorySizeInBytes(), greaterThan(0l));
 
         client().admin().indices().prepareClearCache("test").setIdCache(true).execute().actionGet();
         indicesStatsResponse = client().admin().indices()
-                .prepareStats("test").setIdCache(true).execute().actionGet();
-        assertThat(indicesStatsResponse.getTotal().getIdCache().getMemorySizeInBytes(), equalTo(0l));
+                .prepareStats("test").execute().actionGet();
+//        assertThat(indicesStatsResponse.getTotal().getIdCache().getMemorySizeInBytes(), equalTo(0l));
     }
 
     @Test

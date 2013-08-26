@@ -134,7 +134,6 @@ public class RestIndicesStatsAction extends BaseRestHandler {
         indicesStatsRequest.flush(request.paramAsBoolean("flush", indicesStatsRequest.flush()));
         indicesStatsRequest.warmer(request.paramAsBoolean("warmer", indicesStatsRequest.warmer()));
         indicesStatsRequest.filterCache(request.paramAsBoolean("filter_cache", indicesStatsRequest.filterCache()));
-        indicesStatsRequest.idCache(request.paramAsBoolean("id_cache", indicesStatsRequest.idCache()));
         indicesStatsRequest.fieldData(request.paramAsBoolean("fielddata", indicesStatsRequest.fieldData()));
         indicesStatsRequest.fieldDataFields(request.paramAsStringArray("fielddata_fields", defaultIncludedFields));
         indicesStatsRequest.percolate(request.paramAsBoolean("percolate", indicesStatsRequest.percolate()));
@@ -528,7 +527,6 @@ public class RestIndicesStatsAction extends BaseRestHandler {
         public void handleRequest(final RestRequest request, final RestChannel channel) {
             IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
             indicesStatsRequest.listenerThreaded(false);
-            indicesStatsRequest.clear().idCache(true);
             indicesStatsRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
             indicesStatsRequest.types(Strings.splitStringByCommaToArray(request.param("types")));
 

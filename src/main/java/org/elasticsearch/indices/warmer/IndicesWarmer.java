@@ -44,9 +44,18 @@ public interface IndicesWarmer {
 
         private final Engine.Searcher newSearcher;
 
-        public WarmerContext(ShardId shardId, Engine.Searcher newSearcher) {
+        private final Engine.Searcher completeSearcher;
+
+        public WarmerContext(ShardId shardId, Engine.Searcher newSearcher, Engine.Searcher completeSearcher) {
             this.shardId = shardId;
             this.newSearcher = newSearcher;
+            this.completeSearcher = completeSearcher;
+        }
+
+        public WarmerContext(ShardId shardId, Engine.Searcher searcher) {
+            this.shardId = shardId;
+            this.newSearcher = searcher;
+            this.completeSearcher = searcher;
         }
 
         public ShardId shardId() {
@@ -57,6 +66,15 @@ public interface IndicesWarmer {
         public Engine.Searcher newSearcher() {
             return newSearcher;
         }
+
+        /**
+         * Return a searcher instance that wraps the all segments, including previously warmed segments.
+         * Can return <code>null</code> if all the segments aren't available for warming (for example warming during a merge)
+         */
+        public Engine.Searcher completeSearcher() {
+            return completeSearcher;
+        }
+
     }
 
     void addListener(Listener listener);

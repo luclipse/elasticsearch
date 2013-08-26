@@ -31,11 +31,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.node.Node;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Random;
+import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.client.Requests.createIndexRequest;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -60,7 +62,8 @@ public class ChildSearchAndIndexingBenchmark {
 
     public static void main(String[] args) throws Exception {
         Settings settings = settingsBuilder()
-                .put("index.engine.robin.refreshInterval", "-1")
+                .put("index.refresh_interval", "-1")
+                .put("index.cache.parent-ordinals.type", "expandable")
                 .put("gateway.type", "local")
                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
@@ -142,7 +145,9 @@ public class ChildSearchAndIndexingBenchmark {
     static class IndexThread implements Runnable {
 
         private final Client client;
+
         private volatile boolean run = true;
+        private final CountDownLatch shutDownLatch = new CountDownLatch(1);
 
         IndexThread(Client client) {
             this.client = client;
@@ -150,32 +155,46 @@ public class ChildSearchAndIndexingBenchmark {
 
         @Override
         public void run() {
-            while (run) {
-                for (int i = 1; run && i < COUNT; i++) {
-                    try {
-                        client.prepareIndex(indexName, "parent", Integer.toString(i))
-                                .setSource(parentSource(Integer.toString(i), "test" + i)).execute().actionGet();
-                        for (int j = 0; j < CHILD_COUNT; j++) {
-                            client.prepareIndex(indexName, "child", Integer.toString(i) + "_" + j)
-                                    .setParent(Integer.toString(i))
-                                    .setSource(childSource(Integer.toString(j), "tag" + j)).execute().actionGet();
-                        }
-                        client.admin().indices().prepareRefresh(indexName).execute().actionGet();
+            try {
+                while (run) {
+                    BulkRequestBuilder bulkRequest = client.prepareBulk();
+                    for (int i = 1; run && i < COUNT; i++) {
+                        long id = COUNT + i;
+                        bulkRequest.add(client.prepareIndex(indexName, "parent", Long.toString(id))
+                                .setSource("delete", "me"));
                         Thread.sleep(100);
-                        if (i % 500 == 0) {
+                        if (i % 1000 == 0) {
+                            bulkRequest.get();
+                            bulkRequest = client.prepareBulk();
+                            long refreshStart = System.currentTimeMillis();
+                            client.admin().indices().prepareRefresh(indexName).execute().actionGet();
+                            long refreshTime = System.currentTimeMillis() - refreshStart;
+                            System.out.println("Refresh took: " + refreshTime + " ms");
+                            if (i % 5000 == 0) {
+                                client.prepareDeleteByQuery(indexName)
+                                        .setQuery(QueryBuilders.termQuery("delete", "me")).get();
+                            }
                             NodesStatsResponse statsResponse = client.admin().cluster().prepareNodesStats()
                                     .clear().setIndices(true).execute().actionGet();
                             System.out.println("Deleted docs: " + statsResponse.getAt(0).getIndices().getDocs().getDeleted());
                         }
-                    } catch (Throwable e) {
-                        e.printStackTrace();
                     }
+                    bulkRequest.get();
+                    long refreshStart = System.currentTimeMillis();
+                    client.admin().indices().prepareRefresh(indexName).execute().actionGet();
+                    long refreshTime = System.currentTimeMillis() - refreshStart;
+                    System.out.println("Refresh after delete took: " + refreshTime + " ms");
                 }
+            } catch (Throwable e) {
+                e.printStackTrace();
+            } finally {
+                shutDownLatch.countDown();
             }
         }
 
-        public void stop() {
+        public void stop() throws InterruptedException {
             run = false;
+            shutDownLatch.await();
         }
 
     }
@@ -183,7 +202,9 @@ public class ChildSearchAndIndexingBenchmark {
     static class SearchThread implements Runnable {
 
         private final Client client;
+
         private volatile boolean run = true;
+        private final CountDownLatch shutDownLatch = new CountDownLatch(1);
 
         SearchThread(Client client) {
             this.client = client;
@@ -191,8 +212,8 @@ public class ChildSearchAndIndexingBenchmark {
 
         @Override
         public void run() {
-            while (run) {
-                try {
+            try {
+                while (run) {
                     long totalQueryTime = 0;
                     for (int j = 0; j < QUERY_COUNT; j++) {
                         SearchResponse searchResponse = client.prepareSearch(indexName)
@@ -207,7 +228,7 @@ public class ChildSearchAndIndexingBenchmark {
                             System.err.println("Search Failures " + Arrays.toString(searchResponse.getShardFailures()));
                         }
                         if (searchResponse.getHits().totalHits() != COUNT) {
-//                            System.err.println("--> mismatch on hits [" + j + "], got [" + searchResponse.getHits().totalHits() + "], expected [" + COUNT + "]");
+                            System.err.println("--> mismatch on hits [" + j + "], got [" + searchResponse.getHits().totalHits() + "], expected [" + COUNT + "]");
                         }
                         totalQueryTime += searchResponse.getTookInMillis();
                     }
@@ -226,9 +247,8 @@ public class ChildSearchAndIndexingBenchmark {
                         if (searchResponse.getFailedShards() > 0) {
                             System.err.println("Search Failures " + Arrays.toString(searchResponse.getShardFailures()));
                         }
-                        long expected = (COUNT / BATCH) * BATCH;
-                        if (searchResponse.getHits().totalHits() != expected) {
-//                            System.err.println("--> mismatch on hits [" + j + "], got [" + searchResponse.getHits().totalHits() + "], expected [" + expected + "]");
+                        if (searchResponse.getHits().totalHits() != COUNT) {
+                            System.err.println("--> mismatch on hits [" + j + "], got [" + searchResponse.getHits().totalHits() + "], expected [" + COUNT + "]");
                         }
                         totalQueryTime += searchResponse.getTookInMillis();
                     }
@@ -239,14 +259,17 @@ public class ChildSearchAndIndexingBenchmark {
                     System.out.println("--> Committed heap size: " + statsResponse.getNodes()[0].getJvm().getMem().getHeapCommitted());
                     System.out.println("--> Used heap size: " + statsResponse.getNodes()[0].getJvm().getMem().getHeapUsed());
                     Thread.sleep(1000);
-                } catch (Throwable e) {
-                    e.printStackTrace();
                 }
+            } catch (Throwable e) {
+                e.printStackTrace();
+            } finally {
+                shutDownLatch.countDown();
             }
         }
 
-        public void stop() {
+        public void stop() throws InterruptedException {
             run = false;
+            shutDownLatch.await();
         }
 
     }

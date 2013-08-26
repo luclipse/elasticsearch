@@ -54,6 +54,7 @@ public class ChildSearchShortCircuitBenchmark {
         Settings settings = settingsBuilder()
                 .put("index.engine.robin.refreshInterval", "-1")
                 .put("gateway.type", "local")
+                .put("index.cache.parent-ordinals.type", "expandable")
                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
                 .build();
@@ -171,7 +172,7 @@ public class ChildSearchShortCircuitBenchmark {
         statsResponse = client.admin().cluster().prepareNodesStats()
                 .setJvm(true).setIndices(true).execute().actionGet();
 
-        System.out.println("--> Id cache size: " + statsResponse.getNodes()[0].getIndices().getIdCache().getMemorySize());
+//        System.out.println("--> Id cache size: " + statsResponse.getNodes()[0].getIndices().getIdCache().getMemorySize());
         System.out.println("--> Used heap size: " + statsResponse.getNodes()[0].getJvm().getMem().getHeapUsed());
 
         totalQueryTime = 0;
@@ -192,7 +193,7 @@ public class ChildSearchShortCircuitBenchmark {
         statsResponse = client.admin().cluster().prepareNodesStats()
                 .setJvm(true).setIndices(true).execute().actionGet();
 
-        System.out.println("--> Id cache size: " + statsResponse.getNodes()[0].getIndices().getIdCache().getMemorySize());
+//        System.out.println("--> Id cache size: " + statsResponse.getNodes()[0].getIndices().getIdCache().getMemorySize());
         System.out.println("--> Used heap size: " + statsResponse.getNodes()[0].getJvm().getMem().getHeapUsed());
 
         client.close();

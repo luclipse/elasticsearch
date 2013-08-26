@@ -31,6 +31,7 @@ import org.elasticsearch.index.engine.IndexEngine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.gateway.IndexGateway;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.parentordinals.ParentOrdinalService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.service.IndexShard;
@@ -49,6 +50,8 @@ public interface IndexService extends IndexComponent, Iterable<IndexShard> {
     IndexCache cache();
 
     IndexFieldDataService fieldData();
+
+    ParentOrdinalService parentOrdinals();
 
     IndexSettingsService settingsService();
 

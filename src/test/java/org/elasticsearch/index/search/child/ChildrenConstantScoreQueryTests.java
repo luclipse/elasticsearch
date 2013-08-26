@@ -38,9 +38,6 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.filter.weighted.WeightedFilterCache;
-import org.elasticsearch.index.cache.id.IdCache;
-import org.elasticsearch.index.cache.id.SimpleIdCacheTests;
-import org.elasticsearch.index.cache.id.simple.SimpleIdCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestUtils;
@@ -48,6 +45,9 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.parentordinals.ParentOrdinalService;
+import org.elasticsearch.index.parentordinals.expandable.ExpandableParentOrdinalService;
+import org.elasticsearch.index.parentordinals.fixed.FixedParentOrdinalService;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.indices.cache.filter.IndicesFilterCache;
@@ -104,6 +104,10 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
 
         IndexReader indexReader = DirectoryReader.open(indexWriter.w, false);
         IndexSearcher searcher = new IndexSearcher(indexReader);
+        Engine.Searcher engineSearcher = new Engine.SimpleSearcher(
+                ChildrenConstantScoreQueryTests.class.getSimpleName(), searcher
+        );
+        ((TestSearchContext) SearchContext.current()).setSearcher(new ContextIndexSearcher(SearchContext.current(), engineSearcher));
 
         TermQuery childQuery = new TermQuery(new Term("field1", "value" + (1 + random().nextInt(3))));
         TermFilter parentFilter = new TermFilter(new Term(TypeFieldMapper.NAME, "parent"));
@@ -324,21 +328,25 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
 
     static SearchContext createSearchContext(String indexName, String parentType, String childType) throws IOException {
         final Index index = new Index(indexName);
-        final IdCache idCache = new SimpleIdCache(index, ImmutableSettings.EMPTY);
         final CacheRecycler cacheRecycler = new CacheRecycler(ImmutableSettings.EMPTY);
         Settings settings = ImmutableSettings.EMPTY;
         MapperService mapperService = MapperTestUtils.newMapperService(index, settings);
         mapperService.merge(
                 childType, new CompressedString(PutMappingRequest.buildFromSimplifiedDef(childType, "_parent", "type=" + parentType).string()), true
         );
-        final IndexService indexService = new SimpleIdCacheTests.StubIndexService(mapperService);
-        idCache.setIndexService(indexService);
+        final IndexService indexService = new StubIndexService(mapperService);
 
         ThreadPool threadPool = new ThreadPool();
         NodeSettingsService nodeSettingsService = new NodeSettingsService(settings);
         IndicesFilterCache indicesFilterCache = new IndicesFilterCache(settings, threadPool, cacheRecycler, nodeSettingsService);
         WeightedFilterCache filterCache = new WeightedFilterCache(index, settings, indicesFilterCache);
-        return new TestSearchContext(cacheRecycler, idCache, indexService, filterCache);
+        final ParentOrdinalService parentOrdinalService;
+        if (true) {
+            parentOrdinalService = new ExpandableParentOrdinalService(index, ImmutableSettings.EMPTY, mapperService);
+        } else {
+            parentOrdinalService = new FixedParentOrdinalService(index, ImmutableSettings.EMPTY, mapperService);
+        }
+        return new TestSearchContext(cacheRecycler, indexService, filterCache, parentOrdinalService);
     }
 
 }

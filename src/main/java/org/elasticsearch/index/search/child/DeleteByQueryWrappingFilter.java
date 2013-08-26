@@ -24,6 +24,8 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.indices.warmer.IndicesWarmer;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -68,6 +70,10 @@ public class DeleteByQueryWrappingFilter extends Filter {
                     multiReader = new MultiReader(new IndexReader[]{indexReader, context.reader()}, false);
                     searcher = new IndexSearcher(new MultiReader(indexReader, context.reader()));
                 }
+                IndicesWarmer.WarmerContext warmerContext = new IndicesWarmer.WarmerContext(
+                        null, new Engine.SimpleSearcher("delete-by-query", searcher)
+                );
+                searchContext.parentOrdinals().refresh(warmerContext);
                 weight = searcher.createNormalizedWeight(query);
             } finally {
                 if (multiReader != null) {
@@ -80,6 +86,10 @@ public class DeleteByQueryWrappingFilter extends Filter {
                 IndexReader multiReader = new MultiReader(new IndexReader[]{indexReader, context.reader()}, false);
                 try {
                     searcher = new IndexSearcher(multiReader);
+                    IndicesWarmer.WarmerContext warmerContext = new IndicesWarmer.WarmerContext(
+                            null, new Engine.SimpleSearcher("delete-by-query", searcher)
+                    );
+                    searchContext.parentOrdinals().refresh(warmerContext);
                     weight = searcher.createNormalizedWeight(query);
                 } finally {
                     multiReader.close();

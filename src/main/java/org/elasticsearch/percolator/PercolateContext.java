@@ -37,7 +37,6 @@ import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.docset.DocSetCache;
 import org.elasticsearch.index.cache.filter.FilterCache;
-import org.elasticsearch.index.cache.id.IdCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fieldvisitor.JustSourceFieldsVisitor;
@@ -45,6 +44,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.parentordinals.ParentOrdinalService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedFilter;
 import org.elasticsearch.index.query.ParsedQuery;
@@ -484,7 +484,7 @@ public class PercolateContext extends SearchContext {
     }
 
     @Override
-    public IdCache idCache() {
+    public ParentOrdinalService parentOrdinals() {
         throw new UnsupportedOperationException();
     }
 

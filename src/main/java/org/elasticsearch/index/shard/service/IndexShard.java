@@ -25,8 +25,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.cache.filter.FilterCacheStats;
 import org.elasticsearch.index.cache.filter.ShardFilterCache;
-import org.elasticsearch.index.cache.id.IdCacheStats;
-import org.elasticsearch.index.cache.id.ShardIdCache;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
@@ -74,8 +72,6 @@ public interface IndexShard extends IndexShardComponent {
 
     ShardFilterCache filterCache();
 
-    ShardIdCache idCache();
-
     ShardFieldData fieldData();
 
     ShardRouting routingEntry();
@@ -101,8 +97,6 @@ public interface IndexShard extends IndexShardComponent {
     WarmerStats warmerStats();
 
     FilterCacheStats filterCacheStats();
-
-    IdCacheStats idCacheStats();
 
     FieldDataStats fieldDataStats(String... fields);
 
