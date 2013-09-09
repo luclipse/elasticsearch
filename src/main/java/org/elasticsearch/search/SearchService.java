@@ -59,6 +59,7 @@ import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicLong;
@@ -507,6 +508,16 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             removed.indexShard().searchService().onFreeContext(removed);
         }
         context.release();
+    }
+
+    public void freeAllContexts() {
+        Iterator<Map.Entry<Long, SearchContext>> entries = activeContexts.entrySet().iterator();
+        while (entries.hasNext()) {
+            SearchContext removed = entries.next().getValue();
+            entries.remove();
+            removed.indexShard().searchService().onFreeContext(removed);
+            removed.release();
+        }
     }
 
     private void contextProcessing(SearchContext context) {
