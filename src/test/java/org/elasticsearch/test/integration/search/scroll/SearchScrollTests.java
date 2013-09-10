@@ -307,7 +307,7 @@ public class SearchScrollTests extends AbstractSharedClusterTest {
     }
 
     @Test
-    public void testSimpleScrollQueryThenFetch_clearScrollIds_all() throws Exception {
+    public void testSimpleScrollQueryThenFetch_clearAllScrollIds() throws Exception {
         try {
             client().admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {

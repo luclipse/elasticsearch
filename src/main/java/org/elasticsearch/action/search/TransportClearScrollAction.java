@@ -54,7 +54,7 @@ public class TransportClearScrollAction extends TransportAction<ClearScrollReque
 
     @Override
     protected void doExecute(ClearScrollRequest request, final ActionListener<ClearScrollResponse> listener) {
-        new ASync(request, listener, clusterService.state()).start();
+        new ASync(request, listener, clusterService.state()).run();
     }
 
     private class ASync {
@@ -85,7 +85,7 @@ public class TransportClearScrollAction extends TransportAction<ClearScrollReque
             this.expectedOps = new AtomicInteger(expectedOps);
         }
 
-        public void start() {
+        public void run() {
             if (expectedOps.get() == 0) {
                 listener.onResponse(new ClearScrollResponse(true));
                 return;
@@ -93,7 +93,7 @@ public class TransportClearScrollAction extends TransportAction<ClearScrollReque
 
             if (contexts.isEmpty()) {
                 for (final DiscoveryNode node : nodes) {
-                    searchServiceTransportAction.sendClearAllContexts(node, request, new ActionListener<Boolean>() {
+                    searchServiceTransportAction.sendClearAllScrollContexts(node, request, new ActionListener<Boolean>() {
                         @Override
                         public void onResponse(Boolean success) {
                             onFreedContext();
@@ -131,6 +131,7 @@ public class TransportClearScrollAction extends TransportAction<ClearScrollReque
         }
 
         void onFreedContext() {
+            assert expectedOps.get() > 0;
             if (expectedOps.decrementAndGet() == 0) {
                 boolean succeeded = expHolder.get() == null;
                 listener.onResponse(new ClearScrollResponse(succeeded));
@@ -138,7 +139,8 @@ public class TransportClearScrollAction extends TransportAction<ClearScrollReque
         }
 
         void onFailedFreedContext(Throwable e, DiscoveryNode node) {
-            logger.debug("Clear SC failed on node[{}]", e, node);
+            logger.warn("Clear SC failed on node[{}]", e, node);
+            assert expectedOps.get() > 0;
             if (expectedOps.decrementAndGet() == 0) {
                 listener.onResponse(new ClearScrollResponse(false));
             } else {

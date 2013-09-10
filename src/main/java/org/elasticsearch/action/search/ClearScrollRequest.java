@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -60,13 +59,17 @@ public class ClearScrollRequest extends ActionRequest {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        scrollIds = new ArrayList<String>(Arrays.asList(in.readStringArray()));
+        scrollIds = Arrays.asList(in.readStringArray());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeStringArrayNullable(scrollIds.toArray(new String[0]));
+        if (scrollIds == null) {
+            out.writeVInt(0);
+        } else {
+            out.writeStringArray(scrollIds.toArray(new String[scrollIds.size()]));
+        }
     }
 
 }

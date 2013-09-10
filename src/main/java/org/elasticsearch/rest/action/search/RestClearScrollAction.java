@@ -31,11 +31,9 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.rest.*;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.action.support.RestXContentBuilder.restContentBuilder;
 
@@ -47,8 +45,8 @@ public class RestClearScrollAction extends BaseRestHandler {
     public RestClearScrollAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
 
-        controller.registerHandler(GET, "/_search/clear/{scroll_id}", this);
-        controller.registerHandler(POST, "/_search/clear/{scroll_id}", this);
+        controller.registerHandler(DELETE, "/_search/scroll", this);
+        controller.registerHandler(DELETE, "/_search/scroll/{scroll_id}", this);
     }
 
     @Override
@@ -56,7 +54,7 @@ public class RestClearScrollAction extends BaseRestHandler {
         String scrollIds = request.param("scroll_id");
 
         ClearScrollRequest clearRequest = new ClearScrollRequest();
-        clearRequest.setScrollIds(new ArrayList<String>(Arrays.asList(splitScrollIds(scrollIds))));
+        clearRequest.setScrollIds(Arrays.asList(splitScrollIds(scrollIds)));
         client.clearScroll(clearRequest, new ActionListener<ClearScrollResponse>() {
             @Override
             public void onResponse(ClearScrollResponse response) {

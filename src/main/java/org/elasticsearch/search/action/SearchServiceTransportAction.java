@@ -83,7 +83,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
         this.searchService = searchService;
 
         transportService.registerHandler(SearchFreeContextTransportHandler.ACTION, new SearchFreeContextTransportHandler());
-        transportService.registerHandler(ClearSearchContextsTransportHandler.ACTION, new ClearSearchContextsTransportHandler());
+        transportService.registerHandler(ClearScrollContextsTransportHandler.ACTION, new ClearScrollContextsTransportHandler());
         transportService.registerHandler(SearchDfsTransportHandler.ACTION, new SearchDfsTransportHandler());
         transportService.registerHandler(SearchQueryTransportHandler.ACTION, new SearchQueryTransportHandler());
         transportService.registerHandler(SearchQueryByIdTransportHandler.ACTION, new SearchQueryByIdTransportHandler());
@@ -133,12 +133,12 @@ public class SearchServiceTransportAction extends AbstractComponent {
         }
     }
 
-    public void sendClearAllContexts(DiscoveryNode node, ClearScrollRequest request, final ActionListener<Boolean> actionListener) {
+    public void sendClearAllScrollContexts(DiscoveryNode node, ClearScrollRequest request, final ActionListener<Boolean> actionListener) {
         if (clusterService.state().nodes().localNodeId().equals(node.id())) {
-            searchService.freeAllContexts();
+            searchService.freeAllScrollContexts();
             actionListener.onResponse(true);
         } else {
-            transportService.sendRequest(node, ClearSearchContextsTransportHandler.ACTION, new ClearSearchContextsRequest(request), new TransportResponseHandler<TransportResponse>() {
+            transportService.sendRequest(node, ClearScrollContextsTransportHandler.ACTION, new ClearScrollContextsRequest(request), new TransportResponseHandler<TransportResponse>() {
                 @Override
                 public TransportResponse newInstance() {
                     return TransportResponse.Empty.INSTANCE;
@@ -554,29 +554,29 @@ public class SearchServiceTransportAction extends AbstractComponent {
         }
     }
 
-    class ClearSearchContextsRequest extends TransportRequest {
+    class ClearScrollContextsRequest extends TransportRequest {
 
-        ClearSearchContextsRequest() {
+        ClearScrollContextsRequest() {
         }
 
-        ClearSearchContextsRequest(TransportRequest request) {
+        ClearScrollContextsRequest(TransportRequest request) {
             super(request);
         }
 
     }
 
-    class ClearSearchContextsTransportHandler extends BaseTransportRequestHandler<ClearSearchContextsRequest> {
+    class ClearScrollContextsTransportHandler extends BaseTransportRequestHandler<ClearScrollContextsRequest> {
 
-        static final String ACTION = "search/clearSearchContexts";
+        static final String ACTION = "search/clearScrollContexts";
 
         @Override
-        public ClearSearchContextsRequest newInstance() {
-            return new ClearSearchContextsRequest();
+        public ClearScrollContextsRequest newInstance() {
+            return new ClearScrollContextsRequest();
         }
 
         @Override
-        public void messageReceived(ClearSearchContextsRequest request, TransportChannel channel) throws Exception {
-            searchService.freeAllContexts();
+        public void messageReceived(ClearScrollContextsRequest request, TransportChannel channel) throws Exception {
+            searchService.freeAllScrollContexts();
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
 
