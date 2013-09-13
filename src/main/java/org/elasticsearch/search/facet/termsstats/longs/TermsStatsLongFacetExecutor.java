@@ -19,12 +19,12 @@
 
 package org.elasticsearch.search.facet.termsstats.longs;
 
+import com.carrotsearch.hppc.LongObjectOpenHashMap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LongValues;
@@ -37,6 +37,7 @@ import org.elasticsearch.search.facet.termsstats.TermsStatsFacet;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -50,7 +51,7 @@ public class TermsStatsLongFacetExecutor extends FacetExecutor {
 
     private final int size;
 
-    final Recycler.V<ExtTLongObjectHashMap<InternalTermsStatsLongFacet.LongEntry>> entries;
+    final Recycler.V<LongObjectOpenHashMap<InternalTermsStatsLongFacet.LongEntry>> entries;
     long missing;
 
     public TermsStatsLongFacetExecutor(IndexNumericFieldData keyIndexFieldData, IndexNumericFieldData valueIndexFieldData, SearchScript script,
@@ -77,11 +78,21 @@ public class TermsStatsLongFacetExecutor extends FacetExecutor {
         }
         if (size == 0) { // all terms
             // all terms, just return the collection, we will sort it on the way back
-            return new InternalTermsStatsLongFacet(facetName, comparatorType, 0 /* indicates all terms*/, entries.v().valueCollection(), missing);
+            List<InternalTermsStatsLongFacet.LongEntry> longEntries = new ArrayList<InternalTermsStatsLongFacet.LongEntry>(entries.v().size());
+            boolean[] states = entries.v().allocated;
+            Object[] values = entries.v().values;
+            for (int i = 0; i < states.length; i++) {
+                if (states[i]) {
+                    longEntries.add((InternalTermsStatsLongFacet.LongEntry) values[i]);
+                }
+            }
+
+            entries.release();
+            return new InternalTermsStatsLongFacet(facetName, comparatorType, 0 /* indicates all terms*/, longEntries, missing);
         }
 
         // we need to fetch facets of "size * numberOfShards" because of problems in how they are distributed across shards
-        Object[] values = entries.v().internalValues();
+        Object[] values = entries.v().values;
         Arrays.sort(values, (Comparator) comparatorType.comparator());
 
         int limit = size;
@@ -140,11 +151,11 @@ public class TermsStatsLongFacetExecutor extends FacetExecutor {
 
     public static class Aggregator extends LongFacetAggregatorBase {
 
-        final ExtTLongObjectHashMap<InternalTermsStatsLongFacet.LongEntry> entries;
+        final LongObjectOpenHashMap<InternalTermsStatsLongFacet.LongEntry> entries;
         DoubleValues valueValues;
         final ValueAggregator valueAggregator = new ValueAggregator();
 
-        public Aggregator(ExtTLongObjectHashMap<InternalTermsStatsLongFacet.LongEntry> entries) {
+        public Aggregator(LongObjectOpenHashMap<InternalTermsStatsLongFacet.LongEntry> entries) {
             this.entries = entries;
         }
 
@@ -183,7 +194,7 @@ public class TermsStatsLongFacetExecutor extends FacetExecutor {
 
         private final SearchScript script;
 
-        public ScriptAggregator(ExtTLongObjectHashMap<InternalTermsStatsLongFacet.LongEntry> entries, SearchScript script) {
+        public ScriptAggregator(LongObjectOpenHashMap<InternalTermsStatsLongFacet.LongEntry> entries, SearchScript script) {
             super(entries);
             this.script = script;
         }

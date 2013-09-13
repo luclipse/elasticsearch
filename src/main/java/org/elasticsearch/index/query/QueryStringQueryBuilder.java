@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.query;
 
-import gnu.trove.impl.Constants;
-import gnu.trove.map.hash.TObjectFloatHashMap;
+import com.carrotsearch.hppc.ObjectFloatOpenHashMap;
+import org.elasticsearch.common.hppc.HppcMaps;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -78,7 +78,7 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder implements Boostab
 
     private List<String> fields;
 
-    private TObjectFloatHashMap<String> fieldsBoosts;
+    private ObjectFloatOpenHashMap<String> fieldsBoosts;
 
     private Boolean useDisMax;
 
@@ -125,7 +125,7 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder implements Boostab
         }
         fields.add(field);
         if (fieldsBoosts == null) {
-            fieldsBoosts = new TObjectFloatHashMap<String>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, -1);
+            fieldsBoosts = HppcMaps.Object.Float.newMapNoEntry(-1);
         }
         fieldsBoosts.put(field, boost);
         return this;

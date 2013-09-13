@@ -19,8 +19,8 @@
 
 package org.elasticsearch.common.io.stream;
 
-import gnu.trove.impl.Constants;
-import gnu.trove.map.hash.TObjectIntHashMap;
+import com.carrotsearch.hppc.ObjectIntOpenHashMap;
+import org.elasticsearch.common.hppc.HppcMaps;
 import org.elasticsearch.common.text.Text;
 
 import java.io.IOException;
@@ -30,8 +30,8 @@ import java.io.IOException;
  */
 public class HandlesStreamOutput extends AdapterStreamOutput {
 
-    private final TObjectIntHashMap<String> handles = new TObjectIntHashMap<String>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, -1);
-    private final TObjectIntHashMap<Text> handlesText = new TObjectIntHashMap<Text>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, -1);
+    private final ObjectIntOpenHashMap<String> handles = HppcMaps.Object.Integer.newMapNoEntry(-1);
+    private final ObjectIntOpenHashMap<Text> handlesText = HppcMaps.Object.Integer.newMapNoEntry(-1);
 
     public HandlesStreamOutput(StreamOutput out) {
         super(out);

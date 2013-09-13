@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.query;
 
+import com.carrotsearch.hppc.ObjectFloatOpenHashMap;
 import com.google.common.collect.Lists;
-import gnu.trove.impl.Constants;
-import gnu.trove.map.hash.TObjectFloatHashMap;
+import org.elasticsearch.common.hppc.HppcMaps;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -37,7 +37,7 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
     private final Object text;
 
     private final List<String> fields;
-    private TObjectFloatHashMap<String> fieldsBoosts;
+    private ObjectFloatOpenHashMap<String> fieldsBoosts;
 
     private MatchQueryBuilder.Type type;
 
@@ -96,7 +96,7 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
     public MultiMatchQueryBuilder field(String field, float boost) {
         fields.add(field);
         if (fieldsBoosts == null) {
-            fieldsBoosts = new TObjectFloatHashMap<String>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, -1);
+            fieldsBoosts = HppcMaps.Object.Float.newMapNoEntry(-1f);
         }
         fieldsBoosts.put(field, boost);
         return this;
