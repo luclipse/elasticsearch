@@ -46,9 +46,7 @@ public class RestCloseIndexAction extends BaseRestHandler {
         closeIndexRequest.listenerThreaded(false);
         closeIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", closeIndexRequest.masterNodeTimeout()));
         closeIndexRequest.timeout(request.paramAsTime("timeout", closeIndexRequest.timeout()));
-        if (request.hasParam("ignore_indices")) {
-            closeIndexRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
-        }
+        closeIndexRequest.ignoreIndices(IgnoreIndices.fromRequest(request, closeIndexRequest.ignoreIndices()));
         client.admin().indices().close(closeIndexRequest, new AcknowledgedRestResponseActionListener<CloseIndexResponse>(request, channel, logger));
     }
 }

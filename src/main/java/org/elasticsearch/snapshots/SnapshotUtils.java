@@ -73,7 +73,7 @@ public class SnapshotUtils {
             }
             if (indexOrPattern.isEmpty() || !Regex.isSimpleMatchPattern(indexOrPattern)) {
                 if (!availableIndices.contains(indexOrPattern)) {
-                    if (ignoreIndices != IgnoreIndices.MISSING) {
+                    if (ignoreIndices != IgnoreIndices.lenient()) {
                         throw new IndexMissingException(new Index(indexOrPattern));
                     } else {
                         if (result == null) {
@@ -109,7 +109,7 @@ public class SnapshotUtils {
                     }
                 }
             }
-            if (!found && ignoreIndices != IgnoreIndices.MISSING) {
+            if (!found && ignoreIndices != IgnoreIndices.lenient()) {
                 throw new IndexMissingException(new Index(indexOrPattern));
             }
         }

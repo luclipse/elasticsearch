@@ -61,9 +61,7 @@ public class RestCountAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         CountRequest countRequest = new CountRequest(Strings.splitStringByCommaToArray(request.param("index")));
-        if (request.hasParam("ignore_indices")) {
-            countRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
-        }
+        countRequest.ignoreIndices(IgnoreIndices.fromRequest(request, countRequest.ignoreIndices()));
         countRequest.listenerThreaded(false);
         try {
             BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operation_threading"), BroadcastOperationThreading.THREAD_PER_SHARD);

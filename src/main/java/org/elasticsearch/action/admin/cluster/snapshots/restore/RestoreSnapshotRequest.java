@@ -56,7 +56,7 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
 
     private String[] indices = Strings.EMPTY_ARRAY;
 
-    private IgnoreIndices ignoreIndices = IgnoreIndices.DEFAULT;
+    private IgnoreIndices ignoreIndices = IgnoreIndices.lenient();
 
     private String renamePattern;
 
@@ -379,6 +379,9 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
      * @return this request
      */
     public RestoreSnapshotRequest source(Map source) {
+        boolean ignoreUnavailable = IgnoreIndices.lenient().ignoreUnavailable();
+        boolean expandWildcards = IgnoreIndices.lenient().expandOnlyOpenIndices();
+        boolean allowNoIndices = IgnoreIndices.lenient().allowNoIndices();
         for (Map.Entry<String, Object> entry : ((Map<String, Object>) source).entrySet()) {
             String name = entry.getKey();
             if (name.equals("indices")) {
@@ -389,12 +392,15 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
                 } else {
                     throw new ElasticSearchIllegalArgumentException("malformed indices section, should be an array of strings");
                 }
-            } else if (name.equals("ignore_indices")) {
-                if (entry.getValue() instanceof String) {
-                    ignoreIndices(IgnoreIndices.fromString((String) entry.getValue()));
-                } else {
-                    throw new ElasticSearchIllegalArgumentException("malformed ignore_indices");
-                }
+            } else if (name.equals("ignore_unavailable") || name.equals("ignoreUnavailable")) {
+                assert entry.getValue() instanceof String;
+                ignoreUnavailable = Boolean.valueOf(entry.getValue().toString());
+            } else if (name.equals("expand_wildcards") || name.equals("expandWildcards")) {
+                assert entry.getValue() instanceof String;
+                expandWildcards = Boolean.valueOf(entry.getValue().toString());
+            } else if (name.equals("allow_no_indices") || name.equals("allowNoIndices")) {
+                assert entry.getValue() instanceof String;
+                allowNoIndices = Boolean.valueOf(entry.getValue().toString());
             } else if (name.equals("settings")) {
                 if (!(entry.getValue() instanceof Map)) {
                     throw new ElasticSearchIllegalArgumentException("malformed settings section, should indices an inner object");
@@ -421,6 +427,7 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
                 throw new ElasticSearchIllegalArgumentException("Unknown parameter " + name);
             }
         }
+        ignoreIndices(IgnoreIndices.fromOptions(ignoreUnavailable, expandWildcards, allowNoIndices));
         return this;
     }
 

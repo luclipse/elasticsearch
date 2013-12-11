@@ -35,7 +35,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class OpenIndexRequest extends AcknowledgedRequest<OpenIndexRequest> {
 
     private String[] indices;
-    private IgnoreIndices ignoreIndices = IgnoreIndices.DEFAULT;
+    private IgnoreIndices ignoreIndices = IgnoreIndices.lenient();
 
     OpenIndexRequest() {
     }

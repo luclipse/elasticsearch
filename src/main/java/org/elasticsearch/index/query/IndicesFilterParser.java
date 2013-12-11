@@ -149,7 +149,7 @@ public class IndicesFilterParser implements FilterParser {
     protected boolean matchesIndices(String currentIndex, String... indices) {
         final String[] concreteIndices;
         try {
-            concreteIndices = clusterService.state().metaData().concreteIndices(indices, IgnoreIndices.MISSING, true);
+            concreteIndices = clusterService.state().metaData().concreteIndices(indices, IgnoreIndices.lenient(), true);
         } catch(IndexMissingException e) {
             //Although we use IgnoreIndices.MISSING, according to MetaData#concreteIndices contract,
             // we get IndexMissing either when we have a single index that is missing or when all indices are missing

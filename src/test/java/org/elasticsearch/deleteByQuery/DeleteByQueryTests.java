@@ -86,7 +86,7 @@ public class DeleteByQueryTests extends ElasticsearchIntegrationTest {
         } catch (IndexMissingException e) {
         }
 
-        deleteByQueryRequestBuilder.setIgnoreIndices(IgnoreIndices.MISSING);
+        deleteByQueryRequestBuilder.setIgnoreIndices(IgnoreIndices.lenient());
         DeleteByQueryResponse actionGet = deleteByQueryRequestBuilder.execute().actionGet();
         assertThat(actionGet.status(), equalTo(RestStatus.OK));
         assertThat(actionGet.getIndex("twitter").getFailedShards(), equalTo(0));

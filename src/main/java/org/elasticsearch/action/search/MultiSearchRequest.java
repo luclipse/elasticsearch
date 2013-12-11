@@ -48,7 +48,7 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
 
     private List<SearchRequest> requests = Lists.newArrayList();
 
-    private IgnoreIndices ignoreIndices = IgnoreIndices.DEFAULT;
+    private IgnoreIndices ignoreIndices = IgnoreIndices.lenient();
 
     /**
      * Add a search request to execute. Note, the order is important, the search response will be returned in the
@@ -70,7 +70,7 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
 
     public MultiSearchRequest add(byte[] data, int from, int length, boolean contentUnsafe,
                                   @Nullable String[] indices, @Nullable String[] types, @Nullable String searchType) throws Exception {
-        return add(new BytesArray(data, from, length), contentUnsafe, indices, types, searchType, null, IgnoreIndices.NONE, true);
+        return add(new BytesArray(data, from, length), contentUnsafe, indices, types, searchType, null, IgnoreIndices.strict(), true);
     }
 
     public MultiSearchRequest add(BytesReference data, boolean contentUnsafe, @Nullable String[] indices, @Nullable String[] types, @Nullable String searchType, IgnoreIndices ignoreIndices) throws Exception {
@@ -108,6 +108,10 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
             }
             searchRequest.searchType(searchType);
 
+            boolean ignoreUnavailable = IgnoreIndices.lenient().ignoreUnavailable();
+            boolean expandWildcards = IgnoreIndices.lenient().expandOnlyOpenIndices();
+            boolean allowNoIndices = IgnoreIndices.lenient().allowNoIndices();
+
             // now parse the action
             if (nextMarker - from > 0) {
                 XContentParser parser = xContent.createParser(data.slice(from, nextMarker - from));
@@ -134,8 +138,12 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
                                     searchRequest.preference(parser.text());
                                 } else if ("routing".equals(currentFieldName)) {
                                     searchRequest.routing(parser.text());
-                                } else if ("ignore_indices".equals(currentFieldName) || "ignoreIndices".equals(currentFieldName)) {
-                                    searchRequest.ignoreIndices(IgnoreIndices.fromString(parser.text()));
+                                } else if ("ignore_unavailable".equals(currentFieldName) || "ignoreUnavailable".equals(currentFieldName)) {
+                                    ignoreUnavailable = parser.booleanValue();
+                                } else if ("expand_wildcards".equals(currentFieldName) || "expandWildcards".equals(currentFieldName)) {
+                                    expandWildcards = parser.booleanValue();
+                                } else if ("allow_no_indices".equals(currentFieldName) || "allowNoIndices".equals(currentFieldName)) {
+                                    allowNoIndices = parser.booleanValue();
                                 }
                             } else if (token == XContentParser.Token.START_ARRAY) {
                                 if ("index".equals(currentFieldName) || "indices".equals(currentFieldName)) {
@@ -155,6 +163,7 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
                     parser.close();
                 }
             }
+            searchRequest.ignoreIndices(IgnoreIndices.fromOptions(ignoreUnavailable, expandWildcards, allowNoIndices));
 
             // move pointers
             from = nextMarker + 1;

@@ -983,7 +983,7 @@ public class SnapshotsService extends AbstractComponent implements ClusterStateL
 
         private String[] indices;
 
-        private IgnoreIndices ignoreIndices = IgnoreIndices.DEFAULT;
+        private IgnoreIndices ignoreIndices = IgnoreIndices.lenient();
 
         private Settings settings;
 

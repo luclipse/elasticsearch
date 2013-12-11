@@ -74,9 +74,7 @@ public class RestPercolateAction extends BaseRestHandler {
 
         percolateRequest.routing(restRequest.param("routing"));
         percolateRequest.preference(restRequest.param("preference"));
-        if (restRequest.hasParam("ignore_indices")) {
-            percolateRequest.ignoreIndices(IgnoreIndices.fromString(restRequest.param("ignore_indices")));
-        }
+        percolateRequest.ignoreIndices(IgnoreIndices.fromRequest(restRequest, percolateRequest.ignoreIndices()));
         executePercolate(percolateRequest, restRequest, restChannel);
     }
 
@@ -103,9 +101,7 @@ public class RestPercolateAction extends BaseRestHandler {
         percolateRequest.routing(restRequest.param("percolate_routing"));
         percolateRequest.preference(restRequest.param("percolate_preference"));
 
-        if (restRequest.hasParam("ignore_indices")) {
-            percolateRequest.ignoreIndices(IgnoreIndices.fromString(restRequest.param("ignore_indices")));
-        }
+        percolateRequest.ignoreIndices(IgnoreIndices.fromRequest(restRequest, percolateRequest.ignoreIndices()));
         executePercolate(percolateRequest, restRequest, restChannel);
     }
 

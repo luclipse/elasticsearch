@@ -62,9 +62,7 @@ public class RestClusterSearchShardsAction extends BaseRestHandler {
         clusterSearchShardsRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
         clusterSearchShardsRequest.routing(request.param("routing"));
         clusterSearchShardsRequest.preference(request.param("preference"));
-        if (request.hasParam("ignore_indices")) {
-            clusterSearchShardsRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
-        }
+        clusterSearchShardsRequest.ignoreIndices(IgnoreIndices.fromRequest(request, clusterSearchShardsRequest.ignoreIndices()));
 
         client.admin().cluster().searchShards(clusterSearchShardsRequest, new ActionListener<ClusterSearchShardsResponse>() {
             @Override

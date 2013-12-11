@@ -98,35 +98,35 @@ public class IgnoreIndicesTests extends ElasticsearchIntegrationTest {
         } catch (IndexMissingException e) {
         }
 
-        client().prepareSearch("test1", "test2").setIgnoreIndices(IgnoreIndices.MISSING)
+        client().prepareSearch("test1", "test2").setIgnoreIndices(IgnoreIndices.lenient())
                 .setQuery(QueryBuilders.matchAllQuery())
                 .execute().actionGet();
-        multiSearchResponse = client().prepareMultiSearch().setIgnoreIndices(IgnoreIndices.MISSING).add(
+        multiSearchResponse = client().prepareMultiSearch().setIgnoreIndices(IgnoreIndices.lenient()).add(
                 client().prepareSearch("test1", "test2")
                         .setQuery(QueryBuilders.matchAllQuery())
         ).execute().actionGet();
         assertThat(multiSearchResponse.getResponses().length, equalTo(1));
         assertThat(multiSearchResponse.getResponses()[0].getResponse(), notNullValue());
-        client().prepareCount("test1", "test2").setIgnoreIndices(IgnoreIndices.MISSING)
+        client().prepareCount("test1", "test2").setIgnoreIndices(IgnoreIndices.lenient())
                 .setQuery(QueryBuilders.matchAllQuery())
                 .execute().actionGet();
-        client().admin().indices().prepareClearCache("test1", "test2").setIgnoreIndices(IgnoreIndices.MISSING)
+        client().admin().indices().prepareClearCache("test1", "test2").setIgnoreIndices(IgnoreIndices.lenient())
                 .execute().actionGet();
-        client().admin().indices().prepareFlush("test1", "test2").setIgnoreIndices(IgnoreIndices.MISSING)
+        client().admin().indices().prepareFlush("test1", "test2").setIgnoreIndices(IgnoreIndices.lenient())
                 .execute().actionGet();
-        client().admin().indices().prepareGatewaySnapshot("test1", "test2").setIgnoreIndices(IgnoreIndices.MISSING)
+        client().admin().indices().prepareGatewaySnapshot("test1", "test2").setIgnoreIndices(IgnoreIndices.lenient())
                 .execute().actionGet();
-        client().admin().indices().prepareSegments("test1", "test2").setIgnoreIndices(IgnoreIndices.MISSING)
+        client().admin().indices().prepareSegments("test1", "test2").setIgnoreIndices(IgnoreIndices.lenient())
                 .execute().actionGet();
-        client().admin().indices().prepareStats("test1", "test2").setIgnoreIndices(IgnoreIndices.MISSING)
+        client().admin().indices().prepareStats("test1", "test2").setIgnoreIndices(IgnoreIndices.lenient())
                 .execute().actionGet();
-        client().admin().indices().prepareStatus("test1", "test2").setIgnoreIndices(IgnoreIndices.MISSING)
+        client().admin().indices().prepareStatus("test1", "test2").setIgnoreIndices(IgnoreIndices.lenient())
                 .execute().actionGet();
-        client().admin().indices().prepareOptimize("test1", "test2").setIgnoreIndices(IgnoreIndices.MISSING)
+        client().admin().indices().prepareOptimize("test1", "test2").setIgnoreIndices(IgnoreIndices.lenient())
                 .execute().actionGet();
-        client().admin().indices().prepareRefresh("test1", "test2").setIgnoreIndices(IgnoreIndices.MISSING)
+        client().admin().indices().prepareRefresh("test1", "test2").setIgnoreIndices(IgnoreIndices.lenient())
                 .execute().actionGet();
-        client().admin().indices().prepareValidateQuery("test1", "test2").setIgnoreIndices(IgnoreIndices.MISSING)
+        client().admin().indices().prepareValidateQuery("test1", "test2").setIgnoreIndices(IgnoreIndices.lenient())
                 .execute().actionGet();
 
         createIndex("test2");
@@ -151,20 +151,20 @@ public class IgnoreIndicesTests extends ElasticsearchIntegrationTest {
                 client().admin().indices().prepareCreate("test1").execute().actionGet();
         ensureYellow();
         try {
-            client().prepareSearch("test2").setQuery(QueryBuilders.matchAllQuery()).setIgnoreIndices(IgnoreIndices.MISSING).execute().actionGet();
+            client().prepareSearch("test2").setQuery(QueryBuilders.matchAllQuery()).setIgnoreIndices(IgnoreIndices.lenient()).execute().actionGet();
             fail("Exception should have been thrown.");
         } catch (IndexMissingException e) {
         }
 
         try {
-            client().prepareSearch("test2","test3").setQuery(QueryBuilders.matchAllQuery()).setIgnoreIndices(IgnoreIndices.MISSING).execute().actionGet();
+            client().prepareSearch("test2","test3").setQuery(QueryBuilders.matchAllQuery()).setIgnoreIndices(IgnoreIndices.lenient()).execute().actionGet();
             fail("Exception should have been thrown.");
         } catch (IndexMissingException e) {
         }
         
         
         //you should still be able to run empty searches without things blowing up
-        client().prepareSearch().setQuery(QueryBuilders.matchAllQuery()).setIgnoreIndices(IgnoreIndices.MISSING).execute().actionGet();
+        client().prepareSearch().setQuery(QueryBuilders.matchAllQuery()).setIgnoreIndices(IgnoreIndices.lenient()).execute().actionGet();
     }
 
     @Test

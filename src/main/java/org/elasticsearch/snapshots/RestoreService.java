@@ -461,7 +461,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
 
         private String renameReplacement;
 
-        private IgnoreIndices ignoreIndices = IgnoreIndices.DEFAULT;
+        private IgnoreIndices ignoreIndices = IgnoreIndices.lenient();
 
         private Settings settings;
 

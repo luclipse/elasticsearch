@@ -36,7 +36,7 @@ public class IndicesReplicationOperationRequest<T extends IndicesReplicationOper
 
     protected TimeValue timeout = ShardReplicationOperationRequest.DEFAULT_TIMEOUT;
     protected String[] indices;
-    private IgnoreIndices ignoreIndices = IgnoreIndices.DEFAULT;
+    private IgnoreIndices ignoreIndices = IgnoreIndices.lenient();
 
     protected ReplicationType replicationType = ReplicationType.DEFAULT;
     protected WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;

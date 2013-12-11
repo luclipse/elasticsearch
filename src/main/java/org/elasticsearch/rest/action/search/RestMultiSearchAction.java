@@ -65,10 +65,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
 
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         String[] types = Strings.splitStringByCommaToArray(request.param("type"));
-        IgnoreIndices ignoreIndices = null;
-        if (request.hasParam("ignore_indices")) {
-            ignoreIndices = IgnoreIndices.fromString(request.param("ignore_indices"));
-        }
+        IgnoreIndices ignoreIndices = IgnoreIndices.fromRequest(request, multiSearchRequest.ignoreIndices());
 
         try {
             multiSearchRequest.add(request.content(), request.contentUnsafe(), indices, types, request.param("search_type"), request.param("routing"), ignoreIndices, allowExplicitIndex);

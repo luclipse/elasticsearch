@@ -36,7 +36,7 @@ public class TypesExistsRequest extends MasterNodeOperationRequest<TypesExistsRe
     private String[] indices;
     private String[] types;
 
-    private IgnoreIndices ignoreIndices = IgnoreIndices.NONE;
+    private IgnoreIndices ignoreIndices = IgnoreIndices.strict();
 
     TypesExistsRequest() {
     }

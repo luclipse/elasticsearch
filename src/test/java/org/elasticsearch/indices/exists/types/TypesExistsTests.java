@@ -54,11 +54,11 @@ public class TypesExistsTests extends ElasticsearchIntegrationTest {
         response = client.admin().indices().prepareTypesExists("test1").setTypes("type3").execute().actionGet();
         assertThat(response.isExists(), equalTo(false));
         try {
-            client.admin().indices().prepareTypesExists("notExist").setTypes("type1").setIgnoreIndices(IgnoreIndices.MISSING).execute().actionGet();
+            client.admin().indices().prepareTypesExists("notExist").setTypes("type1").setIgnoreIndices(IgnoreIndices.lenient()).execute().actionGet();
             fail("Exception should have been thrown");
         } catch (IndexMissingException e) {}
         try {
-            client.admin().indices().prepareTypesExists("notExist").setTypes("type0").setIgnoreIndices(IgnoreIndices.MISSING).execute().actionGet();
+            client.admin().indices().prepareTypesExists("notExist").setTypes("type0").setIgnoreIndices(IgnoreIndices.lenient()).execute().actionGet();
             fail("Exception should have been thrown");
         } catch (IndexMissingException e) {}
         response = client.admin().indices().prepareTypesExists("alias1").setTypes("type1").execute().actionGet();

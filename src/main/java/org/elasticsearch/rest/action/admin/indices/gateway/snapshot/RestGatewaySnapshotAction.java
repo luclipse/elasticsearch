@@ -54,9 +54,7 @@ public class RestGatewaySnapshotAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         GatewaySnapshotRequest gatewaySnapshotRequest = new GatewaySnapshotRequest(Strings.splitStringByCommaToArray(request.param("index")));
         gatewaySnapshotRequest.listenerThreaded(false);
-        if (request.hasParam("ignore_indices")) {
-            gatewaySnapshotRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
-        }
+        gatewaySnapshotRequest.ignoreIndices(IgnoreIndices.fromRequest(request, gatewaySnapshotRequest.ignoreIndices()));
         client.admin().indices().gatewaySnapshot(gatewaySnapshotRequest, new ActionListener<GatewaySnapshotResponse>() {
             @Override
             public void onResponse(GatewaySnapshotResponse response) {

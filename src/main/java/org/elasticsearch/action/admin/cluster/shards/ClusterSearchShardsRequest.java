@@ -40,7 +40,7 @@ public class ClusterSearchShardsRequest extends MasterNodeOperationRequest<Clust
     private String preference;
     private boolean local = false;
     private String[] types = Strings.EMPTY_ARRAY;
-    private IgnoreIndices ignoreIndices = IgnoreIndices.DEFAULT;
+    private IgnoreIndices ignoreIndices = IgnoreIndices.lenient();
 
 
     public ClusterSearchShardsRequest() {

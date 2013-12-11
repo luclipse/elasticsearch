@@ -34,7 +34,7 @@ public abstract class ClusterInfoRequest<T extends ClusterInfoRequest> extends M
     private String[] indices = Strings.EMPTY_ARRAY;
     private String[] types = Strings.EMPTY_ARRAY;
 
-    private IgnoreIndices ignoreIndices = IgnoreIndices.NONE;
+    private IgnoreIndices ignoreIndices = IgnoreIndices.strict();
     private boolean local = false;
 
     @SuppressWarnings("unchecked")

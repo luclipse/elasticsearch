@@ -60,9 +60,7 @@ public class RestIndicesStatusAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         IndicesStatusRequest indicesStatusRequest = new IndicesStatusRequest(Strings.splitStringByCommaToArray(request.param("index")));
         indicesStatusRequest.listenerThreaded(false);
-        if (request.hasParam("ignore_indices")) {
-            indicesStatusRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
-        }
+        indicesStatusRequest.ignoreIndices(IgnoreIndices.fromRequest(request, indicesStatusRequest.ignoreIndices()));
         indicesStatusRequest.recovery(request.paramAsBoolean("recovery", indicesStatusRequest.recovery()));
         indicesStatusRequest.snapshot(request.paramAsBoolean("snapshot", indicesStatusRequest.snapshot()));
         BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operation_threading"), BroadcastOperationThreading.THREAD_PER_SHARD);

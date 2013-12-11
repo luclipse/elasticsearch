@@ -46,9 +46,7 @@ public class RestOpenIndexAction extends BaseRestHandler {
         openIndexRequest.listenerThreaded(false);
         openIndexRequest.timeout(request.paramAsTime("timeout", openIndexRequest.timeout()));
         openIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", openIndexRequest.masterNodeTimeout()));
-        if (request.hasParam("ignore_indices")) {
-            openIndexRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
-        }
+        openIndexRequest.ignoreIndices(IgnoreIndices.fromRequest(request, openIndexRequest.ignoreIndices()));
         client.admin().indices().open(openIndexRequest, new AcknowledgedRestResponseActionListener<OpenIndexResponse>(request, channel, logger));
     }
 }

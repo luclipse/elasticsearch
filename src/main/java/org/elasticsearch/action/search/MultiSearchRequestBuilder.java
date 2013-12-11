@@ -42,7 +42,7 @@ public class MultiSearchRequestBuilder extends ActionRequestBuilder<MultiSearchR
      * will not be used (if set).
      */
     public MultiSearchRequestBuilder add(SearchRequest request) {
-        if (request.ignoreIndices() == IgnoreIndices.DEFAULT && request().ignoreIndices() != IgnoreIndices.DEFAULT) {
+        if (request.ignoreIndices() == IgnoreIndices.lenient() && request().ignoreIndices() != IgnoreIndices.lenient()) {
             request.ignoreIndices(request().ignoreIndices());
         }
 
@@ -55,7 +55,7 @@ public class MultiSearchRequestBuilder extends ActionRequestBuilder<MultiSearchR
      * same order as the search requests.
      */
     public MultiSearchRequestBuilder add(SearchRequestBuilder request) {
-        if (request.request().ignoreIndices() == IgnoreIndices.DEFAULT && request().ignoreIndices() != IgnoreIndices.DEFAULT) {
+        if (request.request().ignoreIndices() == IgnoreIndices.lenient() && request().ignoreIndices() != IgnoreIndices.lenient()) {
             request.request().ignoreIndices(request().ignoreIndices());
         }
 

@@ -443,7 +443,7 @@ public class MetaData implements Iterable<IndexMetaData> {
     }
 
     public Map<String, Set<String>> resolveSearchRouting(@Nullable String routing, String aliasOrIndex) {
-        return resolveSearchRouting(routing, convertFromWildcards(new String[]{aliasOrIndex}, true, IgnoreIndices.MISSING));
+        return resolveSearchRouting(routing, convertFromWildcards(new String[]{aliasOrIndex}, true, IgnoreIndices.lenient()));
     }
 
     public Map<String, Set<String>> resolveSearchRouting(@Nullable String routing, String[] aliasesOrIndices) {
@@ -451,7 +451,7 @@ public class MetaData implements Iterable<IndexMetaData> {
             return resolveSearchRoutingAllIndices(routing);
         }
 
-        aliasesOrIndices = convertFromWildcards(aliasesOrIndices, true, IgnoreIndices.MISSING);
+        aliasesOrIndices = convertFromWildcards(aliasesOrIndices, true, IgnoreIndices.lenient());
 
         if (aliasesOrIndices.length == 1) {
             return resolveSearchRoutingSingleValue(routing, aliasesOrIndices[0]);
@@ -594,14 +594,14 @@ public class MetaData implements Iterable<IndexMetaData> {
      * Translates the provided indices (possibly aliased) into actual indices.
      */
     public String[] concreteIndices(String[] indices) throws IndexMissingException {
-        return concreteIndices(indices, IgnoreIndices.NONE, false);
+        return concreteIndices(indices, IgnoreIndices.strict(), false);
     }
 
     /**
      * Translates the provided indices (possibly aliased) into actual indices.
      */
     public String[] concreteIndicesIgnoreMissing(String[] indices) {
-        return concreteIndices(indices, IgnoreIndices.MISSING, false);
+        return concreteIndices(indices, IgnoreIndices.lenient(), false);
     }
 
     /**
@@ -644,7 +644,7 @@ public class MetaData implements Iterable<IndexMetaData> {
         for (String index : aliasesOrIndices) {
             String[] actualLst = aliasAndIndexToIndexMap.get(index);
             if (actualLst == null) {
-                if (ignoreIndices != IgnoreIndices.MISSING) {
+                if (!ignoreIndices.ignoreUnavailable()) {
                     throw new IndexMissingException(new Index(index));
                 }
             } else {
@@ -711,7 +711,7 @@ public class MetaData implements Iterable<IndexMetaData> {
                 aliasOrIndex = aliasOrIndex.substring(1);
             }
             if (!Regex.isSimpleMatchPattern(aliasOrIndex)) {
-                if (ignoreIndices != IgnoreIndices.MISSING && !aliasAndIndexToIndexMap.containsKey(aliasOrIndex)) {
+                if (!ignoreIndices.ignoreUnavailable() && !aliasAndIndexToIndexMap.containsKey(aliasOrIndex)) {
                     throw new IndexMissingException(new Index(aliasOrIndex));
                 }
                 if (result != null) {
@@ -751,7 +751,7 @@ public class MetaData implements Iterable<IndexMetaData> {
                     }
                 }
             }
-            if (!found && ignoreIndices != IgnoreIndices.MISSING) {
+            if (!found && !ignoreIndices.ignoreUnavailable()) {
                 throw new IndexMissingException(new Index(aliasOrIndex));
             }
         }
@@ -827,7 +827,7 @@ public class MetaData implements Iterable<IndexMetaData> {
      */
     public String[] filteringAliases(String index, String... indicesOrAliases) {
         // expand the aliases wildcard
-        indicesOrAliases = convertFromWildcards(indicesOrAliases, true, IgnoreIndices.MISSING);
+        indicesOrAliases = convertFromWildcards(indicesOrAliases, true, IgnoreIndices.lenient());
 
         if (isAllIndices(indicesOrAliases)) {
             return null;
@@ -916,7 +916,7 @@ public class MetaData implements Iterable<IndexMetaData> {
         if (concreteIndices.length == concreteAllIndices().length && indicesOrAliases.length > 0) {
 
             //we might have something like /-test1,+test1 that would identify all indices
-            //or something like /-test1 with test1 index missing and IgnoreIndices.MISSING
+            //or something like /-test1 with test1 index missing and IgnoreIndices.lenient()
             if (indicesOrAliases[0].charAt(0) == '-') {
                 return true;
             }

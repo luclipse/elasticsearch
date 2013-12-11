@@ -82,10 +82,7 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
             if (consistencyLevel != null) {
                 deleteByQueryRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
             }
-            final String ignoreIndices = request.param("ignore_indices");
-            if (ignoreIndices != null) {
-                deleteByQueryRequest.ignoreIndices(IgnoreIndices.fromString(ignoreIndices));
-            }
+            deleteByQueryRequest.ignoreIndices(IgnoreIndices.fromRequest(request, deleteByQueryRequest.ignoreIndices()));
         } catch (Exception e) {
             try {
                 XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);

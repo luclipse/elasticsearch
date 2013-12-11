@@ -81,7 +81,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
 
     private SearchOperationThreading operationThreading = SearchOperationThreading.THREAD_PER_SHARD;
 
-    private IgnoreIndices ignoreIndices = IgnoreIndices.DEFAULT;
+    private IgnoreIndices ignoreIndices = IgnoreIndices.lenient();
 
     public SearchRequest() {
     }

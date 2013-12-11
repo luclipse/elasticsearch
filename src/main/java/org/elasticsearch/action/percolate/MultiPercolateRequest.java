@@ -47,7 +47,7 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
 
     private String[] indices;
     private String documentType;
-    private IgnoreIndices ignoreIndices = IgnoreIndices.DEFAULT;
+    private IgnoreIndices ignoreIndices = IgnoreIndices.lenient();
     private List<PercolateRequest> requests = Lists.newArrayList();
 
     public MultiPercolateRequest add(PercolateRequestBuilder requestBuilder) {
@@ -61,7 +61,7 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
         if (request.documentType() == null && documentType != null) {
             request.documentType(documentType);
         }
-        if (request.ignoreIndices() == IgnoreIndices.DEFAULT && ignoreIndices != IgnoreIndices.DEFAULT) {
+        if (request.ignoreIndices() == IgnoreIndices.lenient() && ignoreIndices != IgnoreIndices.lenient()) {
             request.ignoreIndices(ignoreIndices);
         }
         requests.add(request);
@@ -95,7 +95,7 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
             if (documentType != null) {
                 percolateRequest.documentType(documentType);
             }
-            if (ignoreIndices != IgnoreIndices.DEFAULT) {
+            if (ignoreIndices != IgnoreIndices.lenient()) {
                 percolateRequest.ignoreIndices(ignoreIndices);
             }
 
@@ -167,6 +167,10 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
             }
         }
 
+        boolean ignoreUnavailable = IgnoreIndices.lenient().ignoreUnavailable();
+        boolean expandWildcards = IgnoreIndices.lenient().expandOnlyOpenIndices();
+        boolean allowNoIndices = IgnoreIndices.lenient().allowNoIndices();
+
         if (header.containsKey("id")) {
             GetRequest getRequest = new GetRequest(globalIndex);
             percolateRequest.getRequest(getRequest);
@@ -195,8 +199,12 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
                     percolateRequest.preference((String) value);
                 } else if ("percolate_routing".equals(entry.getKey()) || "percolateRouting".equals(entry.getKey())) {
                     percolateRequest.routing((String) value);
-                } else if ("ignore_indices".equals(entry.getKey()) || "ignoreIndices".equals(entry.getKey())) {
-                    percolateRequest.ignoreIndices(IgnoreIndices.fromString((String) value));
+                } else if ("ignore_unavailable".equals(currentFieldName) || "ignoreUnavailable".equals(currentFieldName)) {
+                    ignoreUnavailable = parser.booleanValue();
+                } else if ("expand_wildcards".equals(currentFieldName) || "expandWildcards".equals(currentFieldName)) {
+                    expandWildcards = parser.booleanValue();
+                } else if ("allow_no_indices".equals(currentFieldName) || "allowNoIndices".equals(currentFieldName)) {
+                    allowNoIndices = parser.booleanValue();
                 }
             }
 
@@ -228,11 +236,16 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
                     percolateRequest.preference((String) value);
                 } else if ("routing".equals(entry.getKey())) {
                     percolateRequest.routing((String) value);
-                } else if ("ignore_indices".equals(entry.getKey()) || "ignoreIndices".equals(entry.getKey())) {
-                    percolateRequest.ignoreIndices(IgnoreIndices.fromString((String) value));
+                } else if ("ignore_unavailable".equals(currentFieldName) || "ignoreUnavailable".equals(currentFieldName)) {
+                    ignoreUnavailable = parser.booleanValue();
+                } else if ("expand_wildcards".equals(currentFieldName) || "expandWildcards".equals(currentFieldName)) {
+                    expandWildcards = parser.booleanValue();
+                } else if ("allow_no_indices".equals(currentFieldName) || "allowNoIndices".equals(currentFieldName)) {
+                    allowNoIndices = parser.booleanValue();
                 }
             }
         }
+        percolateRequest.ignoreIndices(IgnoreIndices.fromOptions(ignoreUnavailable, expandWildcards, allowNoIndices));
     }
 
     private String[] parseArray(XContentParser parser) throws IOException {

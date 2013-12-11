@@ -36,7 +36,7 @@ public class GetAliasesRequest extends MasterNodeOperationRequest<GetAliasesRequ
     private String[] indices = Strings.EMPTY_ARRAY;
     private String[] aliases = Strings.EMPTY_ARRAY;
 
-    private IgnoreIndices ignoreIndices = IgnoreIndices.NONE;
+    private IgnoreIndices ignoreIndices = IgnoreIndices.strict();
 
     public GetAliasesRequest(String[] aliases) {
         this.aliases = aliases;

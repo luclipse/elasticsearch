@@ -53,9 +53,7 @@ public class RestIndicesSegmentsAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         IndicesSegmentsRequest indicesSegmentsRequest = new IndicesSegmentsRequest(Strings.splitStringByCommaToArray(request.param("index")));
         indicesSegmentsRequest.listenerThreaded(false);
-        if (request.hasParam("ignore_indices")) {
-            indicesSegmentsRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
-        }
+        indicesSegmentsRequest.ignoreIndices(IgnoreIndices.fromRequest(request, indicesSegmentsRequest.ignoreIndices()));
         BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operation_threading"), BroadcastOperationThreading.THREAD_PER_SHARD);
         if (operationThreading == BroadcastOperationThreading.NO_THREADS) {
             // since we don't spawn, don't allow no_threads, but change it to a single thread

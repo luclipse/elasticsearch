@@ -105,9 +105,7 @@ public class RestIndicesStatsAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
         indicesStatsRequest.listenerThreaded(false);
-        if (request.hasParam("ignore_indices")) {
-            indicesStatsRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
-        }
+        indicesStatsRequest.ignoreIndices(IgnoreIndices.fromRequest(request, indicesStatsRequest.ignoreIndices()));
         boolean clear = request.paramAsBoolean("clear", false);
         if (clear) {
             indicesStatsRequest.clear();

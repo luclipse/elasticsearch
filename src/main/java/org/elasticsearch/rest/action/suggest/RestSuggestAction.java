@@ -59,9 +59,7 @@ public class RestSuggestAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         SuggestRequest suggestRequest = new SuggestRequest(Strings.splitStringByCommaToArray(request.param("index")));
-        if (request.hasParam("ignore_indices")) {
-            suggestRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
-        }
+        suggestRequest.ignoreIndices(IgnoreIndices.fromRequest(request, suggestRequest.ignoreIndices()));
         suggestRequest.listenerThreaded(false);
         try {
             BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operation_threading"), BroadcastOperationThreading.THREAD_PER_SHARD);

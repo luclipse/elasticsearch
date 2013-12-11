@@ -142,9 +142,7 @@ public class RestSearchAction extends BaseRestHandler {
         searchRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
         searchRequest.routing(request.param("routing"));
         searchRequest.preference(request.param("preference"));
-        if (request.hasParam("ignore_indices")) {
-            searchRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
-        }
+        searchRequest.ignoreIndices(IgnoreIndices.fromRequest(request, searchRequest.ignoreIndices()));
 
         return searchRequest;
     }

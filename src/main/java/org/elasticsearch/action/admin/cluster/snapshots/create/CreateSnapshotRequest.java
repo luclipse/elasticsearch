@@ -68,7 +68,7 @@ public class CreateSnapshotRequest extends MasterNodeOperationRequest<CreateSnap
 
     private String[] indices = EMPTY_ARRAY;
 
-    private IgnoreIndices ignoreIndices = IgnoreIndices.DEFAULT;
+    private IgnoreIndices ignoreIndices = IgnoreIndices.lenient();
 
     private Settings settings = EMPTY_SETTINGS;
 
@@ -338,6 +338,9 @@ public class CreateSnapshotRequest extends MasterNodeOperationRequest<CreateSnap
      * @return this request
      */
     public CreateSnapshotRequest source(Map source) {
+        boolean ignoreUnavailable = IgnoreIndices.lenient().ignoreUnavailable();
+        boolean expandWildcards = IgnoreIndices.lenient().expandOnlyOpenIndices();
+        boolean allowNoIndices = IgnoreIndices.lenient().allowNoIndices();
         for (Map.Entry<String, Object> entry : ((Map<String, Object>) source).entrySet()) {
             String name = entry.getKey();
             if (name.equals("indices")) {
@@ -348,12 +351,15 @@ public class CreateSnapshotRequest extends MasterNodeOperationRequest<CreateSnap
                 } else {
                     throw new ElasticSearchIllegalArgumentException("malformed indices section, should be an array of strings");
                 }
-            } else if (name.equals("ignore_indices")) {
-                if (entry.getValue() instanceof String) {
-                    ignoreIndices(IgnoreIndices.fromString((String) entry.getValue()));
-                } else {
-                    throw new ElasticSearchIllegalArgumentException("malformed ignore_indices");
-                }
+            } else if (name.equals("ignore_unavailable") || name.equals("ignoreUnavailable")) {
+                assert entry.getValue() instanceof String;
+                ignoreUnavailable = Boolean.valueOf(entry.getValue().toString());
+            } else if (name.equals("expand_wildcards") || name.equals("expandWildcards")) {
+                assert entry.getValue() instanceof String;
+                expandWildcards = Boolean.valueOf(entry.getValue().toString());
+            } else if (name.equals("allow_no_indices") || name.equals("allowNoIndices")) {
+                assert entry.getValue() instanceof String;
+                allowNoIndices = Boolean.valueOf(entry.getValue().toString());
             } else if (name.equals("settings")) {
                 if (!(entry.getValue() instanceof Map)) {
                     throw new ElasticSearchIllegalArgumentException("malformed settings section, should indices an inner object");
@@ -366,6 +372,7 @@ public class CreateSnapshotRequest extends MasterNodeOperationRequest<CreateSnap
                 includeGlobalState((Boolean) entry.getValue());
             }
         }
+        ignoreIndices(IgnoreIndices.fromOptions(ignoreUnavailable, expandWildcards, allowNoIndices));
         return this;
     }
 
