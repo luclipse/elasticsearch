@@ -21,7 +21,7 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.internal.InternalClient;
 
@@ -42,7 +42,7 @@ public class MultiSearchRequestBuilder extends ActionRequestBuilder<MultiSearchR
      * will not be used (if set).
      */
     public MultiSearchRequestBuilder add(SearchRequest request) {
-        if (request.ignoreIndices() == IgnoreIndices.lenient() && request().ignoreIndices() != IgnoreIndices.lenient()) {
+        if (request.ignoreIndices() == IndicesOptions.lenient() && request().ignoreIndices() != IndicesOptions.lenient()) {
             request.ignoreIndices(request().ignoreIndices());
         }
 
@@ -55,7 +55,7 @@ public class MultiSearchRequestBuilder extends ActionRequestBuilder<MultiSearchR
      * same order as the search requests.
      */
     public MultiSearchRequestBuilder add(SearchRequestBuilder request) {
-        if (request.request().ignoreIndices() == IgnoreIndices.lenient() && request().ignoreIndices() != IgnoreIndices.lenient()) {
+        if (request.request().ignoreIndices() == IndicesOptions.lenient() && request().ignoreIndices() != IndicesOptions.lenient()) {
             request.request().ignoreIndices(request().ignoreIndices());
         }
 
@@ -67,8 +67,8 @@ public class MultiSearchRequestBuilder extends ActionRequestBuilder<MultiSearchR
      * Specifies what type of requested indices to ignore. For example indices that don't exist.
      * Invoke this method before invoking {@link #add(SearchRequestBuilder)}.
      */
-    public MultiSearchRequestBuilder setIgnoreIndices(IgnoreIndices ignoreIndices) {
-        request().ignoreIndices(ignoreIndices);
+    public MultiSearchRequestBuilder setIgnoreIndices(IndicesOptions indicesOptions) {
+        request().ignoreIndices(indicesOptions);
         return this;
     }
 

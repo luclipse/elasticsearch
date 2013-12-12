@@ -21,7 +21,7 @@ package org.elasticsearch.rest.action.admin.indices.open;
 
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -46,7 +46,7 @@ public class RestOpenIndexAction extends BaseRestHandler {
         openIndexRequest.listenerThreaded(false);
         openIndexRequest.timeout(request.paramAsTime("timeout", openIndexRequest.timeout()));
         openIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", openIndexRequest.masterNodeTimeout()));
-        openIndexRequest.ignoreIndices(IgnoreIndices.fromRequest(request, openIndexRequest.ignoreIndices()));
+        openIndexRequest.ignoreIndices(IndicesOptions.fromRequest(request, openIndexRequest.ignoreIndices()));
         client.admin().indices().open(openIndexRequest, new AcknowledgedRestResponseActionListener<OpenIndexResponse>(request, channel, logger));
     }
 }

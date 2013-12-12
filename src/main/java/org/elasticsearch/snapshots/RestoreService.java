@@ -23,7 +23,7 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.*;
@@ -461,7 +461,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
 
         private String renameReplacement;
 
-        private IgnoreIndices ignoreIndices = IgnoreIndices.lenient();
+        private IndicesOptions indicesOptions = IndicesOptions.lenient();
 
         private Settings settings;
 
@@ -496,11 +496,11 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
         /**
          * Sets ignore indices flag
          *
-         * @param ignoreIndices ignore indices flag
+         * @param indicesOptions ignore indices flag
          * @return this request
          */
-        public RestoreRequest ignoreIndices(IgnoreIndices ignoreIndices) {
-            this.ignoreIndices = ignoreIndices;
+        public RestoreRequest ignoreIndices(IndicesOptions indicesOptions) {
+            this.indicesOptions = indicesOptions;
             return this;
         }
 
@@ -603,8 +603,8 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
          *
          * @return ignore indices flag
          */
-        public IgnoreIndices ignoreIndices() {
-            return ignoreIndices;
+        public IndicesOptions ignoreIndices() {
+            return indicesOptions;
         }
 
         /**

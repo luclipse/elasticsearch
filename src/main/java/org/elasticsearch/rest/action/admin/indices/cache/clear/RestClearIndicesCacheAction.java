@@ -22,7 +22,7 @@ package org.elasticsearch.rest.action.admin.indices.cache.clear;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
@@ -59,7 +59,7 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         ClearIndicesCacheRequest clearIndicesCacheRequest = new ClearIndicesCacheRequest(Strings.splitStringByCommaToArray(request.param("index")));
         clearIndicesCacheRequest.listenerThreaded(false);
-        clearIndicesCacheRequest.ignoreIndices(IgnoreIndices.fromRequest(request, clearIndicesCacheRequest.ignoreIndices()));
+        clearIndicesCacheRequest.ignoreIndices(IndicesOptions.fromRequest(request, clearIndicesCacheRequest.ignoreIndices()));
         try {
             if (request.hasParam("filter")) {
                 clearIndicesCacheRequest.filterCache(request.paramAsBoolean("filter", clearIndicesCacheRequest.filterCache()));

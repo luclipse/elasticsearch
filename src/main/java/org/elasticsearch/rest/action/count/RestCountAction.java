@@ -22,7 +22,7 @@ package org.elasticsearch.rest.action.count;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.count.CountRequest;
 import org.elasticsearch.action.count.CountResponse;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
@@ -61,7 +61,7 @@ public class RestCountAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         CountRequest countRequest = new CountRequest(Strings.splitStringByCommaToArray(request.param("index")));
-        countRequest.ignoreIndices(IgnoreIndices.fromRequest(request, countRequest.ignoreIndices()));
+        countRequest.ignoreIndices(IndicesOptions.fromRequest(request, countRequest.ignoreIndices()));
         countRequest.listenerThreaded(false);
         try {
             BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operation_threading"), BroadcastOperationThreading.THREAD_PER_SHARD);

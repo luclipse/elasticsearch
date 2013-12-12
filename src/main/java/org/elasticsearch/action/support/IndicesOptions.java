@@ -25,7 +25,7 @@ import org.elasticsearch.rest.RestRequest;
 /**
  * Specifies what type of requested indices to exclude.
  */
-public enum IgnoreIndices {
+public enum IndicesOptions {
 
     _000(false, false, false),
     _100(true, false, false),
@@ -36,13 +36,13 @@ public enum IgnoreIndices {
     _011(true, true, false),
     _111(true, true, true);
 
-    private static final IgnoreIndices[] IGNORE_INDICES = IgnoreIndices.values();
+    private static final IndicesOptions[] IGNORE_INDICES = IndicesOptions.values();
 
     private final boolean ignoreUnavailable;
     private final boolean expandOnlyOpenIndices;
     private final boolean allowNoIndices;
 
-    private IgnoreIndices(boolean ignoreUnavailable, boolean expandOnlyOpenIndices, boolean allowNoIndices) {
+    private IndicesOptions(boolean ignoreUnavailable, boolean expandOnlyOpenIndices, boolean allowNoIndices) {
         this.ignoreUnavailable = ignoreUnavailable;
         this.expandOnlyOpenIndices = expandOnlyOpenIndices;
         this.allowNoIndices = allowNoIndices;
@@ -74,14 +74,14 @@ public enum IgnoreIndices {
         return id;
     }
 
-    public static IgnoreIndices fromId(byte id) {
+    public static IndicesOptions fromId(byte id) {
         if (id >= IGNORE_INDICES.length) {
             throw new ElasticSearchIllegalArgumentException("No valid missing index type id: " + id);
         }
         return IGNORE_INDICES[id];
     }
 
-    public static IgnoreIndices fromOptions(boolean ignoreMissing, boolean expandOnlyOpenIndices, boolean allowNoIndices) {
+    public static IndicesOptions fromOptions(boolean ignoreMissing, boolean expandOnlyOpenIndices, boolean allowNoIndices) {
         byte id = 0;
         if (ignoreMissing) {
             id += 1;
@@ -95,7 +95,7 @@ public enum IgnoreIndices {
         return IGNORE_INDICES[id];
     }
 
-    public static IgnoreIndices fromRequest(RestRequest request, IgnoreIndices defaultSettings) {
+    public static IndicesOptions fromRequest(RestRequest request, IndicesOptions defaultSettings) {
         return fromOptions(
                 request.paramAsBoolean("ignore_unavailable", defaultSettings.ignoreUnavailable()),
                 request.paramAsBoolean("expand_wildcards", defaultSettings.expandOnlyOpenIndices()),
@@ -103,11 +103,15 @@ public enum IgnoreIndices {
         );
     }
 
-    public static IgnoreIndices strict() {
+    public static IndicesOptions strict() {
         return _010;
     }
 
-    public static IgnoreIndices lenient() {
+    /**
+     * @return indices options that ignore unavailable indices, expand wildcards only to open indices and allow that
+     *         no indices are resolved (not returning an error).
+     */
+    public static IndicesOptions lenient() {
         return _101;
     }
 

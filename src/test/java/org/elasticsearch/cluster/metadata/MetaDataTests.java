@@ -20,7 +20,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.google.common.collect.Sets;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -41,12 +41,12 @@ public class MetaDataTests extends ElasticsearchTestCase {
                 .put(indexBuilder("testYYY"))
                 .put(indexBuilder("kuku"));
         MetaData md = mdBuilder.build();
-        assertThat(newHashSet(md.convertFromWildcards(new String[]{"testXXX"}, true, IgnoreIndices.lenient())), equalTo(newHashSet("testXXX")));
-        assertThat(newHashSet(md.convertFromWildcards(new String[]{"testXXX", "testYYY"}, true, IgnoreIndices.lenient())), equalTo(newHashSet("testXXX", "testYYY")));
-        assertThat(newHashSet(md.convertFromWildcards(new String[]{"testXXX", "ku*"}, true, IgnoreIndices.lenient())), equalTo(newHashSet("testXXX", "kuku")));
-        assertThat(newHashSet(md.convertFromWildcards(new String[]{"test*"}, true, IgnoreIndices.lenient())), equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
-        assertThat(newHashSet(md.convertFromWildcards(new String[]{"testX*"}, true, IgnoreIndices.lenient())), equalTo(newHashSet("testXXX", "testXYY")));
-        assertThat(newHashSet(md.convertFromWildcards(new String[]{"testX*", "kuku"}, true, IgnoreIndices.lenient())), equalTo(newHashSet("testXXX", "testXYY", "kuku")));
+        assertThat(newHashSet(md.convertFromWildcards(new String[]{"testXXX"}, true, IndicesOptions.lenient())), equalTo(newHashSet("testXXX")));
+        assertThat(newHashSet(md.convertFromWildcards(new String[]{"testXXX", "testYYY"}, true, IndicesOptions.lenient())), equalTo(newHashSet("testXXX", "testYYY")));
+        assertThat(newHashSet(md.convertFromWildcards(new String[]{"testXXX", "ku*"}, true, IndicesOptions.lenient())), equalTo(newHashSet("testXXX", "kuku")));
+        assertThat(newHashSet(md.convertFromWildcards(new String[]{"test*"}, true, IndicesOptions.lenient())), equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
+        assertThat(newHashSet(md.convertFromWildcards(new String[]{"testX*"}, true, IndicesOptions.lenient())), equalTo(newHashSet("testXXX", "testXYY")));
+        assertThat(newHashSet(md.convertFromWildcards(new String[]{"testX*", "kuku"}, true, IndicesOptions.lenient())), equalTo(newHashSet("testXXX", "testXYY", "kuku")));
     }
 
     @Test
@@ -57,11 +57,11 @@ public class MetaDataTests extends ElasticsearchTestCase {
                 .put(indexBuilder("testYYY").putAlias(AliasMetaData.builder("alias3")))
                 .put(indexBuilder("kuku"));
         MetaData md = mdBuilder.build();
-        assertThat(newHashSet(md.convertFromWildcards(new String[]{"testYY*", "alias*"}, true, IgnoreIndices.lenient())), equalTo(newHashSet("alias1", "alias2", "alias3", "testYYY")));
-        assertThat(newHashSet(md.convertFromWildcards(new String[]{"-kuku"}, true, IgnoreIndices.lenient())), equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
-        assertThat(newHashSet(md.convertFromWildcards(new String[]{"+test*", "-testYYY"}, true, IgnoreIndices.lenient())), equalTo(newHashSet("testXXX", "testXYY")));
-        assertThat(newHashSet(md.convertFromWildcards(new String[]{"+testX*", "+testYYY"}, true, IgnoreIndices.lenient())), equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
-        assertThat(newHashSet(md.convertFromWildcards(new String[]{"+testYYY", "+testX*"}, true, IgnoreIndices.lenient())), equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
+        assertThat(newHashSet(md.convertFromWildcards(new String[]{"testYY*", "alias*"}, true, IndicesOptions.lenient())), equalTo(newHashSet("alias1", "alias2", "alias3", "testYYY")));
+        assertThat(newHashSet(md.convertFromWildcards(new String[]{"-kuku"}, true, IndicesOptions.lenient())), equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
+        assertThat(newHashSet(md.convertFromWildcards(new String[]{"+test*", "-testYYY"}, true, IndicesOptions.lenient())), equalTo(newHashSet("testXXX", "testXYY")));
+        assertThat(newHashSet(md.convertFromWildcards(new String[]{"+testX*", "+testYYY"}, true, IndicesOptions.lenient())), equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
+        assertThat(newHashSet(md.convertFromWildcards(new String[]{"+testYYY", "+testX*"}, true, IndicesOptions.lenient())), equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
     }
 
     private IndexMetaData.Builder indexBuilder(String index) {
@@ -74,7 +74,7 @@ public class MetaDataTests extends ElasticsearchTestCase {
                 .put(indexBuilder("testXXX"))
                 .put(indexBuilder("kuku"));
         MetaData md = mdBuilder.build();
-        md.concreteIndices(new String[]{"testZZZ"}, IgnoreIndices.lenient(), true);
+        md.concreteIndices(new String[]{"testZZZ"}, IndicesOptions.lenient(), true);
     }
 
     @Test
@@ -83,7 +83,7 @@ public class MetaDataTests extends ElasticsearchTestCase {
                 .put(indexBuilder("testXXX"))
                 .put(indexBuilder("kuku"));
         MetaData md = mdBuilder.build();
-        assertThat(newHashSet(md.concreteIndices(new String[]{"testXXX", "testZZZ"}, IgnoreIndices.lenient(), true)), equalTo(newHashSet("testXXX")));
+        assertThat(newHashSet(md.concreteIndices(new String[]{"testXXX", "testZZZ"}, IndicesOptions.lenient(), true)), equalTo(newHashSet("testXXX")));
     }
 
     @Test(expected = IndexMissingException.class)
@@ -92,7 +92,7 @@ public class MetaDataTests extends ElasticsearchTestCase {
                 .put(indexBuilder("testXXX"))
                 .put(indexBuilder("kuku"));
         MetaData md = mdBuilder.build();
-        assertThat(newHashSet(md.concreteIndices(new String[]{"testMo", "testMahdy"}, IgnoreIndices.lenient(), true)), equalTo(newHashSet("testXXX")));
+        assertThat(newHashSet(md.concreteIndices(new String[]{"testMo", "testMahdy"}, IndicesOptions.lenient(), true)), equalTo(newHashSet("testXXX")));
     }
 
     @Test
@@ -101,7 +101,7 @@ public class MetaDataTests extends ElasticsearchTestCase {
                 .put(indexBuilder("testXXX"))
                 .put(indexBuilder("kuku"));
         MetaData md = mdBuilder.build();
-        assertThat(newHashSet(md.concreteIndices(new String[]{}, IgnoreIndices.lenient(), true)), equalTo(Sets.<String>newHashSet("kuku", "testXXX")));
+        assertThat(newHashSet(md.concreteIndices(new String[]{}, IndicesOptions.lenient(), true)), equalTo(Sets.<String>newHashSet("kuku", "testXXX")));
     }
 
     @Test

@@ -23,7 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.validate.query.QueryExplanation;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
@@ -63,7 +63,7 @@ public class RestValidateQueryAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         ValidateQueryRequest validateQueryRequest = new ValidateQueryRequest(Strings.splitStringByCommaToArray(request.param("index")));
         validateQueryRequest.listenerThreaded(false);
-        validateQueryRequest.ignoreIndices(IgnoreIndices.fromRequest(request, validateQueryRequest.ignoreIndices()));
+        validateQueryRequest.ignoreIndices(IndicesOptions.fromRequest(request, validateQueryRequest.ignoreIndices()));
         try {
             BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operation_threading"), BroadcastOperationThreading.SINGLE_THREAD);
             if (operationThreading == BroadcastOperationThreading.NO_THREADS) {

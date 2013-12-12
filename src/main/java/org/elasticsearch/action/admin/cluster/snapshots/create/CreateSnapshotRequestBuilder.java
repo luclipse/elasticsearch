@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.cluster.snapshots.create;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.internal.InternalClusterAdminClient;
@@ -93,11 +93,11 @@ public class CreateSnapshotRequestBuilder extends MasterNodeOperationRequestBuil
     /**
      * Specifies what type of requested indices to ignore. For example indices that don't exist.
      *
-     * @param ignoreIndices the desired behaviour regarding indices to ignore
+     * @param indicesOptions the desired behaviour regarding indices to ignore
      * @return this builder
      */
-    public CreateSnapshotRequestBuilder setIgnoreIndices(IgnoreIndices ignoreIndices) {
-        request.ignoreIndices(ignoreIndices);
+    public CreateSnapshotRequestBuilder setIgnoreIndices(IndicesOptions indicesOptions) {
+        request.ignoreIndices(indicesOptions);
         return this;
     }
 

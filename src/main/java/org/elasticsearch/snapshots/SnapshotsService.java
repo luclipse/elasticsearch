@@ -25,7 +25,7 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.metadata.*;
 import org.elasticsearch.cluster.metadata.SnapshotMetaData.ShardSnapshotStatus;
@@ -983,7 +983,7 @@ public class SnapshotsService extends AbstractComponent implements ClusterStateL
 
         private String[] indices;
 
-        private IgnoreIndices ignoreIndices = IgnoreIndices.lenient();
+        private IndicesOptions indicesOptions = IndicesOptions.lenient();
 
         private Settings settings;
 
@@ -1051,11 +1051,11 @@ public class SnapshotsService extends AbstractComponent implements ClusterStateL
         /**
          * Sets ignore indices flag
          *
-         * @param ignoreIndices ignore indices flag
+         * @param indicesOptions ignore indices flag
          * @return this request
          */
-        public SnapshotRequest ignoreIndices(IgnoreIndices ignoreIndices) {
-            this.ignoreIndices = ignoreIndices;
+        public SnapshotRequest ignoreIndices(IndicesOptions indicesOptions) {
+            this.indicesOptions = indicesOptions;
             return this;
         }
 
@@ -1100,8 +1100,8 @@ public class SnapshotsService extends AbstractComponent implements ClusterStateL
          *
          * @return ignore indices flag
          */
-        public IgnoreIndices ignoreIndices() {
-            return ignoreIndices;
+        public IndicesOptions ignoreIndices() {
+            return indicesOptions;
         }
 
         /**

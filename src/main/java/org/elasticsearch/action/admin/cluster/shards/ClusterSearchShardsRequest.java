@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.cluster.shards;
 
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -40,7 +40,7 @@ public class ClusterSearchShardsRequest extends MasterNodeOperationRequest<Clust
     private String preference;
     private boolean local = false;
     private String[] types = Strings.EMPTY_ARRAY;
-    private IgnoreIndices ignoreIndices = IgnoreIndices.lenient();
+    private IndicesOptions indicesOptions = IndicesOptions.lenient();
 
 
     public ClusterSearchShardsRequest() {
@@ -79,12 +79,12 @@ public class ClusterSearchShardsRequest extends MasterNodeOperationRequest<Clust
         return indices;
     }
 
-    public IgnoreIndices ignoreIndices() {
-        return ignoreIndices;
+    public IndicesOptions ignoreIndices() {
+        return indicesOptions;
     }
 
-    public ClusterSearchShardsRequest ignoreIndices(IgnoreIndices ignoreIndices) {
-        this.ignoreIndices = ignoreIndices;
+    public ClusterSearchShardsRequest ignoreIndices(IndicesOptions indicesOptions) {
+        this.indicesOptions = indicesOptions;
         return this;
     }
 
@@ -164,7 +164,7 @@ public class ClusterSearchShardsRequest extends MasterNodeOperationRequest<Clust
         preference = in.readOptionalString();
 
         types = in.readStringArray();
-        ignoreIndices = IgnoreIndices.fromId(in.readByte());
+        indicesOptions = IndicesOptions.fromId(in.readByte());
         local = in.readBoolean();
     }
 
@@ -181,7 +181,7 @@ public class ClusterSearchShardsRequest extends MasterNodeOperationRequest<Clust
         out.writeOptionalString(preference);
 
         out.writeStringArray(types);
-        out.writeByte(ignoreIndices.id());
+        out.writeByte(indicesOptions.id());
         out.writeBoolean(local);
     }
 

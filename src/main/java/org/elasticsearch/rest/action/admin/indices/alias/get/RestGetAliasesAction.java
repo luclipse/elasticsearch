@@ -23,7 +23,7 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.common.Strings;
@@ -59,7 +59,7 @@ public class RestGetAliasesAction extends BaseRestHandler {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final GetAliasesRequest getAliasesRequest = new GetAliasesRequest(aliases);
         getAliasesRequest.indices(indices);
-        getAliasesRequest.ignoreIndices(IgnoreIndices.fromRequest(request, getAliasesRequest.ignoreIndices()));
+        getAliasesRequest.ignoreIndices(IndicesOptions.fromRequest(request, getAliasesRequest.ignoreIndices()));
 
         client.admin().indices().getAliases(getAliasesRequest, new ActionListener<GetAliasesResponse>() {
 

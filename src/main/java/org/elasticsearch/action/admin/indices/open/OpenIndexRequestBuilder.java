@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.indices.open;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
@@ -50,11 +50,11 @@ public class OpenIndexRequestBuilder extends AcknowledgedRequestBuilder<OpenInde
 
     /**
      * Specifies what type of requested indices to ignore. For example indices that don't exist.
-     * @param ignoreIndices the desired behaviour regarding indices to ignore
+     * @param indicesOptions the desired behaviour regarding indices to ignore
      * @return the request itself
      */
-    public OpenIndexRequestBuilder setIgnoreIndices(IgnoreIndices ignoreIndices) {
-        request.ignoreIndices(ignoreIndices);
+    public OpenIndexRequestBuilder setIgnoreIndices(IndicesOptions indicesOptions) {
+        request.ignoreIndices(indicesOptions);
         return this;
     }
 

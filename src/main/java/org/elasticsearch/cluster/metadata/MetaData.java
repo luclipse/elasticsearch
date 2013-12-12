@@ -27,7 +27,7 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.*;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.Nullable;
@@ -443,7 +443,7 @@ public class MetaData implements Iterable<IndexMetaData> {
     }
 
     public Map<String, Set<String>> resolveSearchRouting(@Nullable String routing, String aliasOrIndex) {
-        return resolveSearchRouting(routing, convertFromWildcards(new String[]{aliasOrIndex}, true, IgnoreIndices.lenient()));
+        return resolveSearchRouting(routing, convertFromWildcards(new String[]{aliasOrIndex}, true, IndicesOptions.lenient()));
     }
 
     public Map<String, Set<String>> resolveSearchRouting(@Nullable String routing, String[] aliasesOrIndices) {
@@ -451,7 +451,7 @@ public class MetaData implements Iterable<IndexMetaData> {
             return resolveSearchRoutingAllIndices(routing);
         }
 
-        aliasesOrIndices = convertFromWildcards(aliasesOrIndices, true, IgnoreIndices.lenient());
+        aliasesOrIndices = convertFromWildcards(aliasesOrIndices, true, IndicesOptions.lenient());
 
         if (aliasesOrIndices.length == 1) {
             return resolveSearchRoutingSingleValue(routing, aliasesOrIndices[0]);
@@ -594,24 +594,24 @@ public class MetaData implements Iterable<IndexMetaData> {
      * Translates the provided indices (possibly aliased) into actual indices.
      */
     public String[] concreteIndices(String[] indices) throws IndexMissingException {
-        return concreteIndices(indices, IgnoreIndices.strict(), false);
+        return concreteIndices(indices, IndicesOptions.strict(), false);
     }
 
     /**
      * Translates the provided indices (possibly aliased) into actual indices.
      */
     public String[] concreteIndicesIgnoreMissing(String[] indices) {
-        return concreteIndices(indices, IgnoreIndices.lenient(), false);
+        return concreteIndices(indices, IndicesOptions.lenient(), false);
     }
 
     /**
      * Translates the provided indices (possibly aliased) into actual indices.
      */
-    public String[] concreteIndices(String[] aliasesOrIndices, IgnoreIndices ignoreIndices, boolean allOnlyOpen) throws IndexMissingException {
+    public String[] concreteIndices(String[] aliasesOrIndices, IndicesOptions indicesOptions, boolean allOnlyOpen) throws IndexMissingException {
         if (isAllIndices(aliasesOrIndices)) {
             return allOnlyOpen ? concreteAllOpenIndices() : concreteAllIndices();
         }
-        aliasesOrIndices = convertFromWildcards(aliasesOrIndices, allOnlyOpen, ignoreIndices);
+        aliasesOrIndices = convertFromWildcards(aliasesOrIndices, allOnlyOpen, indicesOptions);
         // optimize for single element index (common case)
         if (aliasesOrIndices.length == 1) {
             String aliasOrIndex = aliasesOrIndices[0];
@@ -620,7 +620,7 @@ public class MetaData implements Iterable<IndexMetaData> {
                 return aliasesOrIndices;
             }
             String[] actualLst = aliasAndIndexToIndexMap.get(aliasOrIndex);
-            if (actualLst == null) {
+            if (!indicesOptions.allowNoIndices() && actualLst == null) {
                 throw new IndexMissingException(new Index(aliasOrIndex));
             } else {
                 return actualLst;
@@ -644,7 +644,7 @@ public class MetaData implements Iterable<IndexMetaData> {
         for (String index : aliasesOrIndices) {
             String[] actualLst = aliasAndIndexToIndexMap.get(index);
             if (actualLst == null) {
-                if (!ignoreIndices.ignoreUnavailable()) {
+                if (!indicesOptions.ignoreUnavailable()) {
                     throw new IndexMissingException(new Index(index));
                 }
             } else {
@@ -654,7 +654,7 @@ public class MetaData implements Iterable<IndexMetaData> {
             }
         }
 
-        if (actualIndices.isEmpty()) {
+        if (!indicesOptions.allowNoIndices() && actualIndices.isEmpty()) {
             throw new IndexMissingException(new Index(Arrays.toString(aliasesOrIndices)));
         }
         return actualIndices.toArray(new String[actualIndices.size()]);
@@ -681,7 +681,7 @@ public class MetaData implements Iterable<IndexMetaData> {
      * won't convert only to indices, but also to aliases. For example, alias_* will expand to alias_1 and alias_2, not
      * to the respective indices those aliases point to.
      */
-    public String[] convertFromWildcards(String[] aliasesOrIndices, boolean wildcardOnlyOpen, IgnoreIndices ignoreIndices) {
+    public String[] convertFromWildcards(String[] aliasesOrIndices, boolean wildcardOnlyOpen, IndicesOptions indicesOptions) {
         if (aliasesOrIndices == null) {
             return null;
         }
@@ -711,7 +711,7 @@ public class MetaData implements Iterable<IndexMetaData> {
                 aliasOrIndex = aliasOrIndex.substring(1);
             }
             if (!Regex.isSimpleMatchPattern(aliasOrIndex)) {
-                if (!ignoreIndices.ignoreUnavailable() && !aliasAndIndexToIndexMap.containsKey(aliasOrIndex)) {
+                if (!indicesOptions.ignoreUnavailable() && !aliasAndIndexToIndexMap.containsKey(aliasOrIndex)) {
                     throw new IndexMissingException(new Index(aliasOrIndex));
                 }
                 if (result != null) {
@@ -751,7 +751,7 @@ public class MetaData implements Iterable<IndexMetaData> {
                     }
                 }
             }
-            if (!found && !ignoreIndices.ignoreUnavailable()) {
+            if (!found && !indicesOptions.ignoreUnavailable()) {
                 throw new IndexMissingException(new Index(aliasOrIndex));
             }
         }
@@ -827,7 +827,7 @@ public class MetaData implements Iterable<IndexMetaData> {
      */
     public String[] filteringAliases(String index, String... indicesOrAliases) {
         // expand the aliases wildcard
-        indicesOrAliases = convertFromWildcards(indicesOrAliases, true, IgnoreIndices.lenient());
+        indicesOrAliases = convertFromWildcards(indicesOrAliases, true, IndicesOptions.lenient());
 
         if (isAllIndices(indicesOrAliases)) {
             return null;
@@ -916,7 +916,7 @@ public class MetaData implements Iterable<IndexMetaData> {
         if (concreteIndices.length == concreteAllIndices().length && indicesOrAliases.length > 0) {
 
             //we might have something like /-test1,+test1 that would identify all indices
-            //or something like /-test1 with test1 index missing and IgnoreIndices.lenient()
+            //or something like /-test1 with test1 index missing and IndicesOptions.lenient()
             if (indicesOrAliases[0].charAt(0) == '-') {
                 return true;
             }

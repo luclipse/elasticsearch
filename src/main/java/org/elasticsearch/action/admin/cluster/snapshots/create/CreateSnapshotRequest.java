@@ -22,7 +22,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.create;
 import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -68,7 +68,7 @@ public class CreateSnapshotRequest extends MasterNodeOperationRequest<CreateSnap
 
     private String[] indices = EMPTY_ARRAY;
 
-    private IgnoreIndices ignoreIndices = IgnoreIndices.lenient();
+    private IndicesOptions indicesOptions = IndicesOptions.lenient();
 
     private Settings settings = EMPTY_SETTINGS;
 
@@ -108,8 +108,8 @@ public class CreateSnapshotRequest extends MasterNodeOperationRequest<CreateSnap
                 break;
             }
         }
-        if (ignoreIndices == null) {
-            validationException = addValidationError("ignoreIndices is null", validationException);
+        if (indicesOptions == null) {
+            validationException = addValidationError("indicesOptions is null", validationException);
         }
         if (settings == null) {
             validationException = addValidationError("settings is null", validationException);
@@ -200,18 +200,18 @@ public class CreateSnapshotRequest extends MasterNodeOperationRequest<CreateSnap
      *
      * @return the desired behaviour regarding indices to ignore
      */
-    public IgnoreIndices ignoreIndices() {
-        return ignoreIndices;
+    public IndicesOptions ignoreIndices() {
+        return indicesOptions;
     }
 
     /**
      * Specifies what type of requested indices to ignore. For example indices that don't exist.
      *
-     * @param ignoreIndices the desired behaviour regarding indices to ignore
+     * @param indicesOptions the desired behaviour regarding indices to ignore
      * @return this request
      */
-    public CreateSnapshotRequest ignoreIndices(IgnoreIndices ignoreIndices) {
-        this.ignoreIndices = ignoreIndices;
+    public CreateSnapshotRequest ignoreIndices(IndicesOptions indicesOptions) {
+        this.indicesOptions = indicesOptions;
         return this;
     }
 
@@ -338,9 +338,9 @@ public class CreateSnapshotRequest extends MasterNodeOperationRequest<CreateSnap
      * @return this request
      */
     public CreateSnapshotRequest source(Map source) {
-        boolean ignoreUnavailable = IgnoreIndices.lenient().ignoreUnavailable();
-        boolean expandWildcards = IgnoreIndices.lenient().expandOnlyOpenIndices();
-        boolean allowNoIndices = IgnoreIndices.lenient().allowNoIndices();
+        boolean ignoreUnavailable = IndicesOptions.lenient().ignoreUnavailable();
+        boolean expandWildcards = IndicesOptions.lenient().expandOnlyOpenIndices();
+        boolean allowNoIndices = IndicesOptions.lenient().allowNoIndices();
         for (Map.Entry<String, Object> entry : ((Map<String, Object>) source).entrySet()) {
             String name = entry.getKey();
             if (name.equals("indices")) {
@@ -372,7 +372,7 @@ public class CreateSnapshotRequest extends MasterNodeOperationRequest<CreateSnap
                 includeGlobalState((Boolean) entry.getValue());
             }
         }
-        ignoreIndices(IgnoreIndices.fromOptions(ignoreUnavailable, expandWildcards, allowNoIndices));
+        ignoreIndices(IndicesOptions.fromOptions(ignoreUnavailable, expandWildcards, allowNoIndices));
         return this;
     }
 
@@ -442,7 +442,7 @@ public class CreateSnapshotRequest extends MasterNodeOperationRequest<CreateSnap
         snapshot = in.readString();
         repository = in.readString();
         indices = in.readStringArray();
-        ignoreIndices = IgnoreIndices.fromId(in.readByte());
+        indicesOptions = IndicesOptions.fromId(in.readByte());
         settings = readSettingsFromStream(in);
         includeGlobalState = in.readBoolean();
         waitForCompletion = in.readBoolean();
@@ -454,7 +454,7 @@ public class CreateSnapshotRequest extends MasterNodeOperationRequest<CreateSnap
         out.writeString(snapshot);
         out.writeString(repository);
         out.writeStringArray(indices);
-        out.writeByte(ignoreIndices.id());
+        out.writeByte(indicesOptions.id());
         writeSettingsToStream(settings, out);
         out.writeBoolean(includeGlobalState);
         out.writeBoolean(waitForCompletion);

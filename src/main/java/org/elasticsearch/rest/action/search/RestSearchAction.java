@@ -24,7 +24,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchOperationThreading;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -142,7 +142,7 @@ public class RestSearchAction extends BaseRestHandler {
         searchRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
         searchRequest.routing(request.param("routing"));
         searchRequest.preference(request.param("preference"));
-        searchRequest.ignoreIndices(IgnoreIndices.fromRequest(request, searchRequest.ignoreIndices()));
+        searchRequest.ignoreIndices(IndicesOptions.fromRequest(request, searchRequest.ignoreIndices()));
 
         return searchRequest;
     }

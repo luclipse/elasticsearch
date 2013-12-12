@@ -20,7 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
@@ -147,9 +147,9 @@ public class IndicesQueryParser implements QueryParser {
     protected boolean matchesIndices(String currentIndex, String... indices) {
         final String[] concreteIndices;
         try {
-            concreteIndices = clusterService.state().metaData().concreteIndices(indices, IgnoreIndices.lenient(), true);
+            concreteIndices = clusterService.state().metaData().concreteIndices(indices, IndicesOptions.lenient(), true);
         } catch(IndexMissingException e) {
-            //Although we use IgnoreIndices.MISSING, according to MetaData#concreteIndices contract,
+            //Although we use IndicesOptions.MISSING, according to MetaData#concreteIndices contract,
             // we get IndexMissing either when we have a single index that is missing or when all indices are missing
             return false;
         }

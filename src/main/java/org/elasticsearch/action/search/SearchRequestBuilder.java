@@ -22,7 +22,7 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.Nullable;
@@ -175,8 +175,8 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     /**
      * Specifies what type of requested indices to ignore. For example indices that don't exist.
      */
-    public SearchRequestBuilder setIgnoreIndices(IgnoreIndices ignoreIndices) {
-        request().ignoreIndices(ignoreIndices);
+    public SearchRequestBuilder setIgnoreIndices(IndicesOptions indicesOptions) {
+        request().ignoreIndices(indicesOptions);
         return this;
     }
 

@@ -21,7 +21,7 @@ package org.elasticsearch.rest.action.percolate;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.percolate.MultiPercolateRequest;
 import org.elasticsearch.action.percolate.MultiPercolateResponse;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -56,7 +56,7 @@ public class RestMultiPercolateAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest restRequest, final RestChannel restChannel) {
         MultiPercolateRequest multiPercolateRequest = new MultiPercolateRequest();
-        multiPercolateRequest.ignoreIndices(IgnoreIndices.fromRequest(restRequest, multiPercolateRequest.ignoreIndices()));
+        multiPercolateRequest.ignoreIndices(IndicesOptions.fromRequest(restRequest, multiPercolateRequest.ignoreIndices()));
         multiPercolateRequest.indices(Strings.splitStringByCommaToArray(restRequest.param("index")));
         multiPercolateRequest.documentType(restRequest.param("type"));
 

@@ -21,7 +21,7 @@ package org.elasticsearch.indices.exists.types;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.exists.types.TypesExistsResponse;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -54,11 +54,11 @@ public class TypesExistsTests extends ElasticsearchIntegrationTest {
         response = client.admin().indices().prepareTypesExists("test1").setTypes("type3").execute().actionGet();
         assertThat(response.isExists(), equalTo(false));
         try {
-            client.admin().indices().prepareTypesExists("notExist").setTypes("type1").setIgnoreIndices(IgnoreIndices.lenient()).execute().actionGet();
+            client.admin().indices().prepareTypesExists("notExist").setTypes("type1").setIgnoreIndices(IndicesOptions.lenient()).execute().actionGet();
             fail("Exception should have been thrown");
         } catch (IndexMissingException e) {}
         try {
-            client.admin().indices().prepareTypesExists("notExist").setTypes("type0").setIgnoreIndices(IgnoreIndices.lenient()).execute().actionGet();
+            client.admin().indices().prepareTypesExists("notExist").setTypes("type0").setIgnoreIndices(IndicesOptions.lenient()).execute().actionGet();
             fail("Exception should have been thrown");
         } catch (IndexMissingException e) {}
         response = client.admin().indices().prepareTypesExists("alias1").setTypes("type1").execute().actionGet();

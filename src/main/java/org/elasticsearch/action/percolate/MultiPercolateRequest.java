@@ -23,7 +23,7 @@ import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -47,7 +47,7 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
 
     private String[] indices;
     private String documentType;
-    private IgnoreIndices ignoreIndices = IgnoreIndices.lenient();
+    private IndicesOptions indicesOptions = IndicesOptions.lenient();
     private List<PercolateRequest> requests = Lists.newArrayList();
 
     public MultiPercolateRequest add(PercolateRequestBuilder requestBuilder) {
@@ -61,8 +61,8 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
         if (request.documentType() == null && documentType != null) {
             request.documentType(documentType);
         }
-        if (request.ignoreIndices() == IgnoreIndices.lenient() && ignoreIndices != IgnoreIndices.lenient()) {
-            request.ignoreIndices(ignoreIndices);
+        if (request.ignoreIndices() == IndicesOptions.lenient() && indicesOptions != IndicesOptions.lenient()) {
+            request.ignoreIndices(indicesOptions);
         }
         requests.add(request);
         return this;
@@ -95,8 +95,8 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
             if (documentType != null) {
                 percolateRequest.documentType(documentType);
             }
-            if (ignoreIndices != IgnoreIndices.lenient()) {
-                percolateRequest.ignoreIndices(ignoreIndices);
+            if (indicesOptions != IndicesOptions.lenient()) {
+                percolateRequest.ignoreIndices(indicesOptions);
             }
 
             // now parse the action
@@ -167,9 +167,9 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
             }
         }
 
-        boolean ignoreUnavailable = IgnoreIndices.lenient().ignoreUnavailable();
-        boolean expandWildcards = IgnoreIndices.lenient().expandOnlyOpenIndices();
-        boolean allowNoIndices = IgnoreIndices.lenient().allowNoIndices();
+        boolean ignoreUnavailable = IndicesOptions.lenient().ignoreUnavailable();
+        boolean expandWildcards = IndicesOptions.lenient().expandOnlyOpenIndices();
+        boolean allowNoIndices = IndicesOptions.lenient().allowNoIndices();
 
         if (header.containsKey("id")) {
             GetRequest getRequest = new GetRequest(globalIndex);
@@ -245,7 +245,7 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
                 }
             }
         }
-        percolateRequest.ignoreIndices(IgnoreIndices.fromOptions(ignoreUnavailable, expandWildcards, allowNoIndices));
+        percolateRequest.ignoreIndices(IndicesOptions.fromOptions(ignoreUnavailable, expandWildcards, allowNoIndices));
     }
 
     private String[] parseArray(XContentParser parser) throws IOException {
@@ -270,12 +270,12 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
         return this.requests;
     }
 
-    public IgnoreIndices ignoreIndices() {
-        return ignoreIndices;
+    public IndicesOptions ignoreIndices() {
+        return indicesOptions;
     }
 
-    public MultiPercolateRequest ignoreIndices(IgnoreIndices ignoreIndices) {
-        this.ignoreIndices = ignoreIndices;
+    public MultiPercolateRequest ignoreIndices(IndicesOptions indicesOptions) {
+        this.indicesOptions = indicesOptions;
         return this;
     }
 
@@ -321,7 +321,7 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
         super.readFrom(in);
         indices = in.readStringArray();
         documentType = in.readOptionalString();
-        ignoreIndices = IgnoreIndices.fromId(in.readByte());
+        indicesOptions = IndicesOptions.fromId(in.readByte());
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             PercolateRequest request = new PercolateRequest();
@@ -335,7 +335,7 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
         super.writeTo(out);
         out.writeStringArrayNullable(indices);
         out.writeOptionalString(documentType);
-        out.writeByte(ignoreIndices.id());
+        out.writeByte(indicesOptions.id());
         out.writeVInt(requests.size());
         for (PercolateRequest request : requests) {
             request.writeTo(out);

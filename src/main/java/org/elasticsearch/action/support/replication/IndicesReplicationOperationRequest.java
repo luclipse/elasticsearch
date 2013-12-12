@@ -22,7 +22,7 @@ package org.elasticsearch.action.support.replication;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.WriteConsistencyLevel;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -36,7 +36,7 @@ public class IndicesReplicationOperationRequest<T extends IndicesReplicationOper
 
     protected TimeValue timeout = ShardReplicationOperationRequest.DEFAULT_TIMEOUT;
     protected String[] indices;
-    private IgnoreIndices ignoreIndices = IgnoreIndices.lenient();
+    private IndicesOptions indicesOptions = IndicesOptions.lenient();
 
     protected ReplicationType replicationType = ReplicationType.DEFAULT;
     protected WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
@@ -67,15 +67,15 @@ public class IndicesReplicationOperationRequest<T extends IndicesReplicationOper
         return this.indices;
     }
 
-    public IgnoreIndices ignoreIndices() {
-        return ignoreIndices;
+    public IndicesOptions ignoreIndices() {
+        return indicesOptions;
     }
 
-    public T ignoreIndices(IgnoreIndices ignoreIndices) {
-        if (ignoreIndices == null) {
-            throw new IllegalArgumentException("IgnoreIndices must not be null");
+    public T ignoreIndices(IndicesOptions indicesOptions) {
+        if (indicesOptions == null) {
+            throw new IllegalArgumentException("IndicesOptions must not be null");
         }
-        this.ignoreIndices = ignoreIndices;
+        this.indicesOptions = indicesOptions;
         return (T) this;
     }
 
@@ -139,7 +139,7 @@ public class IndicesReplicationOperationRequest<T extends IndicesReplicationOper
         consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
         timeout = TimeValue.readTimeValue(in);
         indices = in.readStringArray();
-        ignoreIndices = IgnoreIndices.fromId(in.readByte());
+        indicesOptions = IndicesOptions.fromId(in.readByte());
     }
 
     @Override
@@ -149,6 +149,6 @@ public class IndicesReplicationOperationRequest<T extends IndicesReplicationOper
         out.writeByte(consistencyLevel.id());
         timeout.writeTo(out);
         out.writeStringArrayNullable(indices);
-        out.writeByte(ignoreIndices.id());
+        out.writeByte(indicesOptions.id());
     }
 }
