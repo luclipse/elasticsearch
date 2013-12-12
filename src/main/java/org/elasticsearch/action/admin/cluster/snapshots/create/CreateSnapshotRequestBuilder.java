@@ -91,13 +91,13 @@ public class CreateSnapshotRequestBuilder extends MasterNodeOperationRequestBuil
     }
 
     /**
-     * Specifies what type of requested indices to ignore. For example indices that don't exist.
+     * Specifies the indices options. Like what type of requested indices to ignore. For example indices that don't exist.
      *
-     * @param indicesOptions the desired behaviour regarding indices to ignore
-     * @return this builder
+     * @param indicesOptions the desired behaviour regarding indices options
+     * @return this request
      */
-    public CreateSnapshotRequestBuilder setIgnoreIndices(IndicesOptions indicesOptions) {
-        request.ignoreIndices(indicesOptions);
+    public CreateSnapshotRequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
+        request.indicesOptions(indicesOptions);
         return this;
     }
 

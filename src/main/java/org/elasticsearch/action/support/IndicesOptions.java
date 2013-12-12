@@ -33,7 +33,7 @@ public enum IndicesOptions {
     _110(true, true, false),
     _001(false, false, true),
     _101(true, false, true),
-    _011(true, true, false),
+    _011(false, true, true),
     _111(true, true, true);
 
     private static final IndicesOptions[] IGNORE_INDICES = IndicesOptions.values();
@@ -103,16 +103,19 @@ public enum IndicesOptions {
         );
     }
 
+    /**
+     * @return indices options that requires any specified index to exists, expands wildcards only to open indices  and
+     *         allow that no indices are resolved (not returning an error).
+     */
     public static IndicesOptions strict() {
-        return _010;
+        return _011;
     }
 
     /**
-     * @return indices options that ignore unavailable indices, expand wildcards only to open indices and allow that
-     *         no indices are resolved (not returning an error).
+     * @return indices options that ignore unavailable indices, expand wildcards only to open indices and .
      */
     public static IndicesOptions lenient() {
-        return _101;
+        return _111;
     }
 
 }

@@ -196,21 +196,21 @@ public class CreateSnapshotRequest extends MasterNodeOperationRequest<CreateSnap
     }
 
     /**
-     * Specifies what type of requested indices to ignore. For example indices that don't exist.
+     * Specifies the indices options. Like what type of requested indices to ignore. For example indices that don't exist.
      *
-     * @return the desired behaviour regarding indices to ignore
+     * @return the desired behaviour regarding indices options
      */
-    public IndicesOptions ignoreIndices() {
+    public IndicesOptions indicesOptions() {
         return indicesOptions;
     }
 
     /**
-     * Specifies what type of requested indices to ignore. For example indices that don't exist.
+     * Specifies the indices options. Like what type of requested indices to ignore. For example indices that don't exist.
      *
-     * @param indicesOptions the desired behaviour regarding indices to ignore
+     * @param indicesOptions the desired behaviour regarding indices options
      * @return this request
      */
-    public CreateSnapshotRequest ignoreIndices(IndicesOptions indicesOptions) {
+    public CreateSnapshotRequest indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
         return this;
     }
@@ -372,7 +372,7 @@ public class CreateSnapshotRequest extends MasterNodeOperationRequest<CreateSnap
                 includeGlobalState((Boolean) entry.getValue());
             }
         }
-        ignoreIndices(IndicesOptions.fromOptions(ignoreUnavailable, expandWildcards, allowNoIndices));
+        indicesOptions(IndicesOptions.fromOptions(ignoreUnavailable, expandWildcards, allowNoIndices));
         return this;
     }
 

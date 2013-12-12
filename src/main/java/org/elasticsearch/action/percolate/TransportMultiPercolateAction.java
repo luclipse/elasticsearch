@@ -162,7 +162,7 @@ public class TransportMultiPercolateAction extends TransportAction<MultiPercolat
                 assert element != null;
                 if (element instanceof PercolateRequest) {
                     PercolateRequest percolateRequest = (PercolateRequest) element;
-                    String[] concreteIndices = clusterState.metaData().concreteIndices(percolateRequest.indices(), percolateRequest.ignoreIndices(), true);
+                    String[] concreteIndices = clusterState.metaData().concreteIndices(percolateRequest.indices(), percolateRequest.ignoreIndices());
                     Map<String, Set<String>> routing = clusterState.metaData().resolveSearchRouting(percolateRequest.routing(), percolateRequest.indices());
                     // TODO: I only need shardIds, ShardIterator(ShardRouting) is only needed in TransportShardMultiPercolateAction
                     GroupShardsIterator shards = clusterService.operationRouting().searchShards(

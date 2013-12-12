@@ -47,7 +47,7 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
 
     private String[] indices;
     private String documentType;
-    private IndicesOptions indicesOptions = IndicesOptions.lenient();
+    private IndicesOptions indicesOptions = IndicesOptions.strict();
     private List<PercolateRequest> requests = Lists.newArrayList();
 
     public MultiPercolateRequest add(PercolateRequestBuilder requestBuilder) {

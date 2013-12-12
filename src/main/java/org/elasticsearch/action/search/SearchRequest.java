@@ -81,7 +81,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
 
     private SearchOperationThreading operationThreading = SearchOperationThreading.THREAD_PER_SHARD;
 
-    private IndicesOptions indicesOptions = IndicesOptions.lenient();
+    private IndicesOptions indicesOptions = IndicesOptions.strict();
 
     public SearchRequest() {
     }

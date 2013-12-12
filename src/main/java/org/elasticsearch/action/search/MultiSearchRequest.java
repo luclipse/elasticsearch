@@ -48,7 +48,7 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
 
     private List<SearchRequest> requests = Lists.newArrayList();
 
-    private IndicesOptions indicesOptions = IndicesOptions.lenient();
+    private IndicesOptions indicesOptions = IndicesOptions.strict();
 
     /**
      * Add a search request to execute. Note, the order is important, the search response will be returned in the

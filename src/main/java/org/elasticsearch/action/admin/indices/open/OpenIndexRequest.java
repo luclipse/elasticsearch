@@ -35,7 +35,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class OpenIndexRequest extends AcknowledgedRequest<OpenIndexRequest> {
 
     private String[] indices;
-    private IndicesOptions indicesOptions = IndicesOptions.lenient();
+    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, false);
 
     OpenIndexRequest() {
     }

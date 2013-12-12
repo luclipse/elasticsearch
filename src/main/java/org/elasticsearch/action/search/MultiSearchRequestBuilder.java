@@ -38,11 +38,11 @@ public class MultiSearchRequestBuilder extends ActionRequestBuilder<MultiSearchR
      * Add a search request to execute. Note, the order is important, the search response will be returned in the
      * same order as the search requests.
      * <p/>
-     * If ignoreIndices has been set on the search request, then the ignoreIndices of the multi search request
+     * If ignoreIndices has been set on the search request, then the indicesOptions of the multi search request
      * will not be used (if set).
      */
     public MultiSearchRequestBuilder add(SearchRequest request) {
-        if (request.ignoreIndices() == IndicesOptions.lenient() && request().ignoreIndices() != IndicesOptions.lenient()) {
+        if (request.ignoreIndices() == IndicesOptions.strict() && request().ignoreIndices() != IndicesOptions.strict()) {
             request.ignoreIndices(request().ignoreIndices());
         }
 
@@ -55,7 +55,7 @@ public class MultiSearchRequestBuilder extends ActionRequestBuilder<MultiSearchR
      * same order as the search requests.
      */
     public MultiSearchRequestBuilder add(SearchRequestBuilder request) {
-        if (request.request().ignoreIndices() == IndicesOptions.lenient() && request().ignoreIndices() != IndicesOptions.lenient()) {
+        if (request.request().ignoreIndices() == IndicesOptions.strict() && request().ignoreIndices() != IndicesOptions.strict()) {
             request.request().ignoreIndices(request().ignoreIndices());
         }
 
