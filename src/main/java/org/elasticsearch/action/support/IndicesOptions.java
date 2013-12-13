@@ -20,12 +20,18 @@
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.rest.RestRequest;
+
+import java.io.IOException;
 
 /**
  * Specifies what type of requested indices to exclude.
  */
-public enum IndicesOptions {
+public enum IndicesOptions implements Streamable {
 
     _000(false, false, false),
     _100(true, false, false),
@@ -60,38 +66,26 @@ public enum IndicesOptions {
         return allowNoIndices;
     }
 
-    public byte id() {
-        byte id = 0;
-        if (ignoreUnavailable) {
-            id += 1;
-        }
-        if (expandOnlyOpenIndices) {
-            id += 2;
-        }
-        if (allowNoIndices) {
-            id += 4;
-        }
-        return id;
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        throw new ElasticSearchIllegalStateException("should never be invoked");
     }
 
-    public static IndicesOptions fromId(byte id) {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.write(id(ignoreUnavailable, allowNoIndices, expandOnlyOpenIndices));
+    }
+
+    public static IndicesOptions readIndicesOptions(StreamInput in) throws IOException {
+        byte id = in.readByte();
         if (id >= IGNORE_INDICES.length) {
             throw new ElasticSearchIllegalArgumentException("No valid missing index type id: " + id);
         }
         return IGNORE_INDICES[id];
     }
 
-    public static IndicesOptions fromOptions(boolean ignoreMissing, boolean expandOnlyOpenIndices, boolean allowNoIndices) {
-        byte id = 0;
-        if (ignoreMissing) {
-            id += 1;
-        }
-        if (expandOnlyOpenIndices) {
-            id += 2;
-        }
-        if (allowNoIndices) {
-            id += 4;
-        }
+    public static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean expandOnlyOpenIndices, boolean allowNoIndices) {
+        byte id = id(ignoreUnavailable, allowNoIndices, expandOnlyOpenIndices);
         return IGNORE_INDICES[id];
     }
 
@@ -116,6 +110,20 @@ public enum IndicesOptions {
      */
     public static IndicesOptions lenient() {
         return _111;
+    }
+
+    private static byte id(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandOnlyOpenIndices) {
+        byte id = 0;
+        if (ignoreUnavailable) {
+            id += 1;
+        }
+        if (allowNoIndices) {
+            id += 2;
+        }
+        if (expandOnlyOpenIndices) {
+            id += 4;
+        }
+        return id;
     }
 
 }

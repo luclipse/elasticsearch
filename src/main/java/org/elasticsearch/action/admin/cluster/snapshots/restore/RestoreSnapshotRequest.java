@@ -505,7 +505,7 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
         snapshot = in.readString();
         repository = in.readString();
         indices = in.readStringArray();
-        indicesOptions = IndicesOptions.fromId(in.readByte());
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
         renamePattern = in.readOptionalString();
         renameReplacement = in.readOptionalString();
         waitForCompletion = in.readBoolean();
@@ -519,7 +519,7 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
         out.writeString(snapshot);
         out.writeString(repository);
         out.writeStringArray(indices);
-        out.writeByte(indicesOptions.id());
+        indicesOptions.writeTo(out);
         out.writeOptionalString(renamePattern);
         out.writeOptionalString(renameReplacement);
         out.writeBoolean(waitForCompletion);

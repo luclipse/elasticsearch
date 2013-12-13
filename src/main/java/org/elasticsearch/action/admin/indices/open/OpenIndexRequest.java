@@ -97,7 +97,7 @@ public class OpenIndexRequest extends AcknowledgedRequest<OpenIndexRequest> {
         super.readFrom(in);
         indices = in.readStringArray();
         readTimeout(in);
-        indicesOptions = IndicesOptions.fromId(in.readByte());
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
     }
 
     @Override
@@ -105,6 +105,6 @@ public class OpenIndexRequest extends AcknowledgedRequest<OpenIndexRequest> {
         super.writeTo(out);
         out.writeStringArray(indices);
         writeTimeout(out);
-        out.writeByte(indicesOptions.id());
+        indicesOptions.writeTo(out);
     }
 }

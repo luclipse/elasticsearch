@@ -442,7 +442,7 @@ public class CreateSnapshotRequest extends MasterNodeOperationRequest<CreateSnap
         snapshot = in.readString();
         repository = in.readString();
         indices = in.readStringArray();
-        indicesOptions = IndicesOptions.fromId(in.readByte());
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
         settings = readSettingsFromStream(in);
         includeGlobalState = in.readBoolean();
         waitForCompletion = in.readBoolean();
@@ -454,7 +454,7 @@ public class CreateSnapshotRequest extends MasterNodeOperationRequest<CreateSnap
         out.writeString(snapshot);
         out.writeString(repository);
         out.writeStringArray(indices);
-        out.writeByte(indicesOptions.id());
+        indicesOptions.writeTo(out);
         writeSettingsToStream(settings, out);
         out.writeBoolean(includeGlobalState);
         out.writeBoolean(waitForCompletion);

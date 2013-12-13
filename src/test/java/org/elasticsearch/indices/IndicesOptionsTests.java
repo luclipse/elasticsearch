@@ -37,6 +37,7 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
     @Test
     public void testMissing() throws Exception {
         assertAcked(prepareCreate("test1"));
+        ensureYellow();
 
         try {
             client().prepareSearch("test1", "test2")
@@ -207,6 +208,7 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
     @Test
     public void testAllMissing_strict() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test1"));
+        ensureYellow();
         try {
             client().prepareSearch("test2")
                     .setQuery(matchAllQuery())
@@ -232,7 +234,7 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
     public void testClosed() throws Exception {
         assertAcked(prepareCreate("test1"));
         assertAcked(prepareCreate("test2"));
-        ensureGreen();
+        ensureYellow();
         client().prepareSearch("test1", "test2").setQuery(matchAllQuery()).execute().actionGet();
         CloseIndexResponse closeIndexResponse = client().admin().indices().prepareClose("test2").execute().actionGet();
         assertThat(closeIndexResponse.isAcknowledged(), equalTo(true));

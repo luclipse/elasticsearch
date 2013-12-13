@@ -164,7 +164,7 @@ public class ClusterSearchShardsRequest extends MasterNodeOperationRequest<Clust
         preference = in.readOptionalString();
 
         types = in.readStringArray();
-        indicesOptions = IndicesOptions.fromId(in.readByte());
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
         local = in.readBoolean();
     }
 
@@ -181,7 +181,7 @@ public class ClusterSearchShardsRequest extends MasterNodeOperationRequest<Clust
         out.writeOptionalString(preference);
 
         out.writeStringArray(types);
-        out.writeByte(indicesOptions.id());
+        indicesOptions.writeTo(out);
         out.writeBoolean(local);
     }
 

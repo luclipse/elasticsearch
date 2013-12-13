@@ -90,7 +90,7 @@ public class GetAliasesRequest extends MasterNodeOperationRequest<GetAliasesRequ
         super.readFrom(in);
         indices = in.readStringArray();
         aliases = in.readStringArray();
-        indicesOptions = IndicesOptions.fromId(in.readByte());
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
     }
 
     @Override
@@ -98,6 +98,6 @@ public class GetAliasesRequest extends MasterNodeOperationRequest<GetAliasesRequ
         super.writeTo(out);
         out.writeStringArray(indices);
         out.writeStringArray(aliases);
-        out.writeByte(indicesOptions.id());
+        indicesOptions.writeTo(out);
     }
 }

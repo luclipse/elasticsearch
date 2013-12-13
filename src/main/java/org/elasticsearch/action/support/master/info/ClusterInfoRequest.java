@@ -82,7 +82,7 @@ public abstract class ClusterInfoRequest<T extends ClusterInfoRequest> extends M
         super.readFrom(in);
         indices = in.readStringArray();
         types = in.readStringArray();
-        indicesOptions = IndicesOptions.fromId(in.readByte());
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
         local = in.readBoolean();
     }
 
@@ -91,7 +91,7 @@ public abstract class ClusterInfoRequest<T extends ClusterInfoRequest> extends M
         super.writeTo(out);
         out.writeStringArray(indices);
         out.writeStringArray(types);
-        out.writeByte(indicesOptions.id());
+        indicesOptions.writeTo(out);
         out.writeBoolean(local);
     }
 }

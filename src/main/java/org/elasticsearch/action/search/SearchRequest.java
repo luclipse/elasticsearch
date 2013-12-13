@@ -470,7 +470,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
         extraSource = in.readBytesReference();
 
         types = in.readStringArray();
-        indicesOptions = IndicesOptions.fromId(in.readByte());
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
     }
 
     @Override
@@ -496,6 +496,6 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
         out.writeBytesReference(source);
         out.writeBytesReference(extraSource);
         out.writeStringArray(types);
-        out.writeByte(indicesOptions.id());
+        indicesOptions.writeTo(out);
     }
 }

@@ -321,7 +321,7 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
         super.readFrom(in);
         indices = in.readStringArray();
         documentType = in.readOptionalString();
-        indicesOptions = IndicesOptions.fromId(in.readByte());
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             PercolateRequest request = new PercolateRequest();
@@ -335,7 +335,7 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
         super.writeTo(out);
         out.writeStringArrayNullable(indices);
         out.writeOptionalString(documentType);
-        out.writeByte(indicesOptions.id());
+        indicesOptions.writeTo(out);
         out.writeVInt(requests.size());
         for (PercolateRequest request : requests) {
             request.writeTo(out);

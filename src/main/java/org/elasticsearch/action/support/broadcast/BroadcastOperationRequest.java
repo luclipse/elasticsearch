@@ -106,7 +106,7 @@ public abstract class BroadcastOperationRequest<T extends BroadcastOperationRequ
         super.writeTo(out);
         out.writeStringArrayNullable(indices);
         out.writeByte(operationThreading.id());
-        out.writeByte(indicesOptions.id());
+        indicesOptions.writeTo(out);
     }
 
     @Override
@@ -114,6 +114,6 @@ public abstract class BroadcastOperationRequest<T extends BroadcastOperationRequ
         super.readFrom(in);
         indices = in.readStringArray();
         operationThreading = BroadcastOperationThreading.fromId(in.readByte());
-        indicesOptions = IndicesOptions.fromId(in.readByte());
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
     }
 }

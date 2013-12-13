@@ -139,7 +139,7 @@ public class IndicesReplicationOperationRequest<T extends IndicesReplicationOper
         consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
         timeout = TimeValue.readTimeValue(in);
         indices = in.readStringArray();
-        indicesOptions = IndicesOptions.fromId(in.readByte());
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
     }
 
     @Override
@@ -149,6 +149,6 @@ public class IndicesReplicationOperationRequest<T extends IndicesReplicationOper
         out.writeByte(consistencyLevel.id());
         timeout.writeTo(out);
         out.writeStringArrayNullable(indices);
-        out.writeByte(indicesOptions.id());
+        indicesOptions.writeTo(out);
     }
 }
