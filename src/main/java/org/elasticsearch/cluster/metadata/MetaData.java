@@ -133,6 +133,7 @@ public class MetaData implements Iterable<IndexMetaData> {
 
     private final String[] allIndices;
     private final String[] allOpenIndices;
+    private final String[] allClosedIndices;
 
     private final ImmutableOpenMap<String, ImmutableOpenMap<String, AliasMetaData>> aliases;
     private final ImmutableOpenMap<String, String[]> aliasAndIndexToIndexMap;
@@ -167,13 +168,17 @@ public class MetaData implements Iterable<IndexMetaData> {
         int numIndices = allIndicesLst.size();
 
         List<String> allOpenIndices = Lists.newArrayList();
+        List<String> allClosedIndices = Lists.newArrayList();
         for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
             IndexMetaData indexMetaData = cursor.value;
             if (indexMetaData.state() == IndexMetaData.State.OPEN) {
                 allOpenIndices.add(indexMetaData.index());
+            } else if (indexMetaData.state() == IndexMetaData.State.CLOSE) {
+                allClosedIndices.add(indexMetaData.index());
             }
         }
         this.allOpenIndices = allOpenIndices.toArray(new String[allOpenIndices.size()]);
+        this.allClosedIndices = allClosedIndices.toArray(new String[allClosedIndices.size()]);
 
         // build aliases map
         ImmutableOpenMap.Builder<String, Object> tmpAliases = ImmutableOpenMap.builder(numAliases);
@@ -413,6 +418,14 @@ public class MetaData implements Iterable<IndexMetaData> {
         return allOpenIndices;
     }
 
+    public String[] concreteAllClosedIndices() {
+        return allClosedIndices;
+    }
+
+    public String[] getConcreteAllClosedIndices() {
+        return allClosedIndices;
+    }
+
     /**
      * Returns indexing routing for the given index.
      */
@@ -594,14 +607,14 @@ public class MetaData implements Iterable<IndexMetaData> {
      * Translates the provided indices (possibly aliased) into actual indices.
      */
     public String[] concreteIndices(String[] indices) throws IndexMissingException {
-        return concreteIndices(indices, IndicesOptions._001);
+        return concreteIndices(indices, IndicesOptions.fromOptions(false, true, true, true));
     }
 
     /**
      * Translates the provided indices (possibly aliased) into actual indices.
      */
     public String[] concreteIndicesIgnoreMissing(String[] indices) {
-        return concreteIndices(indices, IndicesOptions._101);
+        return concreteIndices(indices, IndicesOptions.fromOptions(true, true, true, false));
     }
 
     /**
@@ -609,7 +622,16 @@ public class MetaData implements Iterable<IndexMetaData> {
      */
     public String[] concreteIndices(String[] aliasesOrIndices, IndicesOptions indicesOptions) throws IndexMissingException {
         if (isAllIndices(aliasesOrIndices)) {
-            return indicesOptions.expandOnlyOpenIndices() ? concreteAllOpenIndices() : concreteAllIndices();
+            if (indicesOptions.expandWildcardsOpen() && indicesOptions.expandWildcardsClosed()) {
+                return concreteAllIndices();
+            } else if (indicesOptions.expandWildcardsOpen()) {
+                return  concreteAllOpenIndices();
+            } else if (indicesOptions.expandWildcardsClosed()) {
+                return concreteAllClosedIndices();
+            } else {
+                assert false : "Shouldn't end up here";
+                return Strings.EMPTY_ARRAY;
+            }
         }
         aliasesOrIndices = convertFromWildcards(aliasesOrIndices, indicesOptions);
         // optimize for single element index (common case)
@@ -705,7 +727,7 @@ public class MetaData implements Iterable<IndexMetaData> {
             } else if (aliasOrIndex.charAt(0) == '-') {
                 // if its the first, fill it with all the indices...
                 if (i == 0) {
-                    result = new HashSet<String>(Arrays.asList(indicesOptions.expandOnlyOpenIndices() ? concreteAllOpenIndices() : concreteAllIndices()));
+                    result = new HashSet<String>(Arrays.asList(indicesOptions.expandWildcardsOpen() ? concreteAllOpenIndices() : concreteAllIndices()));
                 }
                 add = false;
                 aliasOrIndex = aliasOrIndex.substring(1);
@@ -728,7 +750,17 @@ public class MetaData implements Iterable<IndexMetaData> {
                 result = new HashSet<String>();
                 result.addAll(Arrays.asList(aliasesOrIndices).subList(0, i));
             }
-            String[] indices = indicesOptions.expandOnlyOpenIndices() ? concreteAllOpenIndices() : concreteAllIndices();
+            String[] indices;
+            if (indicesOptions.expandWildcardsOpen() && indicesOptions.expandWildcardsClosed()) {
+                indices = concreteAllIndices();
+            } else if (indicesOptions.expandWildcardsOpen()) {
+                indices = concreteAllOpenIndices();
+            } else if (indicesOptions.expandWildcardsClosed()) {
+                indices = concreteAllClosedIndices();
+            } else {
+                assert false : "Shouldn't end up here";
+                indices = Strings.EMPTY_ARRAY;
+            }
             boolean found = false;
             // iterating over all concrete indices and see if there is a wildcard match
             for (String index : indices) {

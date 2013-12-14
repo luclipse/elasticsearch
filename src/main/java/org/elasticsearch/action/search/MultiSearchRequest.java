@@ -109,8 +109,9 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
             searchRequest.searchType(searchType);
 
             boolean ignoreUnavailable = IndicesOptions.lenient().ignoreUnavailable();
-            boolean expandWildcards = IndicesOptions.lenient().expandOnlyOpenIndices();
             boolean allowNoIndices = IndicesOptions.lenient().allowNoIndices();
+            boolean expandWildcardsOpen = IndicesOptions.lenient().expandWildcardsOpen();
+            boolean expandWildcardsClosed = IndicesOptions.lenient().expandWildcardsClosed();
 
             // now parse the action
             if (nextMarker - from > 0) {
@@ -140,10 +141,12 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
                                     searchRequest.routing(parser.text());
                                 } else if ("ignore_unavailable".equals(currentFieldName) || "ignoreUnavailable".equals(currentFieldName)) {
                                     ignoreUnavailable = parser.booleanValue();
-                                } else if ("expand_wildcards".equals(currentFieldName) || "expandWildcards".equals(currentFieldName)) {
-                                    expandWildcards = parser.booleanValue();
                                 } else if ("allow_no_indices".equals(currentFieldName) || "allowNoIndices".equals(currentFieldName)) {
                                     allowNoIndices = parser.booleanValue();
+                                } else if ("expand_wildcards_open".equals(currentFieldName) || "expandWildcardsOpen".equals(currentFieldName)) {
+                                    expandWildcardsOpen = parser.booleanValue();
+                                } else if ("expand_wildcards_closed".equals(currentFieldName) || "expandWildcardsClosed".equals(currentFieldName)) {
+                                    expandWildcardsClosed = parser.booleanValue();
                                 }
                             } else if (token == XContentParser.Token.START_ARRAY) {
                                 if ("index".equals(currentFieldName) || "indices".equals(currentFieldName)) {
@@ -163,7 +166,7 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
                     parser.close();
                 }
             }
-            searchRequest.ignoreIndices(IndicesOptions.fromOptions(ignoreUnavailable, expandWildcards, allowNoIndices));
+            searchRequest.ignoreIndices(IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandWildcardsOpen, expandWildcardsClosed));
 
             // move pointers
             from = nextMarker + 1;

@@ -21,6 +21,7 @@ package org.elasticsearch.action.support;
 
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -31,39 +32,48 @@ import java.io.IOException;
 /**
  * Specifies what type of requested indices to exclude.
  */
-public enum IndicesOptions implements Streamable {
+public class IndicesOptions implements Streamable {
 
-    _000(false, false, false),
-    _100(true, false, false),
-    _010(false, true, false),
-    _110(true, true, false),
-    _001(false, false, true),
-    _101(true, false, true),
-    _011(false, true, true),
-    _111(true, true, true);
+    private static final IndicesOptions[] IGNORE_INDICES;
 
-    private static final IndicesOptions[] IGNORE_INDICES = IndicesOptions.values();
+    static {
+        int max = 1 << 4;
+        IGNORE_INDICES = new IndicesOptions[max];
+        for (int i = 0; i < max; i++) {
+            boolean ignoreUnavailable = (i & 1) != 0;
+            boolean allowNoIndices = (i & 2) != 0;
+            boolean wildcardExpandToOpen = (i & 4) != 0;
+            boolean wildcardExpandToClosed = (i & 8) != 0;
+            IGNORE_INDICES[i] = new IndicesOptions(ignoreUnavailable, allowNoIndices, wildcardExpandToOpen, wildcardExpandToClosed);
+        }
+    }
 
     private final boolean ignoreUnavailable;
-    private final boolean expandOnlyOpenIndices;
     private final boolean allowNoIndices;
+    private final boolean expandWildcardsOpen;
+    private final boolean expandWildcardsClosed;
 
-    private IndicesOptions(boolean ignoreUnavailable, boolean expandOnlyOpenIndices, boolean allowNoIndices) {
+    private IndicesOptions(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandWildcardsOpen, boolean wildcardExpandToClosed) {
         this.ignoreUnavailable = ignoreUnavailable;
-        this.expandOnlyOpenIndices = expandOnlyOpenIndices;
         this.allowNoIndices = allowNoIndices;
+        this.expandWildcardsOpen = expandWildcardsOpen;
+        this.expandWildcardsClosed = wildcardExpandToClosed;
     }
 
     public boolean ignoreUnavailable() {
         return ignoreUnavailable;
     }
 
-    public boolean expandOnlyOpenIndices() {
-        return expandOnlyOpenIndices;
-    }
-
     public boolean allowNoIndices() {
         return allowNoIndices;
+    }
+
+    public boolean expandWildcardsOpen() {
+        return expandWildcardsOpen;
+    }
+
+    public boolean expandWildcardsClosed() {
+        return expandWildcardsClosed;
     }
 
     @Override
@@ -73,7 +83,7 @@ public enum IndicesOptions implements Streamable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.write(id(ignoreUnavailable, allowNoIndices, expandOnlyOpenIndices));
+        out.write(id(ignoreUnavailable, allowNoIndices, expandWildcardsOpen, expandWildcardsClosed));
     }
 
     public static IndicesOptions readIndicesOptions(StreamInput in) throws IOException {
@@ -84,16 +94,31 @@ public enum IndicesOptions implements Streamable {
         return IGNORE_INDICES[id];
     }
 
-    public static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean expandOnlyOpenIndices, boolean allowNoIndices) {
-        byte id = id(ignoreUnavailable, allowNoIndices, expandOnlyOpenIndices);
+    public static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandToOpenIndices, boolean expandToClosedIndices) {
+        byte id = id(ignoreUnavailable, allowNoIndices, expandToOpenIndices, expandToClosedIndices);
         return IGNORE_INDICES[id];
     }
 
     public static IndicesOptions fromRequest(RestRequest request, IndicesOptions defaultSettings) {
+        boolean expandWildcardsOpen = defaultSettings.expandWildcardsOpen();
+        boolean expandWildcardsClosed = defaultSettings.expandWildcardsClosed();
+
+        String[] wildcards = Strings.splitStringByCommaToArray(request.param("expand_wildcards"));
+        for (String wildcard : wildcards) {
+            if ("open".equals(wildcard)) {
+                expandWildcardsOpen = true;
+            } else if ("closed".equals(wildcard)) {
+                expandWildcardsClosed = true;
+            } else {
+                throw new ElasticSearchIllegalArgumentException("No valid expand wildcard value [" + wildcard + "]");
+            }
+        }
+
         return fromOptions(
                 request.paramAsBoolean("ignore_unavailable", defaultSettings.ignoreUnavailable()),
-                request.paramAsBoolean("expand_wildcards", defaultSettings.expandOnlyOpenIndices()),
-                request.paramAsBoolean("allow_no_indices", defaultSettings.allowNoIndices())
+                request.paramAsBoolean("allow_no_indices", defaultSettings.allowNoIndices()),
+                expandWildcardsOpen,
+                expandWildcardsClosed
         );
     }
 
@@ -102,17 +127,17 @@ public enum IndicesOptions implements Streamable {
      *         allow that no indices are resolved (not returning an error).
      */
     public static IndicesOptions strict() {
-        return _011;
+        return IGNORE_INDICES[6];
     }
 
     /**
      * @return indices options that ignore unavailable indices, expand wildcards only to open indices and .
      */
     public static IndicesOptions lenient() {
-        return _111;
+        return IGNORE_INDICES[7];
     }
 
-    private static byte id(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandOnlyOpenIndices) {
+    private static byte id(boolean ignoreUnavailable, boolean allowNoIndices, boolean wildcardExpandToOpen , boolean wildcardExpandToClosed) {
         byte id = 0;
         if (ignoreUnavailable) {
             id += 1;
@@ -120,8 +145,11 @@ public enum IndicesOptions implements Streamable {
         if (allowNoIndices) {
             id += 2;
         }
-        if (expandOnlyOpenIndices) {
+        if (wildcardExpandToOpen) {
             id += 4;
+        }
+        if (wildcardExpandToClosed) {
+            id += 8;
         }
         return id;
     }

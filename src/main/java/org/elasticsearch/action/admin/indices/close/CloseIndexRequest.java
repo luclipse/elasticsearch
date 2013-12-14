@@ -35,7 +35,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class CloseIndexRequest extends AcknowledgedRequest<CloseIndexRequest> {
 
     private String[] indices;
-    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, false);
+    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, false);
 
     CloseIndexRequest() {
     }

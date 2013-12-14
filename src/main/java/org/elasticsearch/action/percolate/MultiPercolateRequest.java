@@ -168,8 +168,9 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
         }
 
         boolean ignoreUnavailable = IndicesOptions.lenient().ignoreUnavailable();
-        boolean expandWildcards = IndicesOptions.lenient().expandOnlyOpenIndices();
         boolean allowNoIndices = IndicesOptions.lenient().allowNoIndices();
+        boolean expandWildcardsOpen = IndicesOptions.lenient().expandWildcardsOpen();
+        boolean expandWildcardsClosed = IndicesOptions.lenient().expandWildcardsClosed();
 
         if (header.containsKey("id")) {
             GetRequest getRequest = new GetRequest(globalIndex);
@@ -201,10 +202,12 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
                     percolateRequest.routing((String) value);
                 } else if ("ignore_unavailable".equals(currentFieldName) || "ignoreUnavailable".equals(currentFieldName)) {
                     ignoreUnavailable = parser.booleanValue();
-                } else if ("expand_wildcards".equals(currentFieldName) || "expandWildcards".equals(currentFieldName)) {
-                    expandWildcards = parser.booleanValue();
                 } else if ("allow_no_indices".equals(currentFieldName) || "allowNoIndices".equals(currentFieldName)) {
                     allowNoIndices = parser.booleanValue();
+                } else if ("expand_wildcards_open".equals(currentFieldName) || "expandWildcardsOpen".equals(currentFieldName)) {
+                    expandWildcardsOpen = parser.booleanValue();
+                } else if ("expand_wildcards_closed".equals(currentFieldName) || "expandWildcardsClosed".equals(currentFieldName)) {
+                    expandWildcardsClosed = parser.booleanValue();
                 }
             }
 
@@ -238,14 +241,16 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
                     percolateRequest.routing((String) value);
                 } else if ("ignore_unavailable".equals(currentFieldName) || "ignoreUnavailable".equals(currentFieldName)) {
                     ignoreUnavailable = parser.booleanValue();
-                } else if ("expand_wildcards".equals(currentFieldName) || "expandWildcards".equals(currentFieldName)) {
-                    expandWildcards = parser.booleanValue();
                 } else if ("allow_no_indices".equals(currentFieldName) || "allowNoIndices".equals(currentFieldName)) {
                     allowNoIndices = parser.booleanValue();
+                } else if ("expand_wildcards_open".equals(currentFieldName) || "expandWildcardsOpen".equals(currentFieldName)) {
+                    expandWildcardsOpen = parser.booleanValue();
+                } else if ("expand_wildcards_closed".equals(currentFieldName) || "expandWildcardsClosed".equals(currentFieldName)) {
+                    expandWildcardsClosed = parser.booleanValue();
                 }
             }
         }
-        percolateRequest.ignoreIndices(IndicesOptions.fromOptions(ignoreUnavailable, expandWildcards, allowNoIndices));
+        percolateRequest.ignoreIndices(IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandWildcardsOpen, expandWildcardsClosed));
     }
 
     private String[] parseArray(XContentParser parser) throws IOException {

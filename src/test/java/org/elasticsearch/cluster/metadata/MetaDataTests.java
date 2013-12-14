@@ -129,6 +129,89 @@ public class MetaDataTests extends ElasticsearchTestCase {
     }
 
     @Test
+    public void testIndexOptions_allowUnavailableExpandOpenDisAllowEmpty() {
+        MetaData.Builder mdBuilder = MetaData.builder()
+                .put(indexBuilder("foo"))
+                .put(indexBuilder("foobar"))
+                .put(indexBuilder("foofoo").putAlias(AliasMetaData.builder("barbaz")));
+        MetaData md = mdBuilder.build();
+
+        IndicesOptions options = IndicesOptions.fromOptions(true, false, true, false);
+
+        String[] results = md.concreteIndices(Strings.EMPTY_ARRAY, options);
+        assertEquals(3, results.length);
+
+        results = md.concreteIndices(new String[]{"foo"}, options);
+        assertEquals(1, results.length);
+        assertEquals("foo", results[0]);
+
+        results = md.concreteIndices(new String[]{"bar"}, options);
+        assertThat(results, emptyArray());
+
+        try {
+            md.concreteIndices(new String[]{"baz*"}, options);
+            fail();
+        } catch (IndexMissingException e) {}
+
+        try {
+            md.concreteIndices(new String[]{"foo", "baz*"}, options);
+            fail();
+        } catch (IndexMissingException e) {}
+    }
+
+    @Test
+    public void testIndexOptions_wildcardExpansion() {
+        MetaData.Builder mdBuilder = MetaData.builder()
+                .put(indexBuilder("foo").state(IndexMetaData.State.CLOSE))
+                .put(indexBuilder("bar"))
+                .put(indexBuilder("foobar").putAlias(AliasMetaData.builder("barbaz")));
+        MetaData md = mdBuilder.build();
+
+        // Only closed
+        IndicesOptions options = IndicesOptions.fromOptions(false, true, false, true);
+        String[] results = md.concreteIndices(Strings.EMPTY_ARRAY, options);
+        assertEquals(1, results.length);
+        assertEquals("foo", results[0]);
+
+        results = md.concreteIndices(new String[]{"foo*"}, options);
+        assertEquals(1, results.length);
+        assertEquals("foo", results[0]);
+
+        // no wildcards, so wildcard expansion don't apply
+        results = md.concreteIndices(new String[]{"bar"}, options);
+        assertEquals(1, results.length);
+        assertEquals("bar", results[0]);
+
+        // Only open
+        options = IndicesOptions.fromOptions(false, true, true, false);
+        results = md.concreteIndices(Strings.EMPTY_ARRAY, options);
+        assertEquals(2, results.length);
+        assertThat(results, arrayContainingInAnyOrder("bar", "foobar"));
+
+        results = md.concreteIndices(new String[]{"foo*"}, options);
+        assertEquals(1, results.length);
+        assertEquals("foobar", results[0]);
+
+        results = md.concreteIndices(new String[]{"bar"}, options);
+        assertEquals(1, results.length);
+        assertEquals("bar", results[0]);
+
+        // Open and closed
+        options = IndicesOptions.fromOptions(false, true, true, true);
+        results = md.concreteIndices(Strings.EMPTY_ARRAY, options);
+        assertEquals(3, results.length);
+        assertThat(results, arrayContainingInAnyOrder("bar", "foobar", "foo"));
+
+        results = md.concreteIndices(new String[]{"foo*"}, options);
+        assertEquals(2, results.length);
+        assertThat(results, arrayContainingInAnyOrder("foobar", "foo"));
+
+        results = md.concreteIndices(new String[]{"bar"}, options);
+        assertEquals(1, results.length);
+        assertEquals("bar", results[0]);
+    }
+
+    @Test
     public void testIndexOptions_emptyCluster() {
         MetaData md = MetaData.builder().build();
         IndicesOptions options = IndicesOptions.strict();
@@ -156,6 +239,11 @@ public class MetaDataTests extends ElasticsearchTestCase {
         assertThat(results, emptyArray());
         results = md.concreteIndices(new String[]{"foo*", "bar"}, options);
         assertThat(results, emptyArray());
+
+        options = IndicesOptions.fromOptions(true, false, true, false);
+        try {
+            md.concreteIndices(Strings.EMPTY_ARRAY, options);
+        } catch (IndexMissingException e) {}
     }
 
     @Test
