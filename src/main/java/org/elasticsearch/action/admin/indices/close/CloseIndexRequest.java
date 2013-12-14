@@ -105,6 +105,6 @@ public class CloseIndexRequest extends AcknowledgedRequest<CloseIndexRequest> {
         super.writeTo(out);
         out.writeStringArray(indices);
         writeTimeout(out);
-        indicesOptions.writeTo(out);
+        indicesOptions.writeIndicesOptions(out);
     }
 }

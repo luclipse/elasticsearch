@@ -88,7 +88,7 @@ public class TypesExistsRequest extends MasterNodeOperationRequest<TypesExistsRe
         super.writeTo(out);
         out.writeStringArray(indices);
         out.writeStringArray(types);
-        indicesOptions.writeTo(out);
+        indicesOptions.writeIndicesOptions(out);
     }
 
     @Override

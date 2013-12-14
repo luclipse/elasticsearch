@@ -458,7 +458,7 @@ public class CreateSnapshotRequest extends MasterNodeOperationRequest<CreateSnap
         out.writeString(snapshot);
         out.writeString(repository);
         out.writeStringArray(indices);
-        indicesOptions.writeTo(out);
+        indicesOptions.writeIndicesOptions(out);
         writeSettingsToStream(settings, out);
         out.writeBoolean(includeGlobalState);
         out.writeBoolean(waitForCompletion);

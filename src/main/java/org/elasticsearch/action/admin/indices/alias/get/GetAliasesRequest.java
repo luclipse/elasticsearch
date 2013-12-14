@@ -98,6 +98,6 @@ public class GetAliasesRequest extends MasterNodeOperationRequest<GetAliasesRequ
         super.writeTo(out);
         out.writeStringArray(indices);
         out.writeStringArray(aliases);
-        indicesOptions.writeTo(out);
+        indicesOptions.writeIndicesOptions(out);
     }
 }

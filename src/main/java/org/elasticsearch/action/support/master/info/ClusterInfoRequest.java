@@ -91,7 +91,7 @@ public abstract class ClusterInfoRequest<T extends ClusterInfoRequest> extends M
         super.writeTo(out);
         out.writeStringArray(indices);
         out.writeStringArray(types);
-        indicesOptions.writeTo(out);
+        indicesOptions.writeIndicesOptions(out);
         out.writeBoolean(local);
     }
 }

@@ -340,7 +340,7 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
         super.writeTo(out);
         out.writeStringArrayNullable(indices);
         out.writeOptionalString(documentType);
-        indicesOptions.writeTo(out);
+        indicesOptions.writeIndicesOptions(out);
         out.writeVInt(requests.size());
         for (PercolateRequest request : requests) {
             request.writeTo(out);

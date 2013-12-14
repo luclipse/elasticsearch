@@ -496,6 +496,6 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
         out.writeBytesReference(source);
         out.writeBytesReference(extraSource);
         out.writeStringArray(types);
-        indicesOptions.writeTo(out);
+        indicesOptions.writeIndicesOptions(out);
     }
 }

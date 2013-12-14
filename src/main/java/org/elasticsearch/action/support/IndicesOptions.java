@@ -20,11 +20,9 @@
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.rest.RestRequest;
 
 import java.io.IOException;
@@ -32,7 +30,7 @@ import java.io.IOException;
 /**
  * Specifies what type of requested indices to exclude.
  */
-public class IndicesOptions implements Streamable {
+public class IndicesOptions {
 
     private static final IndicesOptions[] IGNORE_INDICES;
 
@@ -76,13 +74,7 @@ public class IndicesOptions implements Streamable {
         return expandWildcardsClosed;
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new ElasticSearchIllegalStateException("should never be invoked");
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    public void writeIndicesOptions(StreamOutput out) throws IOException {
         out.write(id(ignoreUnavailable, allowNoIndices, expandWildcardsOpen, expandWildcardsClosed));
     }
 

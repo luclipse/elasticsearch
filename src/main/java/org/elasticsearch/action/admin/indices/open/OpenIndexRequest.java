@@ -105,6 +105,6 @@ public class OpenIndexRequest extends AcknowledgedRequest<OpenIndexRequest> {
         super.writeTo(out);
         out.writeStringArray(indices);
         writeTimeout(out);
-        indicesOptions.writeTo(out);
+        indicesOptions.writeIndicesOptions(out);
     }
 }

@@ -149,6 +149,6 @@ public class IndicesReplicationOperationRequest<T extends IndicesReplicationOper
         out.writeByte(consistencyLevel.id());
         timeout.writeTo(out);
         out.writeStringArrayNullable(indices);
-        indicesOptions.writeTo(out);
+        indicesOptions.writeIndicesOptions(out);
     }
 }

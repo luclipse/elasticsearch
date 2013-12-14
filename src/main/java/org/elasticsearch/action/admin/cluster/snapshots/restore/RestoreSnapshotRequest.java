@@ -524,7 +524,7 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
         out.writeString(snapshot);
         out.writeString(repository);
         out.writeStringArray(indices);
-        indicesOptions.writeTo(out);
+        indicesOptions.writeIndicesOptions(out);
         out.writeOptionalString(renamePattern);
         out.writeOptionalString(renameReplacement);
         out.writeBoolean(waitForCompletion);

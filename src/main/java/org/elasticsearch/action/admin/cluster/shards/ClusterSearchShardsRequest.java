@@ -181,7 +181,7 @@ public class ClusterSearchShardsRequest extends MasterNodeOperationRequest<Clust
         out.writeOptionalString(preference);
 
         out.writeStringArray(types);
-        indicesOptions.writeTo(out);
+        indicesOptions.writeIndicesOptions(out);
         out.writeBoolean(local);
     }
 

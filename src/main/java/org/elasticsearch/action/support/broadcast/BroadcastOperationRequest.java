@@ -106,7 +106,7 @@ public abstract class BroadcastOperationRequest<T extends BroadcastOperationRequ
         super.writeTo(out);
         out.writeStringArrayNullable(indices);
         out.writeByte(operationThreading.id());
-        indicesOptions.writeTo(out);
+        indicesOptions.writeIndicesOptions(out);
     }
 
     @Override
