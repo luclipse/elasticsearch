@@ -19,8 +19,21 @@
 
 package org.elasticsearch.indices;
 
+import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequestBuilder;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
+import org.elasticsearch.action.admin.indices.flush.FlushRequestBuilder;
+import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotRequestBuilder;
+import org.elasticsearch.action.admin.indices.optimize.OptimizeRequestBuilder;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequestBuilder;
+import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequestBuilder;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
+import org.elasticsearch.action.admin.indices.status.IndicesStatusRequestBuilder;
+import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
+import org.elasticsearch.action.count.CountRequestBuilder;
+import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -35,151 +48,67 @@ import static org.hamcrest.Matchers.*;
 public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
 
     @Test
-    public void testMissing() throws Exception {
+    public void testSpecifiedIndexMissing() throws Exception {
         assertAcked(prepareCreate("test1"));
         ensureYellow();
 
-        try {
-            client().prepareSearch("test1", "test2")
-                    .setIgnoreIndices(IndicesOptions.strict())
-                    .setQuery(matchAllQuery())
-                    .execute().actionGet();
-            fail("Exception should have been thrown.");
-        } catch (IndexMissingException e) {
-        }
-        MultiSearchResponse multiSearchResponse = client().prepareMultiSearch()
-                .setIgnoreIndices(IndicesOptions.strict())
-                .add(client().prepareSearch("test1", "test2").setQuery(matchAllQuery()))
-                .execute().actionGet();
-        assertThat(multiSearchResponse.getResponses().length, equalTo(1));
-        assertThat(multiSearchResponse.getResponses()[0].getResponse(), nullValue());
-        try {
-            client().prepareCount("test1", "test2")
-                    .setIgnoreIndices(IndicesOptions.strict())
-                    .setQuery(matchAllQuery())
-                    .execute().actionGet();
-            fail("Exception should have been thrown.");
-        } catch (IndexMissingException e) {
-        }
-        try {
-            client().admin().indices().prepareClearCache("test1", "test2")
-                    .setIgnoreIndices(IndicesOptions.strict())
-                    .execute().actionGet();
-            fail("Exception should have been thrown.");
-        } catch (IndexMissingException e) {
-        }
-        try {
-            client().admin().indices().prepareFlush("test1", "test2")
-                    .setIgnoreIndices(IndicesOptions.strict())
-                    .execute().actionGet();
-            fail("Exception should have been thrown.");
-        } catch (IndexMissingException e) {
-        }
-        try {
-            client().admin().indices().prepareGatewaySnapshot("test1", "test2")
-                    .setIgnoreIndices(IndicesOptions.strict())
-                    .execute().actionGet();
-            fail("Exception should have been thrown.");
-        } catch (IndexMissingException e) {
-        }
-        try {
-            client().admin().indices().prepareSegments("test1", "test2")
-                    .setIgnoreIndices(IndicesOptions.strict())
-                    .execute().actionGet();
-            fail("Exception should have been thrown.");
-        } catch (IndexMissingException e) {
-        }
-        try {
-            client().admin().indices().prepareStats("test1", "test2")
-                    .setIgnoreIndices(IndicesOptions.strict())
-                    .execute().actionGet();
-            fail("Exception should have been thrown.");
-        } catch (IndexMissingException e) {
-        }
-        try {
-            client().admin().indices().prepareStatus("test1", "test2")
-                    .setIgnoreIndices(IndicesOptions.strict())
-                    .execute().actionGet();
-            fail("Exception should have been thrown.");
-        } catch (IndexMissingException e) {
-        }
-        try {
-            client().admin().indices().prepareOptimize("test1", "test2")
-                    .setIgnoreIndices(IndicesOptions.strict())
-                    .execute().actionGet();
-            fail("Exception should have been thrown.");
-        } catch (IndexMissingException e) {
-        }
-        try {
-            client().admin().indices().prepareRefresh("test1", "test2")
-                    .setIgnoreIndices(IndicesOptions.strict())
-                    .execute().actionGet();
-            fail("Exception should have been thrown.");
-        } catch (IndexMissingException e) {
-        }
-        try {
-            client().admin().indices().prepareValidateQuery("test1", "test2")
-                    .setIgnoreIndices(IndicesOptions.strict())
-                    .execute().actionGet();
-            fail("Exception should have been thrown.");
-        } catch (IndexMissingException e) {
-        }
+        // Verify defaults
+        verify(search("test1", "test2"), true, 0);
+        verify(msearch(null, "test1", "test2"), true, 0);
+        verify(count("test1", "test2"), true, 0);
+        verify(clearCache("test1", "test2"), true, 0);
+        verify(_flush("test1", "test2"),true, 0);
+        verify(gatewatSnapshot("test1", "test2"), true, 0);
+        verify(segments("test1", "test2"), true, 0);
+        verify(stats("test1", "test2"), true, 0);
+        verify(status("test1", "test2"), true, 0);
+        verify(optimize("test1", "test2"), true, 0);
+        verify(refresh("test1", "test2"), true, 0);
+        verify(validateQuery("test1", "test2"), true, 0);
 
-        client().prepareSearch("test1", "test2")
-                .setIgnoreIndices(IndicesOptions.lenient())
-                .setQuery(matchAllQuery())
-                .execute().actionGet();
-        multiSearchResponse = client().prepareMultiSearch()
-                .setIgnoreIndices(IndicesOptions.lenient())
-                .add(client().prepareSearch("test1", "test2").setQuery(matchAllQuery())
-        ).execute().actionGet();
-        assertThat(multiSearchResponse.getResponses().length, equalTo(1));
-        assertThat(multiSearchResponse.getResponses()[0].getResponse(), notNullValue());
-        client().prepareCount("test1", "test2")
-                .setIgnoreIndices(IndicesOptions.lenient())
-                .setQuery(matchAllQuery())
-                .execute().actionGet();
-        client().admin().indices().prepareClearCache("test1", "test2")
-                .setIgnoreIndices(IndicesOptions.lenient())
-                .execute().actionGet();
-        client().admin().indices().prepareFlush("test1", "test2")
-                .setIgnoreIndices(IndicesOptions.lenient())
-                .execute().actionGet();
-        client().admin().indices().prepareGatewaySnapshot("test1", "test2")
-                .setIgnoreIndices(IndicesOptions.lenient())
-                .execute().actionGet();
-        client().admin().indices().prepareSegments("test1", "test2")
-                .setIgnoreIndices(IndicesOptions.lenient())
-                .execute().actionGet();
-        client().admin().indices().prepareStats("test1", "test2")
-                .setIgnoreIndices(IndicesOptions.lenient())
-                .execute().actionGet();
-        client().admin().indices().prepareStatus("test1", "test2")
-                .setIgnoreIndices(IndicesOptions.lenient())
-                .execute().actionGet();
-        client().admin().indices().prepareOptimize("test1", "test2")
-                .setIgnoreIndices(IndicesOptions.lenient())
-                .execute().actionGet();
-        client().admin().indices().prepareRefresh("test1", "test2")
-                .setIgnoreIndices(IndicesOptions.lenient())
-                .execute().actionGet();
-        client().admin().indices().prepareValidateQuery("test1", "test2")
-                .setIgnoreIndices(IndicesOptions.lenient())
-                .execute().actionGet();
+        IndicesOptions options = IndicesOptions.strict();
+        verify(search("test1", "test2").setIgnoreIndices(options), true, 0);
+        verify(msearch(options, "test1", "test2"), true, 0);
+        verify(count("test1", "test2").setIgnoreIndices(options), true, 0);
+        verify(clearCache("test1", "test2").setIgnoreIndices(options), true, 0);
+        verify(_flush("test1", "test2").setIgnoreIndices(options),true, 0);
+        verify(gatewatSnapshot("test1", "test2").setIgnoreIndices(options), true, 0);
+        verify(segments("test1", "test2").setIgnoreIndices(options), true, 0);
+        verify(stats("test1", "test2").setIgnoreIndices(options), true, 0);
+        verify(status("test1", "test2").setIgnoreIndices(options), true, 0);
+        verify(optimize("test1", "test2").setIgnoreIndices(options), true, 0);
+        verify(refresh("test1", "test2").setIgnoreIndices(options), true, 0);
+        verify(validateQuery("test1", "test2").setIgnoreIndices(options), true, 0);
 
+        options = IndicesOptions.lenient();
+        verify(search("test1", "test2").setIgnoreIndices(options), false, 0);
+        verify(msearch(options, "test1", "test2").setIgnoreIndices(options), false, 0);
+        verify(count("test1", "test2").setIgnoreIndices(options), false, 0);
+        verify(clearCache("test1", "test2").setIgnoreIndices(options), false, 0);
+        verify(_flush("test1", "test2").setIgnoreIndices(options), false, 0);
+        verify(gatewatSnapshot("test1", "test2").setIgnoreIndices(options), false, 0);
+        verify(segments("test1", "test2").setIgnoreIndices(options), false, 0);
+        verify(stats("test1", "test2").setIgnoreIndices(options), false, 0);
+        verify(status("test1", "test2").setIgnoreIndices(options), false, 0);
+        verify(optimize("test1", "test2").setIgnoreIndices(options), false, 0);
+        verify(refresh("test1", "test2").setIgnoreIndices(options), false, 0);
+        verify(validateQuery("test1", "test2").setIgnoreIndices(options), false, 0);
+
+        options = IndicesOptions.strict();
         assertAcked(prepareCreate("test2"));
-
-        client().prepareSearch("test1", "test2").setQuery(matchAllQuery()).execute().actionGet();
-        client().prepareCount("test1", "test2").setQuery(matchAllQuery()).execute().actionGet();
-        client().admin().indices().prepareClearCache("test1", "test2").execute().actionGet();
-        client().admin().indices().prepareFlush("test1", "test2").execute().actionGet();
-        client().admin().indices().prepareGatewaySnapshot("test1", "test2").execute().actionGet();
-        client().admin().indices().prepareSegments("test1", "test2").execute().actionGet();
-        client().admin().indices().prepareStats("test1", "test2").execute().actionGet();
-        client().admin().indices().prepareStatus("test1", "test2").execute().actionGet();
-        client().admin().indices().prepareOptimize("test1", "test2").execute().actionGet();
-        client().admin().indices().prepareRefresh("test1", "test2").execute().actionGet();
-        client().admin().indices().prepareValidateQuery("test1", "test2").execute().actionGet();
+        ensureYellow();
+        verify(search("test1", "test2").setIgnoreIndices(options), false, 0);
+        verify(msearch(options, "test1", "test2").setIgnoreIndices(options), false, 0);
+        verify(count("test1", "test2").setIgnoreIndices(options), false, 0);
+        verify(clearCache("test1", "test2").setIgnoreIndices(options), false, 0);
+        verify(_flush("test1", "test2").setIgnoreIndices(options),false, 0);
+        verify(gatewatSnapshot("test1", "test2").setIgnoreIndices(options), false, 0);
+        verify(segments("test1", "test2").setIgnoreIndices(options), false, 0);
+        verify(stats("test1", "test2").setIgnoreIndices(options), false, 0);
+        verify(status("test1", "test2").setIgnoreIndices(options), false, 0);
+        verify(optimize("test1", "test2").setIgnoreIndices(options), false, 0);
+        verify(refresh("test1", "test2").setIgnoreIndices(options), false, 0);
+        verify(validateQuery("test1", "test2").setIgnoreIndices(options), false, 0);
     }
 
     @Test
@@ -235,19 +164,107 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
         assertAcked(prepareCreate("test1"));
         assertAcked(prepareCreate("test2"));
         ensureYellow();
-        client().prepareSearch("test1", "test2").setQuery(matchAllQuery()).execute().actionGet();
+        verify(search("test1", "test2"), false, 0);
+        verify(count("test1", "test2"), false, 0);
         CloseIndexResponse closeIndexResponse = client().admin().indices().prepareClose("test2").execute().actionGet();
         assertThat(closeIndexResponse.isAcknowledged(), equalTo(true));
 
         try {
-            client().prepareSearch("test1", "test2").setQuery(matchAllQuery()).execute().actionGet();
+            search("test1", "test2").get();
             fail("Exception should have been thrown");
         } catch (ClusterBlockException e) {
         }
         try {
-            client().prepareCount("test1", "test2").setQuery(matchAllQuery()).execute().actionGet();
+            count("test1", "test2").get();
             fail("Exception should have been thrown");
         } catch (ClusterBlockException e) {
+        }
+
+        verify(search(), false, 0);
+        verify(count(), false, 0);
+
+        verify(search("t*"), false, 0);
+        verify(count("t*"), false, 0);
+    }
+
+    private static SearchRequestBuilder search(String... indices) {
+        return client().prepareSearch(indices).setQuery(matchAllQuery());
+    }
+
+    private static MultiSearchRequestBuilder msearch(IndicesOptions options, String... indices) {
+        MultiSearchRequestBuilder multiSearchRequestBuilder = client().prepareMultiSearch();
+        if (options != null) {
+            multiSearchRequestBuilder.setIgnoreIndices(options);
+        }
+        return multiSearchRequestBuilder.add(client().prepareSearch(indices).setQuery(matchAllQuery()));
+    }
+
+    private static CountRequestBuilder count(String... indices) {
+        return client().prepareCount(indices).setQuery(matchAllQuery());
+    }
+
+    private static ClearIndicesCacheRequestBuilder clearCache(String... indices) {
+        return client().admin().indices().prepareClearCache(indices);
+    }
+
+    private static FlushRequestBuilder _flush(String... indices) {
+        return client().admin().indices().prepareFlush(indices);
+    }
+
+    private static GatewaySnapshotRequestBuilder gatewatSnapshot(String... indices) {
+        return client().admin().indices().prepareGatewaySnapshot(indices);
+    }
+
+    private static IndicesSegmentsRequestBuilder segments(String... indices) {
+        return client().admin().indices().prepareSegments(indices);
+    }
+
+    private static IndicesStatsRequestBuilder stats(String... indices) {
+        return client().admin().indices().prepareStats(indices);
+    }
+
+    private static IndicesStatusRequestBuilder status(String... indices) {
+        return client().admin().indices().prepareStatus(indices);
+    }
+
+    private static OptimizeRequestBuilder optimize(String... indices) {
+        return client().admin().indices().prepareOptimize(indices);
+    }
+
+    private static RefreshRequestBuilder refresh(String... indices) {
+        return client().admin().indices().prepareRefresh(indices);
+    }
+
+    private static ValidateQueryRequestBuilder validateQuery(String... indices) {
+        return client().admin().indices().prepareValidateQuery(indices);
+    }
+
+    private static void verify(ActionRequestBuilder requestBuilder, boolean fail, long expectedCount) {
+        if (fail) {
+            if (requestBuilder instanceof MultiSearchRequestBuilder) {
+                MultiSearchResponse multiSearchResponse = ((MultiSearchRequestBuilder) requestBuilder).get();
+                assertThat(multiSearchResponse.getResponses().length, equalTo(1));
+                assertThat(multiSearchResponse.getResponses()[0].getResponse(), nullValue());
+            } else {
+                try {
+                    requestBuilder.get();
+                    fail();
+                } catch (IndexMissingException e) {}
+            }
+        } else {
+            if (requestBuilder instanceof SearchRequestBuilder) {
+                SearchRequestBuilder searchRequestBuilder = (SearchRequestBuilder) requestBuilder;
+                assertHitCount(searchRequestBuilder.get(), expectedCount);
+            } else if (requestBuilder instanceof CountRequestBuilder) {
+                CountRequestBuilder countRequestBuilder = (CountRequestBuilder) requestBuilder;
+                assertHitCount(countRequestBuilder.get(), expectedCount);
+            } else if (requestBuilder instanceof MultiSearchRequestBuilder) {
+                MultiSearchResponse multiSearchResponse = ((MultiSearchRequestBuilder) requestBuilder).get();
+                assertThat(multiSearchResponse.getResponses().length, equalTo(1));
+                assertThat(multiSearchResponse.getResponses()[0].getResponse(), notNullValue());
+            } else {
+                requestBuilder.get();
+            }
         }
     }
 

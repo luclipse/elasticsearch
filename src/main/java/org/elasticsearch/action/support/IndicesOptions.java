@@ -75,7 +75,7 @@ public class IndicesOptions {
     }
 
     public void writeIndicesOptions(StreamOutput out) throws IOException {
-        out.write(id(ignoreUnavailable, allowNoIndices, expandWildcardsOpen, expandWildcardsClosed));
+        out.write(toByte(ignoreUnavailable, allowNoIndices, expandWildcardsOpen, expandWildcardsClosed));
     }
 
     public static IndicesOptions readIndicesOptions(StreamInput in) throws IOException {
@@ -87,7 +87,7 @@ public class IndicesOptions {
     }
 
     public static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandToOpenIndices, boolean expandToClosedIndices) {
-        byte id = id(ignoreUnavailable, allowNoIndices, expandToOpenIndices, expandToClosedIndices);
+        byte id = toByte(ignoreUnavailable, allowNoIndices, expandToOpenIndices, expandToClosedIndices);
         return IGNORE_INDICES[id];
     }
 
@@ -130,7 +130,7 @@ public class IndicesOptions {
         return IGNORE_INDICES[7];
     }
 
-    private static byte id(boolean ignoreUnavailable, boolean allowNoIndices, boolean wildcardExpandToOpen , boolean wildcardExpandToClosed) {
+    private static byte toByte(boolean ignoreUnavailable, boolean allowNoIndices, boolean wildcardExpandToOpen, boolean wildcardExpandToClosed) {
         byte id = 0;
         if (ignoreUnavailable) {
             id += 1;
