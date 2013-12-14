@@ -115,15 +115,16 @@ public class IndicesOptions {
     }
 
     /**
-     * @return indices options that requires any specified index to exists, expands wildcards only to open indices  and
-     *         allow that no indices are resolved (not returning an error).
+     * @return indices options that requires any specified index to exists, expands wildcards only to open indices and
+     *         allow that no indices are resolved from wildcard expressions (not returning an error).
      */
     public static IndicesOptions strict() {
         return IGNORE_INDICES[6];
     }
 
     /**
-     * @return indices options that ignore unavailable indices, expand wildcards only to open indices and .
+     * @return indices options that ignore unavailable indices, expand wildcards only to open indices and
+     *         allow that no indices are resolved from wildcard expressions (not returning an error).
      */
     public static IndicesOptions lenient() {
         return IGNORE_INDICES[7];
