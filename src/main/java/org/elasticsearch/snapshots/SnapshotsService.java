@@ -983,7 +983,7 @@ public class SnapshotsService extends AbstractComponent implements ClusterStateL
 
         private String[] indices;
 
-        private IndicesOptions indicesOptions = IndicesOptions.lenient();
+        private IndicesOptions indicesOptions = IndicesOptions.strict();
 
         private Settings settings;
 

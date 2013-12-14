@@ -68,7 +68,7 @@ public class CreateSnapshotRequest extends MasterNodeOperationRequest<CreateSnap
 
     private String[] indices = EMPTY_ARRAY;
 
-    private IndicesOptions indicesOptions = IndicesOptions.lenient();
+    private IndicesOptions indicesOptions = IndicesOptions.strict();
 
     private Settings settings = EMPTY_SETTINGS;
 

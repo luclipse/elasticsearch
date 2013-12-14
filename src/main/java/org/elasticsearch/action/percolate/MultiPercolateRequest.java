@@ -61,7 +61,7 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
         if (request.documentType() == null && documentType != null) {
             request.documentType(documentType);
         }
-        if (request.ignoreIndices() == IndicesOptions.lenient() && indicesOptions != IndicesOptions.lenient()) {
+        if (request.ignoreIndices() == IndicesOptions.strict() && indicesOptions != IndicesOptions.strict()) {
             request.ignoreIndices(indicesOptions);
         }
         requests.add(request);
@@ -95,7 +95,7 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
             if (documentType != null) {
                 percolateRequest.documentType(documentType);
             }
-            if (indicesOptions != IndicesOptions.lenient()) {
+            if (indicesOptions != IndicesOptions.strict()) {
                 percolateRequest.ignoreIndices(indicesOptions);
             }
 
