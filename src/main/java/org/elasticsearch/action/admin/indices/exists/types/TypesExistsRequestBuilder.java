@@ -62,7 +62,7 @@ public class TypesExistsRequestBuilder extends MasterNodeOperationRequestBuilder
      * @param indicesOptions Specifies how to resolve indices that aren't active / ready
      */
     public TypesExistsRequestBuilder setIgnoreIndices(IndicesOptions indicesOptions) {
-        request.ignoreIndices(indicesOptions);
+        request.indicesOptions(indicesOptions);
         return this;
     }
 

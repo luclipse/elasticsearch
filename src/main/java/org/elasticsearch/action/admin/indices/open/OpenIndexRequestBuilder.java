@@ -54,7 +54,7 @@ public class OpenIndexRequestBuilder extends AcknowledgedRequestBuilder<OpenInde
      * @return the request itself
      */
     public OpenIndexRequestBuilder setIgnoreIndices(IndicesOptions indicesOptions) {
-        request.ignoreIndices(indicesOptions);
+        request.indicesOptions(indicesOptions);
         return this;
     }
 

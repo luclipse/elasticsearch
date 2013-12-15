@@ -58,7 +58,7 @@ public abstract class ClusterInfoRequestBuilder<Request extends ClusterInfoReque
 
     @SuppressWarnings("unchecked")
     public Builder setIgnoreIndices(IndicesOptions indicesOptions) {
-        request.ignoreIndices(indicesOptions);
+        request.indicesOptions(indicesOptions);
         return (Builder) this;
     }
 

@@ -59,7 +59,7 @@ public class GetAliasesRequest extends MasterNodeOperationRequest<GetAliasesRequ
         return this;
     }
 
-    public GetAliasesRequest ignoreIndices(IndicesOptions indicesOptions) {
+    public GetAliasesRequest indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
         return this;
     }
@@ -72,7 +72,7 @@ public class GetAliasesRequest extends MasterNodeOperationRequest<GetAliasesRequ
         return aliases;
     }
 
-    public IndicesOptions ignoreIndices() {
+    public IndicesOptions indicesOptions() {
         return indicesOptions;
     }
 

@@ -42,8 +42,8 @@ public class MultiSearchRequestBuilder extends ActionRequestBuilder<MultiSearchR
      * will not be used (if set).
      */
     public MultiSearchRequestBuilder add(SearchRequest request) {
-        if (request.ignoreIndices() == IndicesOptions.strict() && request().ignoreIndices() != IndicesOptions.strict()) {
-            request.ignoreIndices(request().ignoreIndices());
+        if (request.indicesOptions() == IndicesOptions.strict() && request().indicesOptions() != IndicesOptions.strict()) {
+            request.indicesOptions(request().indicesOptions());
         }
 
         super.request.add(request);
@@ -55,8 +55,8 @@ public class MultiSearchRequestBuilder extends ActionRequestBuilder<MultiSearchR
      * same order as the search requests.
      */
     public MultiSearchRequestBuilder add(SearchRequestBuilder request) {
-        if (request.request().ignoreIndices() == IndicesOptions.strict() && request().ignoreIndices() != IndicesOptions.strict()) {
-            request.request().ignoreIndices(request().ignoreIndices());
+        if (request.request().indicesOptions() == IndicesOptions.strict() && request().indicesOptions() != IndicesOptions.strict()) {
+            request.request().indicesOptions(request().indicesOptions());
         }
 
         super.request.add(request);
@@ -68,7 +68,7 @@ public class MultiSearchRequestBuilder extends ActionRequestBuilder<MultiSearchR
      * Invoke this method before invoking {@link #add(SearchRequestBuilder)}.
      */
     public MultiSearchRequestBuilder setIgnoreIndices(IndicesOptions indicesOptions) {
-        request().ignoreIndices(indicesOptions);
+        request().indicesOptions(indicesOptions);
         return this;
     }
 

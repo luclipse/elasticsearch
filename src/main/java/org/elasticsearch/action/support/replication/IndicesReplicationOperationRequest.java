@@ -67,11 +67,11 @@ public class IndicesReplicationOperationRequest<T extends IndicesReplicationOper
         return this.indices;
     }
 
-    public IndicesOptions ignoreIndices() {
+    public IndicesOptions indicesOptions() {
         return indicesOptions;
     }
 
-    public T ignoreIndices(IndicesOptions indicesOptions) {
+    public T indicesOptions(IndicesOptions indicesOptions) {
         if (indicesOptions == null) {
             throw new IllegalArgumentException("IndicesOptions must not be null");
         }

@@ -62,11 +62,11 @@ public class TypesExistsRequest extends MasterNodeOperationRequest<TypesExistsRe
         this.types = types;
     }
 
-    public IndicesOptions ignoreIndices() {
+    public IndicesOptions indicesOptions() {
         return indicesOptions;
     }
 
-    public TypesExistsRequest ignoreIndices(IndicesOptions indicesOptions) {
+    public TypesExistsRequest indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
         return this;
     }

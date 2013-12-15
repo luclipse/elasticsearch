@@ -61,8 +61,8 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
         if (request.documentType() == null && documentType != null) {
             request.documentType(documentType);
         }
-        if (request.ignoreIndices() == IndicesOptions.strict() && indicesOptions != IndicesOptions.strict()) {
-            request.ignoreIndices(indicesOptions);
+        if (request.indicesOptions() == IndicesOptions.strict() && indicesOptions != IndicesOptions.strict()) {
+            request.indicesOptions(indicesOptions);
         }
         requests.add(request);
         return this;
@@ -96,7 +96,7 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
                 percolateRequest.documentType(documentType);
             }
             if (indicesOptions != IndicesOptions.strict()) {
-                percolateRequest.ignoreIndices(indicesOptions);
+                percolateRequest.indicesOptions(indicesOptions);
             }
 
             // now parse the action
@@ -250,7 +250,7 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
                 }
             }
         }
-        percolateRequest.ignoreIndices(IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandWildcardsOpen, expandWildcardsClosed));
+        percolateRequest.indicesOptions(IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandWildcardsOpen, expandWildcardsClosed));
     }
 
     private String[] parseArray(XContentParser parser) throws IOException {
@@ -275,11 +275,11 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
         return this.requests;
     }
 
-    public IndicesOptions ignoreIndices() {
+    public IndicesOptions indicesOptions() {
         return indicesOptions;
     }
 
-    public MultiPercolateRequest ignoreIndices(IndicesOptions indicesOptions) {
+    public MultiPercolateRequest indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
         return this;
     }

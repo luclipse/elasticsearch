@@ -115,7 +115,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
             Repository repository = repositoriesService.repository(request.repository());
             final SnapshotId snapshotId = new SnapshotId(request.repository(), request.name());
             final Snapshot snapshot = repository.readSnapshot(snapshotId);
-            ImmutableList<String> filteredIndices = SnapshotUtils.filterIndices(snapshot.indices(), request.indices(), request.ignoreIndices());
+            ImmutableList<String> filteredIndices = SnapshotUtils.filterIndices(snapshot.indices(), request.indices(), request.indicesOptions());
             final MetaData metaData = repository.readSnapshotMetaData(snapshotId, filteredIndices);
 
             // Make sure that we can restore from this snapshot
@@ -494,12 +494,12 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
         }
 
         /**
-         * Sets ignore indices flag
+         * Sets indices options flags
          *
-         * @param indicesOptions ignore indices flag
+         * @param indicesOptions indices options flags
          * @return this request
          */
-        public RestoreRequest ignoreIndices(IndicesOptions indicesOptions) {
+        public RestoreRequest indicesOptions(IndicesOptions indicesOptions) {
             this.indicesOptions = indicesOptions;
             return this;
         }
@@ -599,11 +599,11 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
         }
 
         /**
-         * Returns ignore indices flag
+         * Returns indices option flags
          *
-         * @return ignore indices flag
+         * @return indices options flags
          */
-        public IndicesOptions ignoreIndices() {
+        public IndicesOptions indicesOptions() {
             return indicesOptions;
         }
 

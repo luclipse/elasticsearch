@@ -54,7 +54,7 @@ public class CloseIndexRequestBuilder extends AcknowledgedRequestBuilder<CloseIn
      * @return the request itself
      */
     public CloseIndexRequestBuilder setIgnoreIndices(IndicesOptions indicesOptions) {
-        request.ignoreIndices(indicesOptions);
+        request.indicesOptions(indicesOptions);
         return this;
     }
 

@@ -79,11 +79,11 @@ public class ClusterSearchShardsRequest extends MasterNodeOperationRequest<Clust
         return indices;
     }
 
-    public IndicesOptions ignoreIndices() {
+    public IndicesOptions indicesOptions() {
         return indicesOptions;
     }
 
-    public ClusterSearchShardsRequest ignoreIndices(IndicesOptions indicesOptions) {
+    public ClusterSearchShardsRequest indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
         return this;
     }

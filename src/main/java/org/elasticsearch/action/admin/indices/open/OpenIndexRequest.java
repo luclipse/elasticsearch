@@ -75,19 +75,23 @@ public class OpenIndexRequest extends AcknowledgedRequest<OpenIndexRequest> {
     }
 
     /**
-     * Specifies what type of requested indices to ignore. For example indices that don't exist.
-     * @return the current behaviour when it comes to index names
+     * Specifies what type of requested indices to ignore and how to deal with wildcard expressions.
+     * For example indices that don't exist.
+     *
+     * @return the current behaviour when it comes to index names and wildcard indices expressions
      */
-    public IndicesOptions ignoreIndices() {
+    public IndicesOptions indicesOptions() {
         return indicesOptions;
     }
 
     /**
-     * Specifies what type of requested indices to ignore. For example indices that don't exist.
-     * @param indicesOptions the desired behaviour regarding indices to ignore
+     * Specifies what type of requested indices to ignore and how to deal with wildcard expressions.
+     * For example indices that don't exist.
+     *
+     * @param indicesOptions the desired behaviour regarding indices to ignore and wildcard indices expressions
      * @return the request itself
      */
-    public OpenIndexRequest ignoreIndices(IndicesOptions indicesOptions) {
+    public OpenIndexRequest indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
         return this;
     }

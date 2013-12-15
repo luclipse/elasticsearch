@@ -83,12 +83,12 @@ public abstract class BroadcastOperationRequest<T extends BroadcastOperationRequ
         return operationThreading(BroadcastOperationThreading.fromString(operationThreading, this.operationThreading));
     }
 
-    public IndicesOptions ignoreIndices() {
+    public IndicesOptions indicesOptions() {
         return indicesOptions;
     }
 
     @SuppressWarnings("unchecked")
-    public final T ignoreIndices(IndicesOptions indicesOptions) {
+    public final T indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
         return (T) this;
     }

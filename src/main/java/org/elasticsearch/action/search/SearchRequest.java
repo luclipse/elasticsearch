@@ -171,11 +171,11 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
         return operationThreading(SearchOperationThreading.fromString(operationThreading, this.operationThreading));
     }
 
-    public IndicesOptions ignoreIndices() {
+    public IndicesOptions indicesOptions() {
         return indicesOptions;
     }
 
-    public SearchRequest ignoreIndices(IndicesOptions indicesOptions) {
+    public SearchRequest indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
         return this;
     }

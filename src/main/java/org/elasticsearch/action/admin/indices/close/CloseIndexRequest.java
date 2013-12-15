@@ -75,19 +75,23 @@ public class CloseIndexRequest extends AcknowledgedRequest<CloseIndexRequest> {
     }
 
     /**
-     * Specifies what type of requested indices to ignore. For example indices that don't exist.
-     * @return the desired behaviour regarding indices to ignore
+     * Specifies what type of requested indices to ignore and how to deal with wildcard expressions.
+     * For example indices that don't exist.
+     *
+     * @return the desired behaviour regarding indices to ignore and wildcard indices expressions
      */
-    public IndicesOptions ignoreIndices() {
+    public IndicesOptions indicesOptions() {
         return indicesOptions;
     }
 
     /**
-     * Specifies what type of requested indices to ignore. For example indices that don't exist.
-     * @param indicesOptions the desired behaviour regarding indices to ignore
+     * Specifies what type of requested indices to ignore and how to deal wild wildcard expressions.
+     * For example indices that don't exist.
+     *
+     * @param indicesOptions the desired behaviour regarding indices to ignore and wildcard indices expressions
      * @return the request itself
      */
-    public CloseIndexRequest ignoreIndices(IndicesOptions indicesOptions) {
+    public CloseIndexRequest indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
         return this;
     }

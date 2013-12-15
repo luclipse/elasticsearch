@@ -184,21 +184,23 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
     }
 
     /**
-     * Specifies what type of requested indices to ignore. For example indices that don't exist.
+     * Specifies what type of requested indices to ignore and how to deal with wildcard expressions.
+     * For example indices that don't exist.
      *
-     * @return the desired behaviour regarding indices to ignore
+     * @return the desired behaviour regarding indices to ignore and wildcard indices expression
      */
-    public IndicesOptions ignoreIndices() {
+    public IndicesOptions indicesOptions() {
         return indicesOptions;
     }
 
     /**
-     * Specifies what type of requested indices to ignore. For example indices that don't exist.
+     * Specifies what type of requested indices to ignore and how to deal with wildcard expressions.
+     * For example indices that don't exist.
      *
-     * @param indicesOptions the desired behaviour regarding indices to ignore
+     * @param indicesOptions the desired behaviour regarding indices to ignore and wildcard indices expressions
      * @return this request
      */
-    public RestoreSnapshotRequest ignoreIndices(IndicesOptions indicesOptions) {
+    public RestoreSnapshotRequest indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
         return this;
     }
@@ -432,7 +434,7 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
                 throw new ElasticSearchIllegalArgumentException("Unknown parameter " + name);
             }
         }
-        ignoreIndices(IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandWildcardsOpen, expandWildcardsClosed));
+        indicesOptions(IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandWildcardsOpen, expandWildcardsClosed));
         return this;
     }
 

@@ -60,7 +60,7 @@ public abstract class BaseAliasesRequestBuilder<Response extends ActionResponse,
 
     @SuppressWarnings("unchecked")
     public Builder setIgnoreIndices(IndicesOptions options) {
-        request.ignoreIndices(options);
+        request.indicesOptions(options);
         return (Builder) this;
     }
 

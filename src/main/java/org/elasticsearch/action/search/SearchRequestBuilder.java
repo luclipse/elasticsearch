@@ -176,7 +176,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * Specifies what type of requested indices to ignore. For example indices that don't exist.
      */
     public SearchRequestBuilder setIgnoreIndices(IndicesOptions indicesOptions) {
-        request().ignoreIndices(indicesOptions);
+        request().indicesOptions(indicesOptions);
         return this;
     }
 

@@ -98,7 +98,7 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
                 searchRequest.indices(indices);
             }
             if (indicesOptions != null) {
-                searchRequest.ignoreIndices(indicesOptions);
+                searchRequest.indicesOptions(indicesOptions);
             }
             if (types != null && types.length > 0) {
                 searchRequest.types(types);
@@ -166,7 +166,7 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
                     parser.close();
                 }
             }
-            searchRequest.ignoreIndices(IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandWildcardsOpen, expandWildcardsClosed));
+            searchRequest.indicesOptions(IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandWildcardsOpen, expandWildcardsClosed));
 
             // move pointers
             from = nextMarker + 1;
@@ -227,11 +227,11 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
         return validationException;
     }
 
-    public IndicesOptions ignoreIndices() {
+    public IndicesOptions indicesOptions() {
         return indicesOptions;
     }
 
-    public MultiSearchRequest ignoreIndices(IndicesOptions indicesOptions) {
+    public MultiSearchRequest indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
         return this;
     }

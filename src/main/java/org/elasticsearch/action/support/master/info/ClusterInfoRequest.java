@@ -50,7 +50,7 @@ public abstract class ClusterInfoRequest<T extends ClusterInfoRequest> extends M
     }
 
     @SuppressWarnings("unchecked")
-    public T ignoreIndices(IndicesOptions indicesOptions) {
+    public T indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
         return (T) this;
     }
@@ -69,7 +69,7 @@ public abstract class ClusterInfoRequest<T extends ClusterInfoRequest> extends M
         return types;
     }
 
-    public IndicesOptions ignoreIndices() {
+    public IndicesOptions indicesOptions() {
         return indicesOptions;
     }
 

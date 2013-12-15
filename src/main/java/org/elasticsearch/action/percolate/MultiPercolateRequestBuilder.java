@@ -52,7 +52,7 @@ public class MultiPercolateRequestBuilder extends ActionRequestBuilder<MultiPerc
      * Specifies how to globally ignore indices that are not available.
      */
     public MultiPercolateRequestBuilder setIgnoreIndices(IndicesOptions indicesOptions) {
-        request.ignoreIndices(indicesOptions);
+        request.indicesOptions(indicesOptions);
         return this;
     }
 

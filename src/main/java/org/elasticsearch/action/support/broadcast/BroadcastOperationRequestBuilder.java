@@ -58,7 +58,7 @@ public abstract class BroadcastOperationRequestBuilder<Request extends Broadcast
 
     @SuppressWarnings("unchecked")
     public final RequestBuilder setIgnoreIndices(IndicesOptions indicesOptions) {
-        request.ignoreIndices(indicesOptions);
+        request.indicesOptions(indicesOptions);
         return (RequestBuilder) this;
     }
 }

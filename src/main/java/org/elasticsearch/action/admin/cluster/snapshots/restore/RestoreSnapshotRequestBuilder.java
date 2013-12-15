@@ -98,7 +98,7 @@ public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBui
      * @return this builder
      */
     public RestoreSnapshotRequestBuilder setIgnoreIndices(IndicesOptions indicesOptions) {
-        request.ignoreIndices(indicesOptions);
+        request.indicesOptions(indicesOptions);
         return this;
     }
 

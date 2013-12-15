@@ -63,7 +63,7 @@ public abstract class IndicesReplicationOperationRequestBuilder<Request extends 
      * Specifies what type of requested indices to ignore. For example indices that don't exist.
      */
     public RequestBuilder setIgnoreIndices(IndicesOptions indicesOptions) {
-        request().ignoreIndices(indicesOptions);
+        request().indicesOptions(indicesOptions);
         return (RequestBuilder) this;
     }
 

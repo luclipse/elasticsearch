@@ -59,7 +59,7 @@ public class RestGetAliasesAction extends BaseRestHandler {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final GetAliasesRequest getAliasesRequest = new GetAliasesRequest(aliases);
         getAliasesRequest.indices(indices);
-        getAliasesRequest.ignoreIndices(IndicesOptions.fromRequest(request, getAliasesRequest.ignoreIndices()));
+        getAliasesRequest.indicesOptions(IndicesOptions.fromRequest(request, getAliasesRequest.indicesOptions()));
 
         client.admin().indices().getAliases(getAliasesRequest, new ActionListener<GetAliasesResponse>() {
 
