@@ -209,6 +209,19 @@ public class MetaDataTests extends ElasticsearchTestCase {
         results = md.concreteIndices(new String[]{"bar"}, options);
         assertEquals(1, results.length);
         assertEquals("bar", results[0]);
+
+        results = md.concreteIndices(new String[]{"-foo*"}, options);
+        assertEquals(1, results.length);
+        assertEquals("bar", results[0]);
+
+        results = md.concreteIndices(new String[]{"-*"}, options);
+        assertEquals(0, results.length);
+
+        options = IndicesOptions.fromOptions(false, false, true, true);
+        try {
+            md.concreteIndices(new String[]{"-*"}, options);
+            fail();
+        } catch (IndexMissingException e) {}
     }
 
     @Test

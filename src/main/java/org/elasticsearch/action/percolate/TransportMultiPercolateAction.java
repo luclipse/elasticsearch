@@ -166,8 +166,11 @@ public class TransportMultiPercolateAction extends TransportAction<MultiPercolat
                     Map<String, Set<String>> routing = clusterState.metaData().resolveSearchRouting(percolateRequest.routing(), percolateRequest.indices());
                     // TODO: I only need shardIds, ShardIterator(ShardRouting) is only needed in TransportShardMultiPercolateAction
                     GroupShardsIterator shards = clusterService.operationRouting().searchShards(
-                            clusterState, percolateRequest.indices(), concreteIndices, routing, null
+                            clusterState, percolateRequest.indices(), concreteIndices, routing, percolateRequest.preference()
                     );
+                    if (shards.size() == 0) {
+                        continue;
+                    }
 
                     responsesByItemAndShard.set(slot, new AtomicReferenceArray(shards.size()));
                     expectedOperationsPerItem.set(slot, new AtomicInteger(shards.size()));
@@ -199,7 +202,7 @@ public class TransportMultiPercolateAction extends TransportAction<MultiPercolat
 
         void run() {
             if (expectedOperations.get() == 0) {
-                finish();
+                finalListener.onResponse(new MultiPercolateResponse(new MultiPercolateResponse.Item[0]));
                 return;
             }
 

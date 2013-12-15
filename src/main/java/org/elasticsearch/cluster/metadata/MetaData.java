@@ -622,16 +622,22 @@ public class MetaData implements Iterable<IndexMetaData> {
      */
     public String[] concreteIndices(String[] aliasesOrIndices, IndicesOptions indicesOptions) throws IndexMissingException {
         if (isAllIndices(aliasesOrIndices)) {
+            String[] concreteIndices;
             if (indicesOptions.expandWildcardsOpen() && indicesOptions.expandWildcardsClosed()) {
-                return concreteAllIndices();
+                concreteIndices = concreteAllIndices();
             } else if (indicesOptions.expandWildcardsOpen()) {
-                return  concreteAllOpenIndices();
+                concreteIndices = concreteAllOpenIndices();
             } else if (indicesOptions.expandWildcardsClosed()) {
-                return concreteAllClosedIndices();
+                concreteIndices = concreteAllClosedIndices();
             } else {
                 assert false : "Shouldn't end up here";
-                return Strings.EMPTY_ARRAY;
+                concreteIndices = Strings.EMPTY_ARRAY;
             }
+
+            if (!indicesOptions.allowNoIndices() && concreteIndices.length == 0) {
+                throw new IndexMissingException(new Index("_all"));
+            }
+            return concreteIndices;
         }
         aliasesOrIndices = convertFromWildcards(aliasesOrIndices, indicesOptions);
         // optimize for single element index (common case)
@@ -727,7 +733,18 @@ public class MetaData implements Iterable<IndexMetaData> {
             } else if (aliasOrIndex.charAt(0) == '-') {
                 // if its the first, fill it with all the indices...
                 if (i == 0) {
-                    result = new HashSet<String>(Arrays.asList(indicesOptions.expandWildcardsOpen() ? concreteAllOpenIndices() : concreteAllIndices()));
+                    String[] concreteIndices;
+                    if (indicesOptions.expandWildcardsOpen() && indicesOptions.expandWildcardsClosed()) {
+                        concreteIndices = concreteAllIndices();
+                    } else if (indicesOptions.expandWildcardsOpen()) {
+                        concreteIndices = concreteAllOpenIndices();
+                    } else if (indicesOptions.expandWildcardsClosed()) {
+                        concreteIndices = concreteAllClosedIndices();
+                    } else {
+                        assert false : "Shouldn't end up here";
+                        concreteIndices = Strings.EMPTY_ARRAY;
+                    }
+                    result = new HashSet<String>(Arrays.asList(concreteIndices));
                 }
                 add = false;
                 aliasOrIndex = aliasOrIndex.substring(1);
@@ -791,6 +808,9 @@ public class MetaData implements Iterable<IndexMetaData> {
         }
         if (result == null) {
             return aliasesOrIndices;
+        }
+        if (result.isEmpty() && !indicesOptions.allowNoIndices()) {
+            throw new IndexMissingException(new Index(Arrays.toString(aliasesOrIndices)));
         }
         return result.toArray(new String[result.size()]);
     }

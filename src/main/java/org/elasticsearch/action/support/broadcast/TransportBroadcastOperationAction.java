@@ -147,6 +147,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
                 } catch (Throwable e) {
                     listener.onFailure(e);
                 }
+                return;
             }
             request.beforeStart();
             // count the local operations, and perform the non local ones
