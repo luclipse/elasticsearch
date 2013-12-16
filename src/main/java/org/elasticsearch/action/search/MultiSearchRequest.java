@@ -108,10 +108,10 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
             }
             searchRequest.searchType(searchType);
 
-            boolean ignoreUnavailable = IndicesOptions.lenient().ignoreUnavailable();
-            boolean allowNoIndices = IndicesOptions.lenient().allowNoIndices();
-            boolean expandWildcardsOpen = IndicesOptions.lenient().expandWildcardsOpen();
-            boolean expandWildcardsClosed = IndicesOptions.lenient().expandWildcardsClosed();
+            boolean ignoreUnavailable = IndicesOptions.strict().ignoreUnavailable();
+            boolean allowNoIndices = IndicesOptions.strict().allowNoIndices();
+            boolean expandWildcardsOpen = IndicesOptions.strict().expandWildcardsOpen();
+            boolean expandWildcardsClosed = IndicesOptions.strict().expandWildcardsClosed();
 
             // now parse the action
             if (nextMarker - from > 0) {

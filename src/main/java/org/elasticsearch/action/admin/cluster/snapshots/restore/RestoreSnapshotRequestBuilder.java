@@ -92,12 +92,13 @@ public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBui
     }
 
     /**
-     * Specifies what type of requested indices to ignore. For example indices that don't exist.
+     * Specifies what type of requested indices to ignore and how to deal with wildcard expressions.
+     * For example indices that don't exist.
      *
-     * @param indicesOptions the desired behaviour regarding indices to ignore
-     * @return this builder
+     * @param indicesOptions the desired behaviour regarding indices to ignore and wildcard indices expressions
+     * @return this request
      */
-    public RestoreSnapshotRequestBuilder setIgnoreIndices(IndicesOptions indicesOptions) {
+    public RestoreSnapshotRequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
         request.indicesOptions(indicesOptions);
         return this;
     }

@@ -173,9 +173,11 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Specifies what type of requested indices to ignore. For example indices that don't exist.
+     * Specifies what type of requested indices to ignore and wildcard indices expressions.
+     *
+     * For example indices that don't exist.
      */
-    public SearchRequestBuilder setIgnoreIndices(IndicesOptions indicesOptions) {
+    public SearchRequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
         request().indicesOptions(indicesOptions);
         return this;
     }

@@ -59,9 +59,9 @@ public class TypesExistsRequestBuilder extends MasterNodeOperationRequestBuilder
     }
 
     /**
-     * @param indicesOptions Specifies how to resolve indices that aren't active / ready
+     * @param indicesOptions Specifies how to resolve indices that aren't active / ready and indices wildcard expressions
      */
-    public TypesExistsRequestBuilder setIgnoreIndices(IndicesOptions indicesOptions) {
+    public TypesExistsRequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
         request.indicesOptions(indicesOptions);
         return this;
     }

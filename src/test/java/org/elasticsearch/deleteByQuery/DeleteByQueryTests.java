@@ -41,6 +41,7 @@ public class DeleteByQueryTests extends ElasticsearchIntegrationTest {
         client().admin().indices().prepareRefresh().execute().actionGet();
         DeleteByQueryRequestBuilder deleteByQueryRequestBuilder = client().prepareDeleteByQuery();
         deleteByQueryRequestBuilder.setQuery(QueryBuilders.matchAllQuery());
+        deleteByQueryRequestBuilder.setIndicesOptions(IndicesOptions.fromOptions(false, true, true, false));
         DeleteByQueryResponse actionGet = deleteByQueryRequestBuilder.execute().actionGet();
         assertThat(actionGet.getIndices().size(), equalTo(0));
     }
@@ -86,7 +87,7 @@ public class DeleteByQueryTests extends ElasticsearchIntegrationTest {
         } catch (IndexMissingException e) {
         }
 
-        deleteByQueryRequestBuilder.setIgnoreIndices(IndicesOptions.lenient());
+        deleteByQueryRequestBuilder.setIndicesOptions(IndicesOptions.lenient());
         DeleteByQueryResponse actionGet = deleteByQueryRequestBuilder.execute().actionGet();
         assertThat(actionGet.status(), equalTo(RestStatus.OK));
         assertThat(actionGet.getIndex("twitter").getFailedShards(), equalTo(0));

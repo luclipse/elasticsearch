@@ -77,9 +77,10 @@ public class ClusterSearchShardsRequestBuilder extends MasterNodeOperationReques
     }
 
     /**
-     * Specifies what type of requested indices to ignore. For example indices that don't exist.
+     * Specifies what type of requested indices to ignore and how to deal indices wildcard expressions.
+     * For example indices that don't exist.
      */
-    public ClusterSearchShardsRequestBuilder setIgnoreIndices(IndicesOptions indicesOptions) {
+    public ClusterSearchShardsRequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
         request().indicesOptions(indicesOptions);
         return this;
     }

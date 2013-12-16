@@ -76,7 +76,7 @@ public class RandomTests extends ElasticsearchIntegrationTest {
             source = source.endArray().endObject();
             client().prepareIndex("idx", "type").setSource(source).execute().actionGet();
         }
-        assertNoFailures(client().admin().indices().prepareRefresh("idx").setIgnoreIndices(IndicesOptions.lenient()).execute().get());
+        assertNoFailures(client().admin().indices().prepareRefresh("idx").setIndicesOptions(IndicesOptions.lenient()).execute().get());
 
         final int numRanges = randomIntBetween(1, 20);
         final double[][] ranges = new double[numRanges][];
@@ -189,7 +189,7 @@ public class RandomTests extends ElasticsearchIntegrationTest {
             source = source.endArray().endObject();
             client().prepareIndex("idx", "type").setSource(source).execute().actionGet();
         }
-        assertNoFailures(client().admin().indices().prepareRefresh("idx").setIgnoreIndices(IndicesOptions.lenient()).execute().get());
+        assertNoFailures(client().admin().indices().prepareRefresh("idx").setIndicesOptions(IndicesOptions.lenient()).execute().get());
 
         SearchResponse resp = client().prepareSearch("idx")
                 .addAggregation(terms("long").field("long_values").size(maxNumTerms).subAggregation(min("min").field("num")))
@@ -239,7 +239,7 @@ public class RandomTests extends ElasticsearchIntegrationTest {
             source = source.endArray().endObject();
             client().prepareIndex("idx", "type").setSource(source).execute().actionGet();
         }
-        assertNoFailures(client().admin().indices().prepareRefresh("idx").setIgnoreIndices(IndicesOptions.lenient()).execute().get());
+        assertNoFailures(client().admin().indices().prepareRefresh("idx").setIndicesOptions(IndicesOptions.lenient()).execute().get());
 
         SearchResponse resp = client().prepareSearch("idx")
                 .addAggregation(terms("terms").field("values").script("floor(_value / interval)").param("interval", interval).size(maxNumTerms))

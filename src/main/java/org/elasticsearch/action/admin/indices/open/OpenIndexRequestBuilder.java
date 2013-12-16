@@ -49,11 +49,13 @@ public class OpenIndexRequestBuilder extends AcknowledgedRequestBuilder<OpenInde
     }
 
     /**
-     * Specifies what type of requested indices to ignore. For example indices that don't exist.
-     * @param indicesOptions the desired behaviour regarding indices to ignore
+     * Specifies what type of requested indices to ignore and how to deal with wildcard indices expressions.
+     * For example indices that don't exist.
+     *
+     * @param indicesOptions the desired behaviour regarding indices to ignore and wildcard indices expressions
      * @return the request itself
      */
-    public OpenIndexRequestBuilder setIgnoreIndices(IndicesOptions indicesOptions) {
+    public OpenIndexRequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
         request.indicesOptions(indicesOptions);
         return this;
     }

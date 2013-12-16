@@ -49,11 +49,13 @@ public class CloseIndexRequestBuilder extends AcknowledgedRequestBuilder<CloseIn
     }
 
     /**
-     * Specifies what type of requested indices to ignore. For example indices that don't exist.
-     * @param indicesOptions the desired behaviour regarding indices to ignore
+     * Specifies what type of requested indices to ignore and wildcard indices expressions
+     * For example indices that don't exist.
+     *
+     * @param indicesOptions the desired behaviour regarding indices to ignore and indices wildcard expressions
      * @return the request itself
      */
-    public CloseIndexRequestBuilder setIgnoreIndices(IndicesOptions indicesOptions) {
+    public CloseIndexRequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
         request.indicesOptions(indicesOptions);
         return this;
     }

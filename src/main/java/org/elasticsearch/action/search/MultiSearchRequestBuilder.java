@@ -64,10 +64,12 @@ public class MultiSearchRequestBuilder extends ActionRequestBuilder<MultiSearchR
     }
 
     /**
-     * Specifies what type of requested indices to ignore. For example indices that don't exist.
+     * Specifies what type of requested indices to ignore and how to deal with wildcard indices expressions.
+     * For example indices that don't exist.
+     *
      * Invoke this method before invoking {@link #add(SearchRequestBuilder)}.
      */
-    public MultiSearchRequestBuilder setIgnoreIndices(IndicesOptions indicesOptions) {
+    public MultiSearchRequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
         request().indicesOptions(indicesOptions);
         return this;
     }

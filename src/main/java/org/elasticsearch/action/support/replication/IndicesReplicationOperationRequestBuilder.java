@@ -60,9 +60,11 @@ public abstract class IndicesReplicationOperationRequestBuilder<Request extends 
     }
 
     /**
-     * Specifies what type of requested indices to ignore. For example indices that don't exist.
+     * Specifies what type of requested indices to ignore and how to deal with wildcard indices expressions.
+     * For example indices that don't exist.
      */
-    public RequestBuilder setIgnoreIndices(IndicesOptions indicesOptions) {
+    @SuppressWarnings("unchecked")
+    public RequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
         request().indicesOptions(indicesOptions);
         return (RequestBuilder) this;
     }

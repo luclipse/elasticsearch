@@ -95,78 +95,78 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
         verify(getWarmer("test1", "test2"), true);
 
         IndicesOptions options = IndicesOptions.strict();
-        verify(search("test1", "test2").setIgnoreIndices(options), true);
+        verify(search("test1", "test2").setIndicesOptions(options), true);
         verify(msearch(options, "test1", "test2"), true);
-        verify(count("test1", "test2").setIgnoreIndices(options), true);
-        verify(clearCache("test1", "test2").setIgnoreIndices(options), true);
-        verify(_flush("test1", "test2").setIgnoreIndices(options),true);
-        verify(gatewatSnapshot("test1", "test2").setIgnoreIndices(options), true);
-        verify(segments("test1", "test2").setIgnoreIndices(options), true);
-        verify(stats("test1", "test2").setIgnoreIndices(options), true);
-        verify(status("test1", "test2").setIgnoreIndices(options), true);
-        verify(optimize("test1", "test2").setIgnoreIndices(options), true);
-        verify(refresh("test1", "test2").setIgnoreIndices(options), true);
-        verify(validateQuery("test1", "test2").setIgnoreIndices(options), true);
+        verify(count("test1", "test2").setIndicesOptions(options), true);
+        verify(clearCache("test1", "test2").setIndicesOptions(options), true);
+        verify(_flush("test1", "test2").setIndicesOptions(options),true);
+        verify(gatewatSnapshot("test1", "test2").setIndicesOptions(options), true);
+        verify(segments("test1", "test2").setIndicesOptions(options), true);
+        verify(stats("test1", "test2").setIndicesOptions(options), true);
+        verify(status("test1", "test2").setIndicesOptions(options), true);
+        verify(optimize("test1", "test2").setIndicesOptions(options), true);
+        verify(refresh("test1", "test2").setIndicesOptions(options), true);
+        verify(validateQuery("test1", "test2").setIndicesOptions(options), true);
         verify(aliasExists("test1", "test2").setIgnoreIndices(options), true);
-        verify(typesExists("test1", "test2").setIgnoreIndices(options), true);
-        verify(deleteByQuery("test1", "test2").setIgnoreIndices(options), true);
-        verify(percolate("test1", "test2").setIgnoreIndices(options), true);
-        verify(mpercolate(options, "test1", "test2").setIgnoreIndices(options), true);
-        verify(suggest("test1", "test2").setIgnoreIndices(options), true);
+        verify(typesExists("test1", "test2").setIndicesOptions(options), true);
+        verify(deleteByQuery("test1", "test2").setIndicesOptions(options), true);
+        verify(percolate("test1", "test2").setIndicesOptions(options), true);
+        verify(mpercolate(options, "test1", "test2").setIndicesOptions(options), true);
+        verify(suggest("test1", "test2").setIndicesOptions(options), true);
         verify(getAliases("test1", "test2").setIgnoreIndices(options), true);
-        verify(getFieldMapping("test1", "test2").setIgnoreIndices(options), true);
-        verify(getMapping("test1", "test2").setIgnoreIndices(options), true);
-        verify(getWarmer("test1", "test2").setIgnoreIndices(options), true);
+        verify(getFieldMapping("test1", "test2").setIndicesOptions(options), true);
+        verify(getMapping("test1", "test2").setIndicesOptions(options), true);
+        verify(getWarmer("test1", "test2").setIndicesOptions(options), true);
 
         options = IndicesOptions.lenient();
-        verify(search("test1", "test2").setIgnoreIndices(options), false);
-        verify(msearch(options, "test1", "test2").setIgnoreIndices(options), false);
-        verify(count("test1", "test2").setIgnoreIndices(options), false);
-        verify(clearCache("test1", "test2").setIgnoreIndices(options), false);
-        verify(_flush("test1", "test2").setIgnoreIndices(options), false);
-        verify(gatewatSnapshot("test1", "test2").setIgnoreIndices(options), false);
-        verify(segments("test1", "test2").setIgnoreIndices(options), false);
-        verify(stats("test1", "test2").setIgnoreIndices(options), false);
-        verify(status("test1", "test2").setIgnoreIndices(options), false);
-        verify(optimize("test1", "test2").setIgnoreIndices(options), false);
-        verify(refresh("test1", "test2").setIgnoreIndices(options), false);
-        verify(validateQuery("test1", "test2").setIgnoreIndices(options), false);
+        verify(search("test1", "test2").setIndicesOptions(options), false);
+        verify(msearch(options, "test1", "test2").setIndicesOptions(options), false);
+        verify(count("test1", "test2").setIndicesOptions(options), false);
+        verify(clearCache("test1", "test2").setIndicesOptions(options), false);
+        verify(_flush("test1", "test2").setIndicesOptions(options), false);
+        verify(gatewatSnapshot("test1", "test2").setIndicesOptions(options), false);
+        verify(segments("test1", "test2").setIndicesOptions(options), false);
+        verify(stats("test1", "test2").setIndicesOptions(options), false);
+        verify(status("test1", "test2").setIndicesOptions(options), false);
+        verify(optimize("test1", "test2").setIndicesOptions(options), false);
+        verify(refresh("test1", "test2").setIndicesOptions(options), false);
+        verify(validateQuery("test1", "test2").setIndicesOptions(options), false);
         verify(aliasExists("test1", "test2").setIgnoreIndices(options), false);
-        verify(typesExists("test1", "test2").setIgnoreIndices(options), false);
-        verify(deleteByQuery("test1", "test2").setIgnoreIndices(options), false);
-        verify(percolate("test1", "test2").setIgnoreIndices(options), false);
-        verify(mpercolate(options, "test1", "test2").setIgnoreIndices(options), false);
-        verify(suggest("test1", "test2").setIgnoreIndices(options), false);
+        verify(typesExists("test1", "test2").setIndicesOptions(options), false);
+        verify(deleteByQuery("test1", "test2").setIndicesOptions(options), false);
+        verify(percolate("test1", "test2").setIndicesOptions(options), false);
+        verify(mpercolate(options, "test1", "test2").setIndicesOptions(options), false);
+        verify(suggest("test1", "test2").setIndicesOptions(options), false);
         verify(getAliases("test1", "test2").setIgnoreIndices(options), false);
-        verify(getFieldMapping("test1", "test2").setIgnoreIndices(options), false);
-        verify(getMapping("test1", "test2").setIgnoreIndices(options), false);
-        verify(getWarmer("test1", "test2").setIgnoreIndices(options), false);
+        verify(getFieldMapping("test1", "test2").setIndicesOptions(options), false);
+        verify(getMapping("test1", "test2").setIndicesOptions(options), false);
+        verify(getWarmer("test1", "test2").setIndicesOptions(options), false);
 
         options = IndicesOptions.strict();
         assertAcked(prepareCreate("test2"));
         ensureYellow();
-        verify(search("test1", "test2").setIgnoreIndices(options), false);
-        verify(msearch(options, "test1", "test2").setIgnoreIndices(options), false);
-        verify(count("test1", "test2").setIgnoreIndices(options), false);
-        verify(clearCache("test1", "test2").setIgnoreIndices(options), false);
-        verify(_flush("test1", "test2").setIgnoreIndices(options),false);
-        verify(gatewatSnapshot("test1", "test2").setIgnoreIndices(options), false);
-        verify(segments("test1", "test2").setIgnoreIndices(options), false);
-        verify(stats("test1", "test2").setIgnoreIndices(options), false);
-        verify(status("test1", "test2").setIgnoreIndices(options), false);
-        verify(optimize("test1", "test2").setIgnoreIndices(options), false);
-        verify(refresh("test1", "test2").setIgnoreIndices(options), false);
-        verify(validateQuery("test1", "test2").setIgnoreIndices(options), false);
+        verify(search("test1", "test2").setIndicesOptions(options), false);
+        verify(msearch(options, "test1", "test2").setIndicesOptions(options), false);
+        verify(count("test1", "test2").setIndicesOptions(options), false);
+        verify(clearCache("test1", "test2").setIndicesOptions(options), false);
+        verify(_flush("test1", "test2").setIndicesOptions(options),false);
+        verify(gatewatSnapshot("test1", "test2").setIndicesOptions(options), false);
+        verify(segments("test1", "test2").setIndicesOptions(options), false);
+        verify(stats("test1", "test2").setIndicesOptions(options), false);
+        verify(status("test1", "test2").setIndicesOptions(options), false);
+        verify(optimize("test1", "test2").setIndicesOptions(options), false);
+        verify(refresh("test1", "test2").setIndicesOptions(options), false);
+        verify(validateQuery("test1", "test2").setIndicesOptions(options), false);
         verify(aliasExists("test1", "test2").setIgnoreIndices(options), false);
-        verify(typesExists("test1", "test2").setIgnoreIndices(options), false);
-        verify(deleteByQuery("test1", "test2").setIgnoreIndices(options), false);
-        verify(percolate("test1", "test2").setIgnoreIndices(options), false);
-        verify(mpercolate(options, "test1", "test2").setIgnoreIndices(options), false);
-        verify(suggest("test1", "test2").setIgnoreIndices(options), false);
+        verify(typesExists("test1", "test2").setIndicesOptions(options), false);
+        verify(deleteByQuery("test1", "test2").setIndicesOptions(options), false);
+        verify(percolate("test1", "test2").setIndicesOptions(options), false);
+        verify(mpercolate(options, "test1", "test2").setIndicesOptions(options), false);
+        verify(suggest("test1", "test2").setIndicesOptions(options), false);
         verify(getAliases("test1", "test2").setIgnoreIndices(options), false);
-        verify(getFieldMapping("test1", "test2").setIgnoreIndices(options), false);
-        verify(getMapping("test1", "test2").setIgnoreIndices(options), false);
-        verify(getWarmer("test1", "test2").setIgnoreIndices(options), false);
+        verify(getFieldMapping("test1", "test2").setIndicesOptions(options), false);
+        verify(getMapping("test1", "test2").setIndicesOptions(options), false);
+        verify(getWarmer("test1", "test2").setIndicesOptions(options), false);
     }
 
     @Test
@@ -184,17 +184,17 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
 
         IndicesOptions options = IndicesOptions.strict();
         verify(snapshot("snap2", "test1", "test2").setIndicesOptions(options), true);
-        verify(restore("snap1", "test1", "test2").setIgnoreIndices(options), true);
+        verify(restore("snap1", "test1", "test2").setIndicesOptions(options), true);
 
         options = IndicesOptions.lenient();
         verify(snapshot("snap2", "test1", "test2").setIndicesOptions(options), false);
-        verify(restore("snap2", "test1", "test2").setIgnoreIndices(options), false);
+        verify(restore("snap2", "test1", "test2").setIndicesOptions(options), false);
 
         options = IndicesOptions.strict();
         assertAcked(prepareCreate("test2"));
         ensureYellow();
         verify(snapshot("snap3", "test1", "test2").setIndicesOptions(options), false);
-        verify(restore("snap3", "test1", "test2").setIgnoreIndices(options), false);
+        verify(restore("snap3", "test1", "test2").setIndicesOptions(options), false);
     }
 
     @Test
@@ -226,28 +226,28 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
 
         // Now force allow_no_indices=true
         IndicesOptions options = IndicesOptions.fromOptions(false, true, true, false);
-        verify(search(indices).setIgnoreIndices(options), false);
-        verify(msearch(options, indices).setIgnoreIndices(options), false);
-        verify(count(indices).setIgnoreIndices(options), false);
-        verify(clearCache(indices).setIgnoreIndices(options), false);
-        verify(_flush(indices).setIgnoreIndices(options),false);
-        verify(gatewatSnapshot(indices).setIgnoreIndices(options), false);
-        verify(segments(indices).setIgnoreIndices(options), false);
-        verify(stats(indices).setIgnoreIndices(options), false);
-        verify(status(indices).setIgnoreIndices(options), false);
-        verify(optimize(indices).setIgnoreIndices(options), false);
-        verify(refresh(indices).setIgnoreIndices(options), false);
-        verify(validateQuery(indices).setIgnoreIndices(options), false);
+        verify(search(indices).setIndicesOptions(options), false);
+        verify(msearch(options, indices).setIndicesOptions(options), false);
+        verify(count(indices).setIndicesOptions(options), false);
+        verify(clearCache(indices).setIndicesOptions(options), false);
+        verify(_flush(indices).setIndicesOptions(options),false);
+        verify(gatewatSnapshot(indices).setIndicesOptions(options), false);
+        verify(segments(indices).setIndicesOptions(options), false);
+        verify(stats(indices).setIndicesOptions(options), false);
+        verify(status(indices).setIndicesOptions(options), false);
+        verify(optimize(indices).setIndicesOptions(options), false);
+        verify(refresh(indices).setIndicesOptions(options), false);
+        verify(validateQuery(indices).setIndicesOptions(options), false);
         verify(aliasExists(indices).setIgnoreIndices(options), false);
-        verify(typesExists(indices).setIgnoreIndices(options), false);
-        verify(deleteByQuery(indices).setIgnoreIndices(options), false);
-        verify(percolate(indices).setIgnoreIndices(options), false);
+        verify(typesExists(indices).setIndicesOptions(options), false);
+        verify(deleteByQuery(indices).setIndicesOptions(options), false);
+        verify(percolate(indices).setIndicesOptions(options), false);
         verify(mpercolate(options, indices), false);
-        verify(suggest(indices).setIgnoreIndices(options), false);
+        verify(suggest(indices).setIndicesOptions(options), false);
         verify(getAliases(indices).setIgnoreIndices(options), false);
-        verify(getFieldMapping(indices).setIgnoreIndices(options), false);
-        verify(getMapping(indices).setIgnoreIndices(options), false);
-        verify(getWarmer(indices).setIgnoreIndices(options), false);
+        verify(getFieldMapping(indices).setIndicesOptions(options), false);
+        verify(getMapping(indices).setIndicesOptions(options), false);
+        verify(getWarmer(indices).setIndicesOptions(options), false);
 
         assertAcked(prepareCreate("foobar"));
         client().prepareIndex("foobar", "type", "1").setSource("k", "v").setRefresh(true).execute().actionGet();
@@ -304,28 +304,57 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
 
         // Now force allow_no_indices=true
         options = IndicesOptions.fromOptions(false, true, true, false);
-        verify(search(indices).setIgnoreIndices(options), false, 1);
-        verify(msearch(options, indices).setIgnoreIndices(options), false, 1);
-        verify(count(indices).setIgnoreIndices(options), false, 1);
-        verify(clearCache(indices).setIgnoreIndices(options), false);
-        verify(_flush(indices).setIgnoreIndices(options),false);
-        verify(gatewatSnapshot(indices).setIgnoreIndices(options), false);
-        verify(segments(indices).setIgnoreIndices(options), false);
-        verify(stats(indices).setIgnoreIndices(options), false);
-        verify(status(indices).setIgnoreIndices(options), false);
-        verify(optimize(indices).setIgnoreIndices(options), false);
-        verify(refresh(indices).setIgnoreIndices(options), false);
-        verify(validateQuery(indices).setIgnoreIndices(options), false);
+        verify(search(indices).setIndicesOptions(options), false, 1);
+        verify(msearch(options, indices).setIndicesOptions(options), false, 1);
+        verify(count(indices).setIndicesOptions(options), false, 1);
+        verify(clearCache(indices).setIndicesOptions(options), false);
+        verify(_flush(indices).setIndicesOptions(options),false);
+        verify(gatewatSnapshot(indices).setIndicesOptions(options), false);
+        verify(segments(indices).setIndicesOptions(options), false);
+        verify(stats(indices).setIndicesOptions(options), false);
+        verify(status(indices).setIndicesOptions(options), false);
+        verify(optimize(indices).setIndicesOptions(options), false);
+        verify(refresh(indices).setIndicesOptions(options), false);
+        verify(validateQuery(indices).setIndicesOptions(options), false);
         verify(aliasExists(indices).setIgnoreIndices(options), false);
-        verify(typesExists(indices).setIgnoreIndices(options), false);
-        verify(deleteByQuery(indices).setIgnoreIndices(options), false);
-        verify(percolate(indices).setIgnoreIndices(options), false);
+        verify(typesExists(indices).setIndicesOptions(options), false);
+        verify(deleteByQuery(indices).setIndicesOptions(options), false);
+        verify(percolate(indices).setIndicesOptions(options), false);
         verify(mpercolate(options, indices), false);
-        verify(suggest(indices).setIgnoreIndices(options), false);
+        verify(suggest(indices).setIndicesOptions(options), false);
         verify(getAliases(indices).setIgnoreIndices(options), false);
-        verify(getFieldMapping(indices).setIgnoreIndices(options), false);
-        verify(getMapping(indices).setIgnoreIndices(options), false);
-        verify(getWarmer(indices).setIgnoreIndices(options), false);
+        verify(getFieldMapping(indices).setIndicesOptions(options), false);
+        verify(getMapping(indices).setIndicesOptions(options), false);
+        verify(getWarmer(indices).setIndicesOptions(options), false);
+    }
+
+    @Test
+    public void testWildcardBehaviour_snapshotRestore() throws Exception {
+        assertAcked(prepareCreate("foobar"));
+        ensureYellow();
+
+        PutRepositoryResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("dummy-repo")
+                .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", newTempDir())).get();
+        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+        client().admin().cluster().prepareCreateSnapshot("dummy-repo", "snap1").setWaitForCompletion(true).get();
+
+        IndicesOptions options = IndicesOptions.fromOptions(false, false, true, false);
+        verify(snapshot("snap2", "foo*", "bar*").setIndicesOptions(options), true);
+        verify(restore("snap1", "foo*", "bar*").setIndicesOptions(options), true);
+
+        options = IndicesOptions.strict();
+        verify(snapshot("snap2", "foo*", "bar*").setIndicesOptions(options), false);
+        verify(restore("snap2", "foo*", "bar*").setIndicesOptions(options), false);
+
+        assertAcked(prepareCreate("barbaz"));
+        ensureYellow();
+        options = IndicesOptions.fromOptions(false, false, true, false);
+        verify(snapshot("snap3", "foo*", "bar*").setIndicesOptions(options), false);
+        verify(restore("snap3", "foo*", "bar*").setIndicesOptions(options), false);
+
+        options = IndicesOptions.fromOptions(false, false, true, false);
+        verify(snapshot("snap4", "foo*", "baz*").setIndicesOptions(options), true);
+        verify(restore("snap3", "foo*", "baz*").setIndicesOptions(options), true);
     }
 
     @Test
@@ -333,19 +362,19 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
         assertAcked(client().admin().indices().prepareCreate("test1"));
         client().prepareIndex("test1", "type", "1").setSource("k", "v").setRefresh(true).execute().actionGet();
         SearchResponse response = client().prepareSearch("test2")
-                .setIgnoreIndices(IndicesOptions.lenient())
+                .setIndicesOptions(IndicesOptions.lenient())
                 .setQuery(matchAllQuery())
                 .execute().actionGet();
         assertHitCount(response, 0l);
 
         response = client().prepareSearch("test2","test3").setQuery(matchAllQuery())
-                .setIgnoreIndices(IndicesOptions.lenient())
+                .setIndicesOptions(IndicesOptions.lenient())
                 .execute().actionGet();
         assertHitCount(response, 0l);
         
         //you should still be able to run empty searches without things blowing up
         response  = client().prepareSearch()
-                .setIgnoreIndices(IndicesOptions.lenient())
+                .setIndicesOptions(IndicesOptions.lenient())
                 .setQuery(matchAllQuery())
                 .execute().actionGet();
         assertHitCount(response, 1l);
@@ -430,7 +459,7 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
     private static MultiSearchRequestBuilder msearch(IndicesOptions options, String... indices) {
         MultiSearchRequestBuilder multiSearchRequestBuilder = client().prepareMultiSearch();
         if (options != null) {
-            multiSearchRequestBuilder.setIgnoreIndices(options);
+            multiSearchRequestBuilder.setIndicesOptions(options);
         }
         return multiSearchRequestBuilder.add(client().prepareSearch(indices).setQuery(matchAllQuery()));
     }
@@ -496,7 +525,7 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
     private static MultiPercolateRequestBuilder mpercolate(IndicesOptions options, String... indices) {
         MultiPercolateRequestBuilder builder = client().prepareMultiPercolate();
         if (options != null) {
-            builder.setIgnoreIndices(options);
+            builder.setIndicesOptions(options);
         }
         return builder.add(percolate(indices));
     }

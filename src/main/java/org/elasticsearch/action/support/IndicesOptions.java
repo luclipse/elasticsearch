@@ -28,21 +28,22 @@ import org.elasticsearch.rest.RestRequest;
 import java.io.IOException;
 
 /**
- * Specifies what type of requested indices to exclude.
+ * Controls how to deal when concrete indices are unavailable (closed & missing), to what wildcard expression expand
+ * (all, closed or open indices) and how to deal when a wildcard expression resolves into no concrete indices.
  */
 public class IndicesOptions {
 
-    private static final IndicesOptions[] IGNORE_INDICES;
+    private static final IndicesOptions[] VALUES;
 
     static {
         int max = 1 << 4;
-        IGNORE_INDICES = new IndicesOptions[max];
+        VALUES = new IndicesOptions[max];
         for (int i = 0; i < max; i++) {
             boolean ignoreUnavailable = (i & 1) != 0;
             boolean allowNoIndices = (i & 2) != 0;
             boolean wildcardExpandToOpen = (i & 4) != 0;
             boolean wildcardExpandToClosed = (i & 8) != 0;
-            IGNORE_INDICES[i] = new IndicesOptions(ignoreUnavailable, allowNoIndices, wildcardExpandToOpen, wildcardExpandToClosed);
+            VALUES[i] = new IndicesOptions(ignoreUnavailable, allowNoIndices, wildcardExpandToOpen, wildcardExpandToClosed);
         }
     }
 
@@ -58,18 +59,30 @@ public class IndicesOptions {
         this.expandWildcardsClosed = wildcardExpandToClosed;
     }
 
+    /**
+     * @return Whether specified concrete indices should be ignored when unavailable (missing or closed)
+     */
     public boolean ignoreUnavailable() {
         return ignoreUnavailable;
     }
 
+    /**
+     * @return Whether to ignore if a wildcard indices expression resolves into no concrete indices
+     */
     public boolean allowNoIndices() {
         return allowNoIndices;
     }
 
+    /**
+     * @return Whether wildcard indices expressions should expanded into open indices should be
+     */
     public boolean expandWildcardsOpen() {
         return expandWildcardsOpen;
     }
 
+    /**
+     * @return Whether wildcard indices expressions should expanded into closed indices should be
+     */
     public boolean expandWildcardsClosed() {
         return expandWildcardsClosed;
     }
@@ -80,15 +93,15 @@ public class IndicesOptions {
 
     public static IndicesOptions readIndicesOptions(StreamInput in) throws IOException {
         byte id = in.readByte();
-        if (id >= IGNORE_INDICES.length) {
+        if (id >= VALUES.length) {
             throw new ElasticSearchIllegalArgumentException("No valid missing index type id: " + id);
         }
-        return IGNORE_INDICES[id];
+        return VALUES[id];
     }
 
     public static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandToOpenIndices, boolean expandToClosedIndices) {
         byte id = toByte(ignoreUnavailable, allowNoIndices, expandToOpenIndices, expandToClosedIndices);
-        return IGNORE_INDICES[id];
+        return VALUES[id];
     }
 
     public static IndicesOptions fromRequest(RestRequest request, IndicesOptions defaultSettings) {
@@ -119,7 +132,7 @@ public class IndicesOptions {
      *         allow that no indices are resolved from wildcard expressions (not returning an error).
      */
     public static IndicesOptions strict() {
-        return IGNORE_INDICES[6];
+        return VALUES[6];
     }
 
     /**
@@ -127,7 +140,7 @@ public class IndicesOptions {
      *         allow that no indices are resolved from wildcard expressions (not returning an error).
      */
     public static IndicesOptions lenient() {
-        return IGNORE_INDICES[7];
+        return VALUES[7];
     }
 
     private static byte toByte(boolean ignoreUnavailable, boolean allowNoIndices, boolean wildcardExpandToOpen, boolean wildcardExpandToClosed) {

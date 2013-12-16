@@ -22,6 +22,7 @@ package org.elasticsearch.action.percolate;
 import com.carrotsearch.hppc.IntArrayList;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.get.*;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
@@ -169,6 +170,9 @@ public class TransportMultiPercolateAction extends TransportAction<MultiPercolat
                             clusterState, percolateRequest.indices(), concreteIndices, routing, percolateRequest.preference()
                     );
                     if (shards.size() == 0) {
+                        reducedResponses.set(slot, new UnavailableShardsException(null, "No shards available"));
+                        responsesByItemAndShard.set(slot, new AtomicReferenceArray(0));
+                        expectedOperationsPerItem.set(slot, new AtomicInteger(0));
                         continue;
                     }
 
@@ -202,7 +206,7 @@ public class TransportMultiPercolateAction extends TransportAction<MultiPercolat
 
         void run() {
             if (expectedOperations.get() == 0) {
-                finalListener.onResponse(new MultiPercolateResponse(new MultiPercolateResponse.Item[0]));
+                finish();
                 return;
             }
 
