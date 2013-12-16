@@ -143,10 +143,17 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
                                     ignoreUnavailable = parser.booleanValue();
                                 } else if ("allow_no_indices".equals(currentFieldName) || "allowNoIndices".equals(currentFieldName)) {
                                     allowNoIndices = parser.booleanValue();
-                                } else if ("expand_wildcards_open".equals(currentFieldName) || "expandWildcardsOpen".equals(currentFieldName)) {
-                                    expandWildcardsOpen = parser.booleanValue();
-                                } else if ("expand_wildcards_closed".equals(currentFieldName) || "expandWildcardsClosed".equals(currentFieldName)) {
-                                    expandWildcardsClosed = parser.booleanValue();
+                                } else if ("expand_wildcards".equals(currentFieldName) || "expandWildcards".equals(currentFieldName)) {
+                                    String[] wildcards = Strings.splitStringByCommaToArray(parser.text());
+                                    for (String wildcard : wildcards) {
+                                        if ("open".equals(wildcard)) {
+                                            expandWildcardsOpen = true;
+                                        } else if ("closed".equals(wildcard)) {
+                                            expandWildcardsClosed = true;
+                                        } else {
+                                            throw new ElasticSearchIllegalArgumentException("No valid expand wildcard value [" + wildcard + "]");
+                                        }
+                                    }
                                 }
                             } else if (token == XContentParser.Token.START_ARRAY) {
                                 if ("index".equals(currentFieldName) || "indices".equals(currentFieldName)) {
@@ -156,6 +163,17 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
                                     searchRequest.indices(parseArray(parser));
                                 } else if ("type".equals(currentFieldName) || "types".equals(currentFieldName)) {
                                     searchRequest.types(parseArray(parser));
+                                } else if ("expand_wildcards".equals(currentFieldName) || "expandWildcards".equals(currentFieldName)) {
+                                    String[] wildcards = parseArray(parser);
+                                    for (String wildcard : wildcards) {
+                                        if ("open".equals(wildcard)) {
+                                            expandWildcardsOpen = true;
+                                        } else if ("closed".equals(wildcard)) {
+                                            expandWildcardsClosed = true;
+                                        } else {
+                                            throw new ElasticSearchIllegalArgumentException("No valid expand wildcard value [" + wildcard + "]");
+                                        }
+                                    }
                                 } else {
                                     throw new ElasticSearchParseException(currentFieldName + " doesn't support arrays");
                                 }

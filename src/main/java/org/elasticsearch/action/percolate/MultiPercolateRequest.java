@@ -19,6 +19,7 @@
 package org.elasticsearch.action.percolate;
 
 import com.google.common.collect.Lists;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -201,13 +202,26 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
                 } else if ("percolate_routing".equals(entry.getKey()) || "percolateRouting".equals(entry.getKey())) {
                     percolateRequest.routing((String) value);
                 } else if ("ignore_unavailable".equals(currentFieldName) || "ignoreUnavailable".equals(currentFieldName)) {
-                    ignoreUnavailable = parser.booleanValue();
+                    ignoreUnavailable = Boolean.valueOf((String) value);
                 } else if ("allow_no_indices".equals(currentFieldName) || "allowNoIndices".equals(currentFieldName)) {
-                    allowNoIndices = parser.booleanValue();
-                } else if ("expand_wildcards_open".equals(currentFieldName) || "expandWildcardsOpen".equals(currentFieldName)) {
-                    expandWildcardsOpen = parser.booleanValue();
-                } else if ("expand_wildcards_closed".equals(currentFieldName) || "expandWildcardsClosed".equals(currentFieldName)) {
-                    expandWildcardsClosed = parser.booleanValue();
+                    allowNoIndices = Boolean.valueOf((String) value);
+                } else if ("expand_wildcards".equals(currentFieldName) || "expandWildcards".equals(currentFieldName)) {
+                    String[] wildcards;
+                    if (value instanceof String[]) {
+                        wildcards = (String[]) value;
+                    } else {
+                        wildcards = Strings.splitStringByCommaToArray((String) value);
+                    }
+
+                    for (String wildcard : wildcards) {
+                        if ("open".equals(wildcard)) {
+                            expandWildcardsOpen = true;
+                        } else if ("closed".equals(wildcard)) {
+                            expandWildcardsClosed = true;
+                        } else {
+                            throw new ElasticSearchIllegalArgumentException("No valid expand wildcard value [" + wildcard + "]");
+                        }
+                    }
                 }
             }
 
@@ -243,10 +257,23 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
                     ignoreUnavailable = Boolean.valueOf((String) value);
                 } else if ("allow_no_indices".equals(currentFieldName) || "allowNoIndices".equals(currentFieldName)) {
                     allowNoIndices = Boolean.valueOf((String) value);
-                } else if ("expand_wildcards_open".equals(currentFieldName) || "expandWildcardsOpen".equals(currentFieldName)) {
-                    expandWildcardsOpen = Boolean.valueOf((String) value);
-                } else if ("expand_wildcards_closed".equals(currentFieldName) || "expandWildcardsClosed".equals(currentFieldName)) {
-                    expandWildcardsClosed = Boolean.valueOf((String) value);
+                } else if ("expand_wildcards".equals(currentFieldName) || "expandWildcards".equals(currentFieldName)) {
+                    String[] wildcards;
+                    if (value instanceof String[]) {
+                        wildcards = (String[]) value;
+                    } else {
+                        wildcards = Strings.splitStringByCommaToArray((String) value);
+                    }
+
+                    for (String wildcard : wildcards) {
+                        if ("open".equals(wildcard)) {
+                            expandWildcardsOpen = true;
+                        } else if ("closed".equals(wildcard)) {
+                            expandWildcardsClosed = true;
+                        } else {
+                            throw new ElasticSearchIllegalArgumentException("No valid expand wildcard value [" + wildcard + "]");
+                        }
+                    }
                 }
             }
         }
