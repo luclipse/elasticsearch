@@ -5,10 +5,7 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.text.UTF8SortedAsUnicodeComparator;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
@@ -44,18 +41,17 @@ public abstract class ParentOrdinalService extends AbstractIndexComponent implem
         }
 
         // We don't want to load uid of child documents, this allows us to not load uids of child types.
-        NavigableSet<HashedBytesArray> parentTypes = new TreeSet<HashedBytesArray>(UTF8SortedAsUnicodeComparator.utf8SortedAsUnicodeSortOrder);
-        BytesRef spare = new BytesRef();
+        NavigableSet<BytesRef> parentTypes = new TreeSet<BytesRef>(BytesRef.getUTF8SortedAsUnicodeComparator());
         for (String type : mapperService.types()) {
             ParentFieldMapper parentFieldMapper = mapperService.documentMapper(type).parentFieldMapper();
             if (parentFieldMapper.active()) {
-                parentTypes.add(new HashedBytesArray(Strings.toUTF8Bytes(parentFieldMapper.type(), spare)));
+                parentTypes.add(new BytesRef(parentFieldMapper.type()));
             }
         }
         doRefresh(context, parentTypes);
     }
 
-    protected abstract void doRefresh(IndicesWarmer.WarmerContext context, NavigableSet<HashedBytesArray> parentTypes) throws IOException;
+    protected abstract void doRefresh(IndicesWarmer.WarmerContext context, NavigableSet<BytesRef> parentTypes) throws IOException;
 
     public final ParentOrdinals ordinals(String type, AtomicReaderContext context) throws IOException {
         AtomicReader reader = context.reader();

@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.lucene.BytesRefs;
 
 import java.util.Collection;
@@ -99,11 +98,11 @@ public final class Uid {
         return uid.substring(delimiterIndex + 1);
     }
 
-    public static HashedBytesArray idFromUid(BytesRef uid) {
+    public static BytesRef idFromUid(BytesRef uid) {
         return splitUidIntoTypeAndId(uid)[1];
     }
 
-    public static HashedBytesArray typeFromUid(BytesRef uid) {
+    public static BytesRef typeFromUid(BytesRef uid) {
         return splitUidIntoTypeAndId(uid)[0];
     }
 
@@ -179,8 +178,7 @@ public final class Uid {
         return false;
     }
 
-    // LUCENE 4 UPGRADE: HashedBytesArray or BytesRef as return type?
-    public static HashedBytesArray[] splitUidIntoTypeAndId(BytesRef uid) {
+    public static BytesRef[] splitUidIntoTypeAndId(BytesRef uid) {
         int loc = -1;
         final int limit = uid.offset + uid.length;
         for (int i = uid.offset; i < limit; i++) {
@@ -199,7 +197,7 @@ public final class Uid {
 
         byte[] id = new byte[uid.length - type.length - 1];
         System.arraycopy(uid.bytes, loc + 1, id, 0, id.length);
-        return new HashedBytesArray[]{new HashedBytesArray(type), new HashedBytesArray(id)};
+        return new BytesRef[]{new BytesRef(type), new BytesRef(id)};
     }
 
 }

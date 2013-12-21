@@ -497,9 +497,9 @@ public final class MultiTermsEnum extends TermsEnum {
         }
     }
 
-    final static class TermsEnumWithSlice {
+    /*CHANGE:*/public/*END CHANGE*/ final static class TermsEnumWithSlice {
         private final ReaderSlice subSlice;
-        TermsEnum terms;
+        /*CHANGE:*/public/*END CHANGE*/ TermsEnum terms;
         public BytesRef current;
         final int index;
 

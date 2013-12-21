@@ -6,16 +6,16 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.*;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.parentordinals.CompoundTermsEnum;
+import org.elasticsearch.index.parentordinals.TermsEnums;
 import org.elasticsearch.test.ElasticsearchLuceneTestCase;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.util.Locale;
+import java.util.NavigableSet;
+import java.util.TreeSet;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.*;
 
 /**
  */
@@ -37,10 +37,13 @@ public class CompoundTermsEnumTests extends ElasticsearchLuceneTestCase {
             indexWriter.addDocument(document);
         }
 
+        NavigableSet<BytesRef> parentTypes = new TreeSet<BytesRef>();
+        parentTypes.add(new BytesRef("type"));
+
         IndexReader indexReader = DirectoryReader.open(indexWriter.w, false);
         TermsEnum[] compoundTermsEnums = new TermsEnum[]{
-                CompoundTermsEnum.getCompoundTermsEnum(indexReader, "field1", "field2"),
-                CompoundTermsEnum.getCompoundTermsEnum(SlowCompositeReaderWrapper.wrap(indexReader), "field1", "field2")
+                TermsEnums.getCompoundTermsEnum(indexReader, parentTypes, "field1", "field2"),
+                TermsEnums.getCompoundTermsEnum(SlowCompositeReaderWrapper.wrap(indexReader), parentTypes, "field1", "field2")
         };
         for (TermsEnum termsEnum : compoundTermsEnums) {
             int expected = 0;
@@ -77,10 +80,13 @@ public class CompoundTermsEnumTests extends ElasticsearchLuceneTestCase {
             }
         }
 
+        NavigableSet<BytesRef> parentTypes = new TreeSet<BytesRef>();
+        parentTypes.add(new BytesRef("type"));
+
         IndexReader indexReader = DirectoryReader.open(indexWriter.w, false);
         TermsEnum[] compoundTermsEnums = new TermsEnum[]{
-                CompoundTermsEnum.getCompoundTermsEnum(indexReader, "field1", "field2"),
-                CompoundTermsEnum.getCompoundTermsEnum(SlowCompositeReaderWrapper.wrap(indexReader), "field1", "field2")
+                TermsEnums.getCompoundTermsEnum(indexReader, parentTypes, "field1", "field2"),
+                TermsEnums.getCompoundTermsEnum(SlowCompositeReaderWrapper.wrap(indexReader), parentTypes, "field1", "field2")
         };
         for (TermsEnum termsEnum : compoundTermsEnums) {
             int expected = 0;
@@ -104,7 +110,7 @@ public class CompoundTermsEnumTests extends ElasticsearchLuceneTestCase {
     }
 
     static String format(int i) {
-        return String.format(Locale.ROOT, "%06d", i);
+        return String.format(Locale.ROOT, "type#%06d", i);
     }
 
 }

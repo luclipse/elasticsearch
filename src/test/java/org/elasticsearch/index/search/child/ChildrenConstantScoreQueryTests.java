@@ -341,7 +341,7 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
         IndicesFilterCache indicesFilterCache = new IndicesFilterCache(settings, threadPool, cacheRecycler, nodeSettingsService);
         WeightedFilterCache filterCache = new WeightedFilterCache(index, settings, indicesFilterCache);
         final ParentOrdinalService parentOrdinalService;
-        if (true) {
+        if (random().nextBoolean()) {
             parentOrdinalService = new ExpandableParentOrdinalService(index, ImmutableSettings.EMPTY, mapperService);
         } else {
             parentOrdinalService = new FixedParentOrdinalService(index, ImmutableSettings.EMPTY, mapperService);
