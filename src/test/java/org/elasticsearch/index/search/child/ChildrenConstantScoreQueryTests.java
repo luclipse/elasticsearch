@@ -45,11 +45,13 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.parentordinals.ParentOrdinalService;
-import org.elasticsearch.index.parentordinals.expandable.ExpandableParentOrdinalService;
-import org.elasticsearch.index.parentordinals.fixed.FixedParentOrdinalService;
+import org.elasticsearch.index.parentordinals.ParentOrdinals;
+import org.elasticsearch.index.parentordinals.ParentOrdinalsService;
+import org.elasticsearch.index.parentordinals.expandable.ExpandableParentOrdinals;
+import org.elasticsearch.index.parentordinals.fixed.FixedParentOrdinals;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.cache.filter.IndicesFilterCache;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
@@ -194,8 +196,8 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
         indexWriter.deleteDocuments(new Term("delete", "me"));
 
         indexWriter.commit();
-        IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher searcher = new IndexSearcher(indexReader);
+        SearcherManager searcherManager = new SearcherManager(indexWriter.w, true, null);
+        IndexSearcher searcher = searcherManager.acquire();
         Engine.Searcher engineSearcher = new Engine.SimpleSearcher(
                 ChildrenConstantScoreQueryTests.class.getSimpleName(), searcher
         );
@@ -240,13 +242,14 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
                     indexWriter.addDocument(document);
                 }
 
-                indexReader.close();
-                indexReader = DirectoryReader.open(indexWriter.w, true);
-                searcher = new IndexSearcher(indexReader);
+                IndexSearcher previous = searcher;
+                searcherManager.maybeRefresh();
+                searcher = searcherManager.acquire();
                 engineSearcher = new Engine.SimpleSearcher(
                         ChildrenConstantScoreQueryTests.class.getSimpleName(), searcher
                 );
                 ((TestSearchContext) SearchContext.current()).setSearcher(new ContextIndexSearcher(SearchContext.current(), engineSearcher));
+                searcherManager.release(previous);
             }
 
             String childValue = childValues[random().nextInt(numUniqueChildValues)];
@@ -266,13 +269,13 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
                 );
             }
             query = new XFilteredQuery(query, filterMe);
-            BitSetCollector collector = new BitSetCollector(indexReader.maxDoc());
+            BitSetCollector collector = new BitSetCollector(searcher.getIndexReader().maxDoc());
             searcher.search(query, collector);
             FixedBitSet actualResult = collector.getResult();
 
-            FixedBitSet expectedResult = new FixedBitSet(indexReader.maxDoc());
+            FixedBitSet expectedResult = new FixedBitSet(searcher.getIndexReader().maxDoc());
             if (childValueToParentIds.containsKey(childValue)) {
-                AtomicReader slowAtomicReader = SlowCompositeReaderWrapper.wrap(indexReader);
+                AtomicReader slowAtomicReader = SlowCompositeReaderWrapper.wrap(searcher.getIndexReader());
                 Terms terms = slowAtomicReader.terms(UidFieldMapper.NAME);
                 if (terms != null) {
                     NavigableSet<String> parentIds = childValueToParentIds.lget();
@@ -294,7 +297,8 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
         }
 
         indexWriter.close();
-        indexReader.close();
+        searcherManager.release(searcher);
+        searcherManager.close();
         directory.close();
     }
 
@@ -328,6 +332,7 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
 
     static SearchContext createSearchContext(String indexName, String parentType, String childType) throws IOException {
         final Index index = new Index(indexName);
+        final ShardId shardId = new ShardId(index, 0);
         final CacheRecycler cacheRecycler = new CacheRecycler(ImmutableSettings.EMPTY);
         Settings settings = ImmutableSettings.EMPTY;
         MapperService mapperService = MapperTestUtils.newMapperService(index, settings);
@@ -340,13 +345,15 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
         NodeSettingsService nodeSettingsService = new NodeSettingsService(settings);
         IndicesFilterCache indicesFilterCache = new IndicesFilterCache(settings, threadPool, cacheRecycler, nodeSettingsService);
         WeightedFilterCache filterCache = new WeightedFilterCache(index, settings, indicesFilterCache);
-        final ParentOrdinalService parentOrdinalService;
+        final ParentOrdinals.Builder builder;
         if (random().nextBoolean()) {
-            parentOrdinalService = new ExpandableParentOrdinalService(index, ImmutableSettings.EMPTY, mapperService);
+            builder = new ExpandableParentOrdinals.Builder(shardId, ImmutableSettings.EMPTY);
         } else {
-            parentOrdinalService = new FixedParentOrdinalService(index, ImmutableSettings.EMPTY, mapperService);
+            builder = new FixedParentOrdinals.Builder(shardId, ImmutableSettings.EMPTY);
         }
-        return new TestSearchContext(cacheRecycler, indexService, filterCache, parentOrdinalService);
+        System.out.println("Chosen parent ordinals impl: " + builder.getClass().getName());
+        ParentOrdinalsService parentOrdinalsService = new ParentOrdinalsService(shardId, ImmutableSettings.EMPTY, mapperService, builder);
+        return new TestSearchContext(cacheRecycler, indexService, filterCache, parentOrdinalsService);
     }
 
 }

@@ -44,7 +44,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.parentordinals.ParentOrdinalService;
+import org.elasticsearch.index.parentordinals.ParentOrdinalsService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedFilter;
 import org.elasticsearch.index.query.ParsedQuery;
@@ -484,7 +484,7 @@ public class PercolateContext extends SearchContext {
     }
 
     @Override
-    public ParentOrdinalService parentOrdinals() {
+    public ParentOrdinalsService parentOrdinalService() {
         throw new UnsupportedOperationException();
     }
 

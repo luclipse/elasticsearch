@@ -31,7 +31,7 @@ import java.io.IOException;
 abstract class ParentOrdCollector extends NoopCollector {
     protected final String type;
     protected final SearchContext context;
-    private ParentOrdinals parentOrdinals;
+    private ParentOrdinals.Segment parentOrdinals;
 
     protected ParentOrdCollector(String parentType, SearchContext context) {
         this.type = parentType;
@@ -52,6 +52,6 @@ abstract class ParentOrdCollector extends NoopCollector {
 
     @Override
     public void setNextReader(AtomicReaderContext readerContext) throws IOException {
-        parentOrdinals = context.parentOrdinals().ordinals(type, readerContext);
+        parentOrdinals = context.parentOrdinalService().current().ordinals(type, readerContext);
     }
 }

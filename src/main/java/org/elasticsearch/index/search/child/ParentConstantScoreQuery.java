@@ -134,7 +134,7 @@ public class ParentConstantScoreQuery extends Query {
                 return null;
             }
 
-            ParentOrdinals parentOrdinals = searchContext.parentOrdinals().ordinals(parentType, context);
+            ParentOrdinals.Segment parentOrdinals = searchContext.parentOrdinalService().current().ordinals(parentType, context);
             if (parentOrdinals != null) {
                 DocIdSetIterator innerIterator = childrenDocIdSet.iterator();
                 if (innerIterator != null) {
@@ -148,9 +148,9 @@ public class ParentConstantScoreQuery extends Query {
         private final class ChildrenDocIdIterator extends FilteredDocIdSetIterator {
 
             private final OpenBitSet collectedUids;
-            private final ParentOrdinals parentOrdinals;
+            private final ParentOrdinals.Segment parentOrdinals;
 
-            ChildrenDocIdIterator(DocIdSetIterator innerIterator, OpenBitSet collectedUids, ParentOrdinals parentOrdinals) {
+            ChildrenDocIdIterator(DocIdSetIterator innerIterator, OpenBitSet collectedUids, ParentOrdinals.Segment parentOrdinals) {
                 super(innerIterator);
                 this.collectedUids = collectedUids;
                 this.parentOrdinals = parentOrdinals;
@@ -171,7 +171,7 @@ public class ParentConstantScoreQuery extends Query {
         private final SearchContext context;
         private final String parentType;
 
-        private ParentOrdinals parentOrdinals;
+        private ParentOrdinals.Segment parentOrdinals;
 
         ParentOrdsCollector(SearchContext context, String parentType) {
             this.collectedOrds = new OpenBitSet();
@@ -189,7 +189,7 @@ public class ParentConstantScoreQuery extends Query {
 
         @Override
         public void setNextReader(AtomicReaderContext readerContext) throws IOException {
-            parentOrdinals = context.parentOrdinals().ordinals(parentType, readerContext);
+            parentOrdinals = context.parentOrdinalService().current().ordinals(parentType, readerContext);
         }
     }
 

@@ -43,7 +43,7 @@ import java.util.Set;
 /**
  * A query implementation that executes the wrapped parent query and
  * connects the matching parent docs to the related child documents
- * using the {@link org.elasticsearch.index.parentordinals.ParentOrdinalService}.
+ * using the {@link org.elasticsearch.index.parentordinals.ParentOrdinalsService}.
  */
 public class ParentQuery extends Query {
 
@@ -143,7 +143,7 @@ public class ParentQuery extends Query {
         private final String parentType;
 
         private Scorer scorer;
-        private ParentOrdinals parentOrdinals;
+        private ParentOrdinals.Segment parentOrdinals;
 
         ParentOrdsCollector(IntFloatOpenHashMap ordToScore, SearchContext searchContext, String parentType) {
             this.ordToScore = ordToScore;
@@ -168,7 +168,7 @@ public class ParentQuery extends Query {
 
         @Override
         public void setNextReader(AtomicReaderContext context) throws IOException {
-            parentOrdinals = searchContext.parentOrdinals().ordinals(parentType, context);
+            parentOrdinals = searchContext.parentOrdinalService().current().ordinals(parentType, context);
         }
     }
 
@@ -213,7 +213,7 @@ public class ParentQuery extends Query {
             if (DocIdSets.isEmpty(childrenDocSet)) {
                 return null;
             }
-            ParentOrdinals parentOrdinals = searchContext.parentOrdinals().ordinals(parentType, context);
+            ParentOrdinals.Segment parentOrdinals = searchContext.parentOrdinalService().current().ordinals(parentType, context);
             if (parentOrdinals.isEmpty()) {
                 return null;
             }
@@ -232,12 +232,12 @@ public class ParentQuery extends Query {
 
         private final IntFloatOpenHashMap ordToScore;
         private final DocIdSetIterator childrenIterator;
-        private final ParentOrdinals parentOrdinals;
+        private final ParentOrdinals.Segment parentOrdinals;
 
         private int currentChildDoc = -1;
         private float currentScore;
 
-        ChildScorer(Weight weight, IntFloatOpenHashMap ordToScore, DocIdSetIterator childrenIterator, ParentOrdinals parentOrdinals) {
+        ChildScorer(Weight weight, IntFloatOpenHashMap ordToScore, DocIdSetIterator childrenIterator, ParentOrdinals.Segment parentOrdinals) {
             super(weight);
             this.ordToScore = ordToScore;
             this.childrenIterator = childrenIterator;

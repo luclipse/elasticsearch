@@ -59,6 +59,7 @@ import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
+import org.elasticsearch.index.parentordinals.ParentOrdinalsService;
 import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
 import org.elasticsearch.index.percolator.stats.ShardPercolateService;
 import org.elasticsearch.index.query.IndexQueryParserService;
@@ -119,6 +120,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     private final ShardTermVectorService termVectorService;
     private final IndexFieldDataService indexFieldDataService;
     private final IndexService indexService;
+    private final ParentOrdinalsService parentOrdinalsService;
 
     private final Object mutex = new Object();
     private final String checkIndexOnStartup;
@@ -144,7 +146,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                               ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService, ShardIndexingService indexingService, ShardGetService getService, ShardSearchService searchService, ShardIndexWarmerService shardWarmerService,
                               ShardFilterCache shardFilterCache, ShardFieldData shardFieldData,
                               PercolatorQueriesRegistry percolatorQueriesRegistry, ShardPercolateService shardPercolateService, CodecService codecService,
-                              ShardTermVectorService termVectorService, IndexFieldDataService indexFieldDataService, IndexService indexService) {
+                              ShardTermVectorService termVectorService, IndexFieldDataService indexFieldDataService, IndexService indexService, ParentOrdinalsService parentOrdinalsService) {
         super(shardId, indexSettings);
         this.indicesLifecycle = (InternalIndicesLifecycle) indicesLifecycle;
         this.indexSettingsService = indexSettingsService;
@@ -169,6 +171,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         this.indexFieldDataService = indexFieldDataService;
         this.indexService = indexService;
         this.codecService = codecService;
+        this.parentOrdinalsService = parentOrdinalsService;
         state = IndexShardState.CREATED;
 
         this.refreshInterval = indexSettings.getAsTime("engine.robin.refresh_interval", indexSettings.getAsTime(INDEX_REFRESH_INTERVAL, engine.defaultRefreshInterval()));
@@ -214,6 +217,11 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     @Override
     public IndexFieldDataService indexFieldDataService() {
         return indexFieldDataService;
+    }
+
+    @Override
+    public ParentOrdinalsService parentOrdinalService() {
+        return parentOrdinalsService;
     }
 
     @Override

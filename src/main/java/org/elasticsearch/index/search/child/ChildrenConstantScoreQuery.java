@@ -102,15 +102,16 @@ public class ChildrenConstantScoreQuery extends Query {
         }
 
         Filter shortCircuitFilter = null;
-        if (searchContext.parentOrdinals().supportsValueLookup()) {
+        ParentOrdinals parentOrdinals = searchContext.parentOrdinalService().current();
+        if (parentOrdinals.supportsValueLookup()) {
             if (remaining == 1) {
-                BytesRef id = searchContext.parentOrdinals().parentValue(collectedOrds.iterator().nextDoc(), spare);
+                BytesRef id = parentOrdinals.parentValue(collectedOrds.iterator().nextDoc(), spare);
                 shortCircuitFilter = new TermFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id)));
             } else if (remaining <= shortCircuitParentDocSet) {
                 ObjectOpenHashSet<HashedBytesArray> parentIds = new ObjectOpenHashSet<HashedBytesArray>();
                 DocIdSetIterator iterator = collectedOrds.iterator();
                 for (int ordinal = iterator.nextDoc(); ordinal != DocIdSetIterator.NO_MORE_DOCS; ordinal = iterator.nextDoc()) {
-                    BytesRef parentId = searchContext.parentOrdinals().parentValue(ordinal, spare);
+                    BytesRef parentId = parentOrdinals.parentValue(ordinal, spare);
                     byte[] bytes = new byte[parentId.length];
                     System.arraycopy(parentId.bytes, parentId.offset, bytes, 0, parentId.length);
                     parentIds.add(new HashedBytesArray(bytes));
@@ -182,7 +183,7 @@ public class ChildrenConstantScoreQuery extends Query {
 
             DocIdSet parentDocIdSet = this.parentFilter.getDocIdSet(context, acceptDocs);
             if (!DocIdSets.isEmpty(parentDocIdSet)) {
-                ParentOrdinals parentOrdinals = searchContext.parentOrdinals().ordinals(parentType, context);
+                ParentOrdinals.Segment parentOrdinals = searchContext.parentOrdinalService().current().ordinals(parentType, context);
                 // We can't be sure of the fact that liveDocs have been applied, so we apply it here. The "remaining"
                 // count down (short circuit) logic will then work as expected.
                 parentDocIdSet = BitsFilteredDocIdSet.wrap(parentDocIdSet, context.reader().getLiveDocs());
@@ -200,9 +201,9 @@ public class ChildrenConstantScoreQuery extends Query {
         private final class ParentDocIdIterator extends FilteredDocIdSetIterator {
 
             private final OpenBitSet collectedOrds;
-            private final ParentOrdinals parentOrdinals;
+            private final ParentOrdinals.Segment parentOrdinals;
 
-            private ParentDocIdIterator(DocIdSetIterator innerIterator, OpenBitSet collectedOrds, ParentOrdinals parentOrdinals) {
+            private ParentDocIdIterator(DocIdSetIterator innerIterator, OpenBitSet collectedOrds, ParentOrdinals.Segment parentOrdinals) {
                 super(innerIterator);
                 this.collectedOrds = collectedOrds;
                 this.parentOrdinals = parentOrdinals;

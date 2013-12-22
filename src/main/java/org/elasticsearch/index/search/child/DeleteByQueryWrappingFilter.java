@@ -73,7 +73,7 @@ public class DeleteByQueryWrappingFilter extends Filter {
                 IndicesWarmer.WarmerContext warmerContext = new IndicesWarmer.WarmerContext(
                         null, new Engine.SimpleSearcher("delete-by-query", searcher)
                 );
-                searchContext.parentOrdinals().refresh(warmerContext);
+                searchContext.parentOrdinalService().refresh(warmerContext);
                 weight = searcher.createNormalizedWeight(query);
             } finally {
                 if (multiReader != null) {
@@ -89,7 +89,7 @@ public class DeleteByQueryWrappingFilter extends Filter {
                     IndicesWarmer.WarmerContext warmerContext = new IndicesWarmer.WarmerContext(
                             null, new Engine.SimpleSearcher("delete-by-query", searcher)
                     );
-                    searchContext.parentOrdinals().refresh(warmerContext);
+                    searchContext.parentOrdinalService().refresh(warmerContext);
                     weight = searcher.createNormalizedWeight(query);
                 } finally {
                     multiReader.close();

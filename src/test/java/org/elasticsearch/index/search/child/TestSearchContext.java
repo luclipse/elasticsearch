@@ -33,7 +33,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.parentordinals.ParentOrdinalService;
+import org.elasticsearch.index.parentordinals.ParentOrdinalsService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedFilter;
 import org.elasticsearch.index.query.ParsedQuery;
@@ -69,16 +69,16 @@ class TestSearchContext extends SearchContext {
     final CacheRecycler cacheRecycler;
     final IndexService indexService;
     final FilterCache filterCache;
-    final ParentOrdinalService parentOrdinalService;
+    final ParentOrdinalsService parentOrdinalsService;
 
     ContextIndexSearcher searcher;
     int size;
 
-    TestSearchContext(CacheRecycler cacheRecycler, IndexService indexService, FilterCache filterCache, ParentOrdinalService parentOrdinalService) {
+    TestSearchContext(CacheRecycler cacheRecycler, IndexService indexService, FilterCache filterCache, ParentOrdinalsService parentOrdinalsService) {
         this.cacheRecycler = cacheRecycler;
         this.indexService = indexService;
         this.filterCache = filterCache;
-        this.parentOrdinalService = parentOrdinalService;
+        this.parentOrdinalsService = parentOrdinalsService;
     }
 
     @Override
@@ -262,7 +262,7 @@ class TestSearchContext extends SearchContext {
         IndicesWarmer.WarmerContext warmerContext = new IndicesWarmer.WarmerContext(
                 null, new Engine.SimpleSearcher("test", searcher)
         );
-        parentOrdinalService.refresh(warmerContext);
+        parentOrdinalsService.refresh(warmerContext);
     }
 
     @Override
@@ -316,8 +316,8 @@ class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public ParentOrdinalService parentOrdinals() {
-        return parentOrdinalService;
+    public ParentOrdinalsService parentOrdinalService() {
+        return parentOrdinalsService;
     }
 
     @Override

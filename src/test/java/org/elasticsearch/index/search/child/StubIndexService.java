@@ -31,7 +31,6 @@ import org.elasticsearch.index.engine.IndexEngine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.gateway.IndexGateway;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.parentordinals.ParentOrdinalService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettingsService;
@@ -63,11 +62,6 @@ public class StubIndexService implements IndexService {
 
     @Override
     public IndexCache cache() {
-        return null;
-    }
-
-    @Override
-    public ParentOrdinalService parentOrdinals() {
         return null;
     }
 

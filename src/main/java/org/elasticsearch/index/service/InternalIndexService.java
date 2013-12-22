@@ -50,7 +50,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.merge.policy.MergePolicyModule;
 import org.elasticsearch.index.merge.policy.MergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerModule;
-import org.elasticsearch.index.parentordinals.ParentOrdinalService;
+import org.elasticsearch.index.parentordinals.ParentOrdinalsModule;
 import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
 import org.elasticsearch.index.percolator.PercolatorShardModule;
 import org.elasticsearch.index.query.IndexQueryParserService;
@@ -112,8 +112,6 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
     private final IndexCache indexCache;
 
-    private final ParentOrdinalService parentOrdinalService;
-
     private final IndexFieldDataService indexFieldData;
 
     private final IndexEngine indexEngine;
@@ -133,7 +131,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
     @Inject
     public InternalIndexService(Injector injector, Index index, @IndexSettings Settings indexSettings, NodeEnvironment nodeEnv, ThreadPool threadPool,
                                 AnalysisService analysisService, MapperService mapperService, IndexQueryParserService queryParserService,
-                                SimilarityService similarityService, IndexAliasesService aliasesService, IndexCache indexCache, ParentOrdinalService parentOrdinalService, IndexEngine indexEngine,
+                                SimilarityService similarityService, IndexAliasesService aliasesService, IndexCache indexCache, IndexEngine indexEngine,
                                 IndexGateway indexGateway, IndexStore indexStore, IndexSettingsService settingsService, IndexFieldDataService indexFieldData) {
         super(index, indexSettings);
         this.injector = injector;
@@ -145,7 +143,6 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         this.similarityService = similarityService;
         this.aliasesService = aliasesService;
         this.indexCache = indexCache;
-        this.parentOrdinalService = parentOrdinalService;
         this.indexFieldData = indexFieldData;
         this.indexEngine = indexEngine;
         this.indexGateway = indexGateway;
@@ -217,11 +214,6 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
     @Override
     public IndexCache cache() {
         return indexCache;
-    }
-
-    @Override
-    public ParentOrdinalService parentOrdinals() {
-        return parentOrdinalService;
     }
 
     @Override
@@ -343,6 +335,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         modules.add(new PercolatorShardModule());
         modules.add(new ShardTermVectorModule());
         modules.add(new IndexShardSnapshotModule());
+        modules.add(new ParentOrdinalsModule(indexSettings));
 
         Injector shardInjector;
         try {

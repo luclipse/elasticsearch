@@ -45,7 +45,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.parentordinals.ParentOrdinalService;
+import org.elasticsearch.index.parentordinals.ParentOrdinalsService;
 import org.elasticsearch.index.search.stats.StatsGroupsParseElement;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
@@ -691,9 +691,9 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
         @Override
         public void warm(IndexShard indexShard, IndexMetaData indexMetaData, WarmerContext context, ThreadPool threadPool) {
-            ParentOrdinalService parentOrdinalService = indexShard.indexService().parentOrdinals();
+            ParentOrdinalsService parentOrdinalsService = indexShard.parentOrdinalService();
             try {
-                parentOrdinalService.refresh(context);
+                parentOrdinalsService.refresh(context);
             } catch (IOException e) {
                 indexShard.warmerService().logger().warn("failed to warm-up parent ordinals", e);
             }

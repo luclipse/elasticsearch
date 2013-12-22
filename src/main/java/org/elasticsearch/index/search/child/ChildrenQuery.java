@@ -19,7 +19,9 @@
 
 package org.elasticsearch.index.search.child;
 
-import com.carrotsearch.hppc.*;
+import com.carrotsearch.hppc.IntFloatOpenHashMap;
+import com.carrotsearch.hppc.IntIntOpenHashMap;
+import com.carrotsearch.hppc.ObjectOpenHashSet;
 import com.carrotsearch.hppc.cursors.IntCursor;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
@@ -40,7 +42,6 @@ import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.recycler.RecyclerUtils;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.parentordinals.ParentOrdinalService;
 import org.elasticsearch.index.parentordinals.ParentOrdinals;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -51,7 +52,7 @@ import java.util.Set;
 
 /**
  * A query implementation that executes the wrapped child query and connects all the matching child docs to the related
- * parent documents using the {@link org.elasticsearch.index.parentordinals.ParentOrdinalService}.
+ * parent documents using the {@link org.elasticsearch.index.parentordinals.ParentOrdinalsService}.
  * <p/>
  * This query is executed in two rounds. The first round resolves all the matching child documents and groups these
  * documents by parent uid value. Also the child scores are aggregated per parent uid value. During the second round
@@ -168,10 +169,10 @@ public class ChildrenQuery extends Query {
             return Queries.newMatchNoDocsQuery().createWeight(searcher);
         }
 
-        ParentOrdinalService parentOrdinalService = searchContext.parentOrdinals();
+        ParentOrdinals parentOrdinals = searchContext.parentOrdinalService().current();
         final Filter parentFilter;
-        if (parentOrdinalService.supportsValueLookup() && size == 1) {
-            BytesRef id = searchContext.parentOrdinals().parentValue(uidToScore.v().keys().iterator().next().value, spare);
+        if (parentOrdinals.supportsValueLookup() && size == 1) {
+            BytesRef id = parentOrdinals.parentValue(uidToScore.v().keys().iterator().next().value, spare);
             if (nonNestedDocsFilter != null) {
                 List<Filter> filters = Arrays.asList(
                         new TermFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id))),
@@ -181,10 +182,10 @@ public class ChildrenQuery extends Query {
             } else {
                 parentFilter = new TermFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id)));
             }
-        } else if (parentOrdinalService.supportsValueLookup() && size <= shortCircuitParentDocSet) {
+        } else if (parentOrdinals.supportsValueLookup() && size <= shortCircuitParentDocSet) {
             ObjectOpenHashSet<HashedBytesArray> parentIds = new ObjectOpenHashSet<HashedBytesArray>();
             for (IntCursor cursor : uidToScore.v().keys()) {
-                BytesRef parentId = searchContext.parentOrdinals().parentValue(cursor.value, spare);
+                BytesRef parentId = parentOrdinals.parentValue(cursor.value, spare);
                 byte[] bytes = new byte[parentId.length];
                 System.arraycopy(parentId.bytes, parentId.offset, bytes, 0, parentId.length);
                 parentIds.add(new HashedBytesArray(bytes));
@@ -241,7 +242,7 @@ public class ChildrenQuery extends Query {
         @Override
         public Scorer scorer(AtomicReaderContext context, boolean scoreDocsInOrder, boolean topScorer, Bits acceptDocs) throws IOException {
             DocIdSet parentsSet = parentFilter.getDocIdSet(context, acceptDocs);
-            ParentOrdinals parentOrdinals = searchContext.parentOrdinals().ordinals(parentType, context);
+            ParentOrdinals.Segment parentOrdinals = searchContext.parentOrdinalService().current().ordinals(parentType, context);
             if (DocIdSets.isEmpty(parentsSet) || remaining == 0 || parentOrdinals.isEmpty()) {
                 return null;
             }
@@ -266,13 +267,13 @@ public class ChildrenQuery extends Query {
         private class ParentScorer extends Scorer {
 
             final IntFloatOpenHashMap ordToScore;
-            final ParentOrdinals parentOrdinals;
+            final ParentOrdinals.Segment parentOrdinals;
             final DocIdSetIterator parentsIterator;
 
             int currentDocId = -1;
             float currentScore;
 
-            ParentScorer(Weight weight, ParentOrdinals parentOrdinals, IntFloatOpenHashMap ordToScore, DocIdSetIterator parentsIterator) {
+            ParentScorer(Weight weight, ParentOrdinals.Segment parentOrdinals, IntFloatOpenHashMap ordToScore, DocIdSetIterator parentsIterator) {
                 super(weight);
                 this.parentOrdinals = parentOrdinals;
                 this.parentsIterator = parentsIterator;
@@ -350,7 +351,7 @@ public class ChildrenQuery extends Query {
 
             final IntIntOpenHashMap ordToCount;
 
-            AvgParentScorer(Weight weight, ParentOrdinals parentOrdinals, IntFloatOpenHashMap ordToScore, IntIntOpenHashMap ordToCount, DocIdSetIterator parentsIterator) {
+            AvgParentScorer(Weight weight, ParentOrdinals.Segment parentOrdinals, IntFloatOpenHashMap ordToScore, IntIntOpenHashMap ordToCount, DocIdSetIterator parentsIterator) {
                 super(weight, parentOrdinals, ordToScore, parentsIterator);
                 this.ordToCount = ordToCount;
             }

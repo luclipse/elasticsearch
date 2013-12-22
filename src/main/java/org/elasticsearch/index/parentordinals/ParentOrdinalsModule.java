@@ -20,14 +20,14 @@ package org.elasticsearch.index.parentordinals;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.parentordinals.expandable.ExpandableParentOrdinalService;
+import org.elasticsearch.index.parentordinals.expandable.ExpandableParentOrdinals;
 
 /**
  */
 public class ParentOrdinalsModule extends AbstractModule {
 
     public static final class Options {
-        public static final String PARENT_ORDINALS_TYPE = "index.cache.parent-ordinals.type";
+        public static final String PARENT_ORDINALS_TYPE = "index.parent-ordinals.type";
     }
 
     private final Settings settings;
@@ -38,8 +38,9 @@ public class ParentOrdinalsModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        bind(ParentOrdinalService.class)
-                .to(settings.getAsClass(Options.PARENT_ORDINALS_TYPE, ExpandableParentOrdinalService.class, "org.elasticsearch.index.parentordinals.", "ParentOrdinalService"))
+        bind(ParentOrdinalsService.class).asEagerSingleton();
+        bind(ParentOrdinals.Builder.class)
+                .to(settings.getAsClass(Options.PARENT_ORDINALS_TYPE, ExpandableParentOrdinals.Builder.class, "org.elasticsearch.index.parentordinals.", "ParentOrdinals$Builder"))
                 .asEagerSingleton();
     }
 }

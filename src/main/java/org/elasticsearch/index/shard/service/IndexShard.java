@@ -41,6 +41,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.merge.MergeStats;
+import org.elasticsearch.index.parentordinals.ParentOrdinalsService;
 import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
 import org.elasticsearch.index.percolator.stats.ShardPercolateService;
 import org.elasticsearch.index.refresh.RefreshStats;
@@ -111,6 +112,8 @@ public interface IndexShard extends IndexShardComponent {
     MapperService mapperService();
 
     IndexFieldDataService indexFieldDataService();
+
+    ParentOrdinalsService parentOrdinalService();
 
     IndexService indexService();
 

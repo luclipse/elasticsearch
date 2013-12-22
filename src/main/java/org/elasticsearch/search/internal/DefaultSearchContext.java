@@ -43,7 +43,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.parentordinals.ParentOrdinalService;
+import org.elasticsearch.index.parentordinals.ParentOrdinalsService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedFilter;
 import org.elasticsearch.index.query.ParsedQuery;
@@ -433,8 +433,8 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public ParentOrdinalService parentOrdinals() {
-        return indexService.parentOrdinals();
+    public ParentOrdinalsService parentOrdinalService() {
+        return indexShard.parentOrdinalService();
     }
 
     public long timeoutInMillis() {
