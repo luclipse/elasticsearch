@@ -50,7 +50,7 @@ public class ExpandableParentOrdinals extends ParentOrdinals implements SegmentR
     private final IntArrayList ordinalUsages;
     private final double optimizeParentValuesRatio;
 
-    private volatile boolean optimizeParentValues;
+    private volatile boolean rebuild;
     private volatile int unusedOrdinals;
 
     public ExpandableParentOrdinals(ESLogger logger, double optimizeParentValuesRatio) {
@@ -79,7 +79,7 @@ public class ExpandableParentOrdinals extends ParentOrdinals implements SegmentR
             return;
         }
 
-        if (optimizeParentValues) {
+        if (rebuild) {
             return;
         }
 
@@ -107,10 +107,10 @@ public class ExpandableParentOrdinals extends ParentOrdinals implements SegmentR
 
             double unusedRatio = (unusedOrdinals / (double) parentValues.size());
             if (unusedRatio >= optimizeParentValuesRatio) {
-                logger.info("Optimizing parent ordinals on next refresh. Configured ratio [{}], actual ratio [{}]. Current parent ordinals size [{}] and unused ordinals [{}]", optimizeParentValuesRatio, unusedRatio, parentValues.size(), unusedOrdinals);
-                optimizeParentValues = true;
+                logger.info("Rebuilding parent ordinals on next refresh. Configured ratio [{}], actual ratio [{}]. Current parent ordinals size [{}] and unused ordinals [{}]", optimizeParentValuesRatio, unusedRatio, parentValues.size(), unusedOrdinals);
+                rebuild = true;
             } else {
-                logger.trace("NOT optimizing parent ordinals. Configured ratio [{}], actual ratio [{}]. Current parent ordinals size [{}] and unused ordinals [{}]", optimizeParentValuesRatio, unusedRatio, parentValues.size(), unusedOrdinals);
+                logger.trace("NOT rebuilding parent ordinals. Configured ratio [{}], actual ratio [{}]. Current parent ordinals size [{}] and unused ordinals [{}]", optimizeParentValuesRatio, unusedRatio, parentValues.size(), unusedOrdinals);
             }
         }
     }
@@ -122,7 +122,7 @@ public class ExpandableParentOrdinals extends ParentOrdinals implements SegmentR
         @Inject
         public Builder(ShardId shardId, @IndexSettings Settings indexSettings) {
             super(shardId, indexSettings);
-            this.optimizeParentValuesRatio = indexSettings.getAsDouble("index.optimize_parent_values_ratio", 0.5);
+            this.optimizeParentValuesRatio = indexSettings.getAsDouble("index.rebuild_parent_values_ratio", 0.5);
         }
 
         @Override
@@ -132,68 +132,61 @@ public class ExpandableParentOrdinals extends ParentOrdinals implements SegmentR
             }
 
             final IndexReader indexReader;
-            if (current.optimizeParentValues) {
+            if (current.rebuild) {
                 if (warmerContext.completeSearcher() == null) {
                     return current; // Invoked during a merge, we can bail b/c the normal warming will also invoke us.
                 }
                 indexReader = warmerContext.completeSearcher().reader();
-                current.optimizeParentValues = false;
-
-                // for now just clear it, but we can iterate over the existing used values and build a new br hash
-                current.parentValues.clear(false);
-                current.parentValues.reinit();
-                current.parentValues.add(new BytesRef(BytesRef.EMPTY_BYTES));
-                current.ordinalUsages.clear();
-                current.ordinalUsages.add(0);
-                current.readerToTypes.clear();
-                current.unusedOrdinals = 0;
+                current = new ExpandableParentOrdinals(logger, optimizeParentValuesRatio);
             } else {
                 indexReader = warmerContext.newSearcher().reader();
             }
 
-            for (AtomicReaderContext context : indexReader.leaves()) {
-                AtomicReader reader = context.reader();
-                if (current.readerToTypes.containsKey(reader.getCoreCacheKey())) {
-                    continue;
-                }
+            synchronized (current.readerToTypes) {
+                for (AtomicReaderContext context : indexReader.leaves()) {
+                    AtomicReader reader = context.reader();
+                    if (current.readerToTypes.containsKey(reader.getCoreCacheKey())) {
+                        continue;
+                    }
 
-                Map<String, Segment.Builder> typeToOrdinalsBuilder = new HashMap<String, Segment.Builder>();
-                MultiTermsEnum termsEnum = TermsEnums.getCompoundTermsEnum(reader, parentTypes, UidFieldMapper.NAME, ParentFieldMapper.NAME);
-                for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.next()) {
-                    String type = ((TermsEnums.ParentUidTermsEnum) termsEnum.getMatchArray()[0].terms).type();
-                    BytesRef id = ((TermsEnums.ParentUidTermsEnum) termsEnum.getMatchArray()[0].terms).id();
-                    int ordinal = current.parentValues.add(id);
-                    if (ordinal < 0) {
-                        ordinal = -ordinal - 1;
-                        int usage = current.ordinalUsages.get(ordinal);
-                        if (usage == 0) {
-                            current.unusedOrdinals--;
+                    Map<String, Segment.Builder> typeToOrdinalsBuilder = new HashMap<String, Segment.Builder>();
+                    MultiTermsEnum termsEnum = TermsEnums.getCompoundTermsEnum(reader, parentTypes, UidFieldMapper.NAME, ParentFieldMapper.NAME);
+                    for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.next()) {
+                        String type = ((TermsEnums.ParentUidTermsEnum) termsEnum.getMatchArray()[0].terms).type();
+                        BytesRef id = ((TermsEnums.ParentUidTermsEnum) termsEnum.getMatchArray()[0].terms).id();
+                        int ordinal = current.parentValues.add(id);
+                        if (ordinal < 0) {
+                            ordinal = -ordinal - 1;
+                            int usage = current.ordinalUsages.get(ordinal);
+                            if (usage == 0) {
+                                current.unusedOrdinals--;
+                            }
+                            current.ordinalUsages.set(ordinal, ++usage);
+                        } else {
+                            current.ordinalUsages.add(1);
                         }
-                        current.ordinalUsages.set(ordinal, ++usage);
-                    } else {
-                        current.ordinalUsages.add(1);
+
+                        Segment.Builder builder = typeToOrdinalsBuilder.get(type);
+                        if (builder == null) {
+                            typeToOrdinalsBuilder.put(type, builder = new Segment.Builder(reader.maxDoc()));
+                        }
+
+                        DocsEnum docsEnum = termsEnum.docs(null, null, DocsEnum.FLAG_NONE);
+                        for (int docId = docsEnum.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
+                            builder.set(docId, ordinal);
+                        }
                     }
 
-                    Segment.Builder builder = typeToOrdinalsBuilder.get(type);
-                    if (builder == null) {
-                        typeToOrdinalsBuilder.put(type, builder = new Segment.Builder(reader.maxDoc()));
+                    Map<String, Segment> typeToOrdinals = new HashMap<String, Segment>();
+                    for (Map.Entry<String, Segment.Builder> entry : typeToOrdinalsBuilder.entrySet()) {
+                        typeToOrdinals.put(entry.getKey(), entry.getValue().build());
                     }
 
-                    DocsEnum docsEnum = termsEnum.docs(null, null, DocsEnum.FLAG_NONE);
-                    for (int docId = docsEnum.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
-                        builder.set(docId, ordinal);
+                    if (reader instanceof SegmentReader) {
+                        ((SegmentReader) reader).addCoreClosedListener(current);
                     }
+                    current.readerToTypes.put(reader.getCoreCacheKey(), typeToOrdinals);
                 }
-
-                Map<String, Segment> typeToOrdinals = new HashMap<String, Segment>();
-                for (Map.Entry<String, Segment.Builder> entry : typeToOrdinalsBuilder.entrySet()) {
-                    typeToOrdinals.put(entry.getKey(), entry.getValue().build());
-                }
-
-                if (reader instanceof SegmentReader) {
-                    ((SegmentReader) reader).addCoreClosedListener(current);
-                }
-                current.readerToTypes.put(reader.getCoreCacheKey(), typeToOrdinals);
             }
 
             return current;

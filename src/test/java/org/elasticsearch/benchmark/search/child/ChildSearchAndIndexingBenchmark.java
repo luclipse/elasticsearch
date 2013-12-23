@@ -164,7 +164,7 @@ public class ChildSearchAndIndexingBenchmark {
                         bulkRequest.add(client.prepareIndex(indexName, "parent", Long.toString(id))
                                 .setSource("delete", "me"));
                         Thread.sleep(100);
-                        if (i % 1000 == 0) {
+                        if (i % 100 == 0) {
                             bulkRequest.get();
                             bulkRequest = client.prepareBulk();
                             long refreshStart = System.currentTimeMillis();
