@@ -18,42 +18,48 @@
  */
 package org.elasticsearch.index.search.child;
 
-import java.io.IOException;
-
 import org.apache.lucene.index.AtomicReaderContext;
-import org.elasticsearch.common.bytes.HashedBytesArray;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.search.NoopCollector;
-import org.elasticsearch.index.cache.id.IdReaderTypeCache;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.index.fielddata.BytesValues;
+import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
+
+import java.io.IOException;
 
 /**
  * A simple collector that only collects if the docs parent ID is not
  * <code>null</code>
  */
 abstract class ParentIdCollector extends NoopCollector {
-    protected final String type;
-    protected final SearchContext context;
-    private IdReaderTypeCache typeCache;
 
-    protected ParentIdCollector(String parentType, SearchContext context) {
-        this.type = parentType;
-        this.context = context;
+    protected final String parentType;
+    private final ParentChildIndexFieldData indexFieldData;
+
+    private BytesValues values;
+
+    protected ParentIdCollector(String parentType, ParentChildIndexFieldData indexFieldData) {
+        this.parentType = parentType;
+        this.indexFieldData = indexFieldData;
     }
 
     @Override
     public final void collect(int doc) throws IOException {
-        if (typeCache != null) {
-            HashedBytesArray parentIdByDoc = typeCache.parentIdByDoc(doc);
-            if (parentIdByDoc != null) {
-               collect(doc, parentIdByDoc);
+        if (values != null) {
+            int numValues = values.setDocument(doc);
+            if (numValues == 1) {
+                BytesRef parentId = values.nextValue();
+                int hash = values.currentValueHash();
+                collect(doc, parentId, hash);
+            } else {
+                assert numValues == 0;
             }
         }
     }
     
-    protected abstract void collect(int doc, HashedBytesArray parentId) throws IOException;
+    protected abstract void collect(int doc, BytesRef parentId, int hash) throws IOException;
 
     @Override
-    public void setNextReader(AtomicReaderContext readerContext) throws IOException {
-        typeCache = context.idCache().reader(readerContext.reader()).type(type);
+    public void setNextReader(AtomicReaderContext context) throws IOException {
+        values = indexFieldData.load(context).getBytesValues(true, parentType);
     }
 }

@@ -18,22 +18,22 @@
  */
 package org.elasticsearch.index.search.child;
 
-import com.carrotsearch.hppc.ObjectOpenHashSet;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.search.ApplyAcceptedDocsFilter;
 import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.index.cache.id.IdReaderTypeCache;
+import org.elasticsearch.index.fielddata.BytesValues;
+import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
+import org.elasticsearch.search.aggregations.bucket.BytesRefHash;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -44,6 +44,7 @@ import java.util.Set;
  */
 public class ParentConstantScoreQuery extends Query {
 
+    private final ParentChildIndexFieldData parentChildIndexFieldData;
     private final Query originalParentQuery;
     private final String parentType;
     private final Filter childrenFilter;
@@ -51,7 +52,8 @@ public class ParentConstantScoreQuery extends Query {
     private Query rewrittenParentQuery;
     private IndexReader rewriteIndexReader;
 
-    public ParentConstantScoreQuery(Query parentQuery, String parentType, Filter childrenFilter) {
+    public ParentConstantScoreQuery(ParentChildIndexFieldData parentChildIndexFieldData, Query parentQuery, String parentType, Filter childrenFilter) {
+        this.parentChildIndexFieldData = parentChildIndexFieldData;
         this.originalParentQuery = parentQuery;
         this.parentType = parentType;
         this.childrenFilter = childrenFilter;
@@ -75,9 +77,9 @@ public class ParentConstantScoreQuery extends Query {
     @Override
     public Weight createWeight(IndexSearcher searcher) throws IOException {
         SearchContext searchContext = SearchContext.current();
-        searchContext.idCache().refresh(searcher.getTopReaderContext().leaves());
-        Recycler.V<ObjectOpenHashSet<HashedBytesArray>> parents = searchContext.cacheRecycler().hashSet(-1);
-        ParentUidsCollector collector = new ParentUidsCollector(parents.v(), searchContext, parentType);
+        // TODO: is 50 a good initial capacity?
+        BytesRefHash parentIds = new BytesRefHash(50, searchContext.pageCacheRecycler());
+        ParentUidsCollector collector = new ParentUidsCollector(parentType, parentChildIndexFieldData, parentIds);
 
         final Query parentQuery;
         if (rewrittenParentQuery != null) {
@@ -89,11 +91,11 @@ public class ParentConstantScoreQuery extends Query {
         IndexSearcher indexSearcher = new IndexSearcher(searcher.getIndexReader());
         indexSearcher.search(parentQuery, collector);
 
-        if (parents.v().isEmpty()) {
+        if (parentIds.size() == 0) {
             return Queries.newMatchNoDocsQuery().createWeight(searcher);
         }
 
-        ChildrenWeight childrenWeight = new ChildrenWeight(childrenFilter, searchContext, parents);
+        ChildrenWeight childrenWeight = new ChildrenWeight(childrenFilter, parentIds);
         searchContext.addReleasable(childrenWeight);
         return childrenWeight;
     }
@@ -101,16 +103,14 @@ public class ParentConstantScoreQuery extends Query {
     private final class ChildrenWeight extends Weight implements Releasable {
 
         private final Filter childrenFilter;
-        private final SearchContext searchContext;
-        private final Recycler.V<ObjectOpenHashSet<HashedBytesArray>> parents;
+        private final BytesRefHash parentIds;
 
         private float queryNorm;
         private float queryWeight;
 
-        private ChildrenWeight(Filter childrenFilter, SearchContext searchContext, Recycler.V<ObjectOpenHashSet<HashedBytesArray>> parents) {
+        private ChildrenWeight(Filter childrenFilter, BytesRefHash parentIds) {
             this.childrenFilter = new ApplyAcceptedDocsFilter(childrenFilter);
-            this.searchContext = searchContext;
-            this.parents = parents;
+            this.parentIds = parentIds;
         }
 
         @Override
@@ -142,11 +142,11 @@ public class ParentConstantScoreQuery extends Query {
                 return null;
             }
 
-            IdReaderTypeCache idReaderTypeCache = searchContext.idCache().reader(context.reader()).type(parentType);
-            if (idReaderTypeCache != null) {
+            BytesValues bytesValues = parentChildIndexFieldData.load(context).getBytesValues(true, parentType);
+            if (bytesValues != null) {
                 DocIdSetIterator innerIterator = childrenDocIdSet.iterator();
                 if (innerIterator != null) {
-                    ChildrenDocIdIterator childrenDocIdIterator = new ChildrenDocIdIterator(innerIterator, parents.v(), idReaderTypeCache);
+                    ChildrenDocIdIterator childrenDocIdIterator = new ChildrenDocIdIterator(innerIterator, parentIds, bytesValues);
                     return ConstantScorer.create(childrenDocIdIterator, this, queryWeight);
                 }
             }
@@ -155,24 +155,32 @@ public class ParentConstantScoreQuery extends Query {
 
         @Override
         public boolean release() throws ElasticsearchException {
-            Releasables.release(parents);
+            Releasables.release(parentIds);
             return true;
         }
 
         private final class ChildrenDocIdIterator extends FilteredDocIdSetIterator {
 
-            private final ObjectOpenHashSet<HashedBytesArray> parents;
-            private final IdReaderTypeCache idReaderTypeCache;
+            private final BytesRefHash parentIds;
+            private final BytesValues bytesValues;
 
-            ChildrenDocIdIterator(DocIdSetIterator innerIterator, ObjectOpenHashSet<HashedBytesArray> parents, IdReaderTypeCache idReaderTypeCache) {
+            ChildrenDocIdIterator(DocIdSetIterator innerIterator, BytesRefHash parentIds, BytesValues bytesValues) {
                 super(innerIterator);
-                this.parents = parents;
-                this.idReaderTypeCache = idReaderTypeCache;
+                this.parentIds = parentIds;
+                this.bytesValues = bytesValues;
             }
 
             @Override
             protected boolean match(int doc) {
-                return parents.contains(idReaderTypeCache.parentIdByDoc(doc));
+                int numValues = bytesValues.setDocument(doc);
+                if (numValues == 1) {
+                    BytesRef parentId = bytesValues.nextValue();
+                    int hash = bytesValues.currentValueHash();
+                    return parentIds.find(parentId, hash) >= 0;
+                } else {
+                    assert numValues == 0;
+                    return false;
+                }
             }
 
         }
@@ -180,28 +188,35 @@ public class ParentConstantScoreQuery extends Query {
 
     private final static class ParentUidsCollector extends NoopCollector {
 
-        private final ObjectOpenHashSet<HashedBytesArray> collectedUids;
-        private final SearchContext context;
+        private final BytesRefHash parentIds;
+        private final ParentChildIndexFieldData indexFieldData;
         private final String parentType;
 
-        private IdReaderTypeCache typeCache;
+        private BytesValues values;
 
-        ParentUidsCollector(ObjectOpenHashSet<HashedBytesArray> collectedUids, SearchContext context, String parentType) {
-            this.collectedUids = collectedUids;
-            this.context = context;
+        ParentUidsCollector(String parentType, ParentChildIndexFieldData indexFieldData, BytesRefHash parentIds) {
+            this.parentIds = parentIds;
+            this.indexFieldData = indexFieldData;
             this.parentType = parentType;
         }
 
         public void collect(int doc) throws IOException {
             // It can happen that for particular segment no document exist for an specific type. This prevents NPE
-            if (typeCache != null) {
-                collectedUids.add(typeCache.idByDoc(doc));
+            if (values != null) {
+                int numValues = values.setDocument(doc);
+                if (numValues == 1) {
+                    BytesRef parentId = values.nextValue();
+                    int hash = values.currentValueHash();
+                    parentIds.add(parentId, hash);
+                } else {
+                    assert numValues == 0;
+                }
             }
         }
 
         @Override
         public void setNextReader(AtomicReaderContext readerContext) throws IOException {
-            typeCache = context.idCache().reader(readerContext.reader()).type(parentType);
+            values = indexFieldData.load(readerContext).getBytesValues(true, parentType);
         }
     }
 

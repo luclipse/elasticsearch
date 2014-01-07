@@ -1,13 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed to Elastic Search and Shay Banon under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. Elastic Search licenses this
+ * file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,9 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.index.search.child;
 
-import com.carrotsearch.hppc.ObjectOpenHashSet;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
@@ -27,16 +27,16 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.search.ApplyAcceptedDocsFilter;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.index.cache.id.IdReaderTypeCache;
+import org.elasticsearch.index.fielddata.BytesValues;
+import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.search.aggregations.bucket.BytesRefHash;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -47,6 +47,7 @@ import java.util.Set;
  */
 public class ChildrenConstantScoreQuery extends Query {
 
+    private final ParentChildIndexFieldData parentChildIndexFieldData;
     private final Query originalChildQuery;
     private final String parentType;
     private final String childType;
@@ -57,7 +58,8 @@ public class ChildrenConstantScoreQuery extends Query {
     private Query rewrittenChildQuery;
     private IndexReader rewriteIndexReader;
 
-    public ChildrenConstantScoreQuery(Query childQuery, String parentType, String childType, Filter parentFilter, int shortCircuitParentDocSet, Filter nonNestedDocsFilter) {
+    public ChildrenConstantScoreQuery(ParentChildIndexFieldData parentChildIndexFieldData, Query childQuery, String parentType, String childType, Filter parentFilter, int shortCircuitParentDocSet, Filter nonNestedDocsFilter) {
+        this.parentChildIndexFieldData = parentChildIndexFieldData;
         this.parentFilter = parentFilter;
         this.parentType = parentType;
         this.childType = childType;
@@ -84,9 +86,9 @@ public class ChildrenConstantScoreQuery extends Query {
     @Override
     public Weight createWeight(IndexSearcher searcher) throws IOException {
         SearchContext searchContext = SearchContext.current();
-        searchContext.idCache().refresh(searcher.getTopReaderContext().leaves());
-        Recycler.V<ObjectOpenHashSet<HashedBytesArray>> collectedUids = searchContext.cacheRecycler().hashSet(-1);
-        UidCollector collector = new UidCollector(parentType, searchContext, collectedUids.v());
+        // TODO: is 50 a good initial capacity?
+        BytesRefHash parentIds = new BytesRefHash(50, searchContext.pageCacheRecycler());
+        UidCollector collector = new UidCollector(parentType, parentChildIndexFieldData, parentIds);
         final Query childQuery;
         if (rewrittenChildQuery == null) {
             childQuery = rewrittenChildQuery = searcher.rewrite(originalChildQuery);
@@ -97,20 +99,20 @@ public class ChildrenConstantScoreQuery extends Query {
         IndexSearcher indexSearcher = new IndexSearcher(searcher.getIndexReader());
         indexSearcher.search(childQuery, collector);
 
-        int remaining = collectedUids.v().size();
+        long remaining = parentIds.size();
         if (remaining == 0) {
             return Queries.newMatchNoDocsQuery().createWeight(searcher);
         }
 
         Filter shortCircuitFilter = null;
         if (remaining == 1) {
-            BytesRef id = collectedUids.v().iterator().next().value.toBytesRef();
+            BytesRef id = parentIds.get(0, new BytesRef());
             shortCircuitFilter = new TermFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id)));
         } else if (remaining <= shortCircuitParentDocSet) {
-            shortCircuitFilter = new ParentIdsFilter(parentType, collectedUids.v().keys, collectedUids.v().allocated, nonNestedDocsFilter);
+            shortCircuitFilter = ParentIdsFilter.a(parentType, nonNestedDocsFilter, parentIds);
         }
 
-        ParentWeight parentWeight = new ParentWeight(parentFilter, shortCircuitFilter, searchContext, collectedUids);
+        ParentWeight parentWeight = new ParentWeight(parentFilter, shortCircuitFilter, searchContext, parentIds);
         searchContext.addReleasable(parentWeight);
         return parentWeight;
     }
@@ -120,18 +122,18 @@ public class ChildrenConstantScoreQuery extends Query {
         private final Filter parentFilter;
         private final Filter shortCircuitFilter;
         private final SearchContext searchContext;
-        private final Recycler.V<ObjectOpenHashSet<HashedBytesArray>> collectedUids;
+        private final BytesRefHash parentIds;
 
-        private int remaining;
+        private long remaining;
         private float queryNorm;
         private float queryWeight;
 
-        public ParentWeight(Filter parentFilter, Filter shortCircuitFilter, SearchContext searchContext, Recycler.V<ObjectOpenHashSet<HashedBytesArray>> collectedUids) {
+        public ParentWeight(Filter parentFilter, Filter shortCircuitFilter, SearchContext searchContext, BytesRefHash parentIds) {
             this.parentFilter = new ApplyAcceptedDocsFilter(parentFilter);
             this.shortCircuitFilter = shortCircuitFilter;
             this.searchContext = searchContext;
-            this.collectedUids = collectedUids;
-            this.remaining = collectedUids.v().size();
+            this.parentIds = parentIds;
+            this.remaining = parentIds.size();
         }
 
         @Override
@@ -175,14 +177,14 @@ public class ChildrenConstantScoreQuery extends Query {
 
             DocIdSet parentDocIdSet = this.parentFilter.getDocIdSet(context, acceptDocs);
             if (!DocIdSets.isEmpty(parentDocIdSet)) {
-                IdReaderTypeCache idReaderTypeCache = searchContext.idCache().reader(context.reader()).type(parentType);
+                BytesValues bytesValues = parentChildIndexFieldData.load(context).getBytesValues(true, parentType);
                 // We can't be sure of the fact that liveDocs have been applied, so we apply it here. The "remaining"
                 // count down (short circuit) logic will then work as expected.
                 parentDocIdSet = BitsFilteredDocIdSet.wrap(parentDocIdSet, context.reader().getLiveDocs());
-                if (idReaderTypeCache != null) {
+                if (bytesValues != null) {
                     DocIdSetIterator innerIterator = parentDocIdSet.iterator();
                     if (innerIterator != null) {
-                        ParentDocIdIterator parentDocIdIterator = new ParentDocIdIterator(innerIterator, collectedUids.v(), idReaderTypeCache);
+                        ParentDocIdIterator parentDocIdIterator = new ParentDocIdIterator(innerIterator, parentIds, bytesValues);
                         return ConstantScorer.create(parentDocIdIterator, this, queryWeight);
                     }
                 }
@@ -192,19 +194,19 @@ public class ChildrenConstantScoreQuery extends Query {
 
         @Override
         public boolean release() throws ElasticsearchException {
-            Releasables.release(collectedUids);
+            Releasables.release(parentIds);
             return true;
         }
 
         private final class ParentDocIdIterator extends FilteredDocIdSetIterator {
 
-            private final ObjectOpenHashSet<HashedBytesArray> parents;
-            private final IdReaderTypeCache typeCache;
+            private final BytesRefHash parentIds;
+            private final BytesValues values;
 
-            private ParentDocIdIterator(DocIdSetIterator innerIterator, ObjectOpenHashSet<HashedBytesArray> parents, IdReaderTypeCache typeCache) {
+            private ParentDocIdIterator(DocIdSetIterator innerIterator, BytesRefHash parentIds, BytesValues values) {
                 super(innerIterator);
-                this.parents = parents;
-                this.typeCache = typeCache;
+                this.parentIds = parentIds;
+                this.values = values;
             }
 
             @Override
@@ -218,29 +220,36 @@ public class ChildrenConstantScoreQuery extends Query {
                     return false;
                 }
 
-                boolean match = parents.contains(typeCache.idByDoc(doc));
-                if (match) {
-                    remaining--;
+                int numValues = values.setDocument(doc);
+                if (numValues == 1) {
+                    BytesRef parentId = values.nextValue();
+                    int hash = values.currentValueHash();
+                    boolean match = parentIds.find(parentId, hash) >= 0;
+                    if (match) {
+                        remaining--;
+                    }
+                    return match;
+                } else {
+                    assert numValues == 0;
+                    return false;
                 }
-                return match;
             }
         }
     }
 
     private final static class UidCollector extends ParentIdCollector {
 
-        private final ObjectOpenHashSet<HashedBytesArray> collectedUids;
+        private final BytesRefHash parentIds;
 
-        UidCollector(String parentType, SearchContext context, ObjectOpenHashSet<HashedBytesArray> collectedUids) {
-            super(parentType, context);
-            this.collectedUids = collectedUids;
+        private UidCollector(String parentType, ParentChildIndexFieldData indexFieldData, BytesRefHash parentIds) {
+            super(parentType, indexFieldData);
+            this.parentIds = parentIds;
         }
 
         @Override
-        public void collect(int doc, HashedBytesArray parentIdByDoc) {
-            collectedUids.add(parentIdByDoc);
+        protected void collect(int doc, BytesRef parentId, int hash) throws IOException {
+            parentIds.add(parentId, hash);
         }
-
     }
 
     @Override

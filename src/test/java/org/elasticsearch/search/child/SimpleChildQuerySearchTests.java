@@ -2069,7 +2069,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         try {
             client().prepareSearch("test")
                     .setQuery(hasChildQuery("child", termQuery("c_field", "1")))
-                    .execute().actionGet();
+                    .get();
             fail();
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
@@ -2078,7 +2078,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         try {
             client().prepareSearch("test")
                     .setQuery(hasChildQuery("child", termQuery("c_field", "1")).scoreType("max"))
-                    .execute().actionGet();
+                    .get();
             fail();
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
@@ -2087,7 +2087,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         try {
             client().prepareSearch("test")
                     .setPostFilter(hasChildFilter("child", termQuery("c_field", "1")))
-                    .execute().actionGet();
+                    .get();
             fail();
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
@@ -2096,19 +2096,29 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         try {
             client().prepareSearch("test")
                     .setQuery(topChildrenQuery("child", termQuery("c_field", "1")).score("max"))
-                    .execute().actionGet();
+                    .get();
             fail();
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
         }
 
-        // can't fail, because there is no check, this b/c parent type can be refered by many child types.
-        client().prepareSearch("test")
-                .setQuery(hasParentQuery("parent", termQuery("p_field", "1")).scoreType("score"))
-                .execute().actionGet();
-        client().prepareSearch("test")
-                .setPostFilter(hasParentFilter("parent", termQuery("p_field", "1")))
-                .execute().actionGet();
+        try {
+            client().prepareSearch("test")
+                    .setQuery(hasParentQuery("parent", termQuery("p_field", "1")).scoreType("score"))
+                    .get();
+            fail();
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        }
+
+        try {
+            client().prepareSearch("test")
+                    .setPostFilter(hasParentFilter("parent", termQuery("p_field", "1")))
+                    .get();
+            fail();
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        }
     }
 
     @Test

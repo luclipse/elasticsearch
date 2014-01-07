@@ -146,7 +146,7 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
 
     @Override
     public FieldDataType defaultFieldDataType() {
-        return new FieldDataType("string");
+        return new FieldDataType("_parent");
     }
 
     @Override

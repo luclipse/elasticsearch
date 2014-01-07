@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.*;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.service.IndexService;
@@ -67,6 +68,7 @@ public class IndexFieldDataService extends AbstractIndexComponent {
                 .put("int", new PackedArrayIndexFieldData.Builder().setNumericType(IndexNumericFieldData.NumericType.INT))
                 .put("long", new PackedArrayIndexFieldData.Builder().setNumericType(IndexNumericFieldData.NumericType.LONG))
                 .put("geo_point", new GeoPointDoubleArrayIndexFieldData.Builder())
+                .put("_parent", new ParentChildIndexFieldData.Builder())
                 .immutableMap();
 
         docValuesBuildersByType = MapBuilder.<String, IndexFieldData.Builder>newMapBuilder()
@@ -235,7 +237,7 @@ public class IndexFieldDataService extends AbstractIndexComponent {
                         fieldDataCaches.put(fieldNames.indexName(), cache);
                     }
 
-                    fieldData = builder.build(index, indexSettings, mapper, cache, circuitBreakerService);
+                    fieldData = builder.build(index, indexSettings, mapper, cache, circuitBreakerService, indexService.mapperService());
                     loadedFieldData.put(fieldNames.indexName(), fieldData);
                 }
             }

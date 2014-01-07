@@ -26,15 +26,17 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.ToStringUtils;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.search.ApplyAcceptedDocsFilter;
 import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
+import org.elasticsearch.index.fielddata.BytesValues;
+import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -47,6 +49,7 @@ import java.util.Set;
  */
 public class ParentQuery extends Query {
 
+    private final ParentChildIndexFieldData parentChildIndexFieldData;
     private final Query originalParentQuery;
     private final String parentType;
     private final Filter childrenFilter;
@@ -54,7 +57,8 @@ public class ParentQuery extends Query {
     private Query rewrittenParentQuery;
     private IndexReader rewriteIndexReader;
 
-    public ParentQuery(Query parentQuery, String parentType, Filter childrenFilter) {
+    public ParentQuery(ParentChildIndexFieldData parentChildIndexFieldData, Query parentQuery, String parentType, Filter childrenFilter) {
+        this.parentChildIndexFieldData = parentChildIndexFieldData;
         this.originalParentQuery = parentQuery;
         this.parentType = parentType;
         this.childrenFilter = childrenFilter;
@@ -117,9 +121,8 @@ public class ParentQuery extends Query {
     @Override
     public Weight createWeight(IndexSearcher searcher) throws IOException {
         SearchContext searchContext = SearchContext.current();
-        searchContext.idCache().refresh(searchContext.searcher().getTopReaderContext().leaves());
-        Recycler.V<ObjectFloatOpenHashMap<HashedBytesArray>> uidToScore = searchContext.cacheRecycler().objectFloatMap(-1);
-        ParentUidCollector collector = new ParentUidCollector(uidToScore.v(), searchContext, parentType);
+        Recycler.V<ObjectFloatOpenHashMap<HashedBytesRef>> uidToScore = searchContext.cacheRecycler().objectFloatMap(-1);
+        ParentUidCollector collector = new ParentUidCollector(uidToScore.v(), parentChildIndexFieldData, parentType);
 
         final Query parentQuery;
         if (rewrittenParentQuery == null) {
@@ -136,34 +139,42 @@ public class ParentQuery extends Query {
             return Queries.newMatchNoDocsQuery().createWeight(searcher);
         }
 
-        ChildWeight childWeight = new ChildWeight(parentQuery.createWeight(searcher), childrenFilter, searchContext, uidToScore);
+        ChildWeight childWeight = new ChildWeight(parentQuery.createWeight(searcher), childrenFilter, uidToScore);
         searchContext.addReleasable(childWeight);
         return childWeight;
     }
 
     private static class ParentUidCollector extends NoopCollector {
 
-        private final ObjectFloatOpenHashMap<HashedBytesArray> uidToScore;
-        private final SearchContext searchContext;
+        private final ObjectFloatOpenHashMap<HashedBytesRef> uidToScore;
+        private final ParentChildIndexFieldData indexFieldData;
         private final String parentType;
+        private final HashedBytesRef spare = new HashedBytesRef();
 
         private Scorer scorer;
-        private IdReaderTypeCache typeCache;
+        private BytesValues values;
 
-        ParentUidCollector(ObjectFloatOpenHashMap<HashedBytesArray> uidToScore, SearchContext searchContext, String parentType) {
+        ParentUidCollector(ObjectFloatOpenHashMap<HashedBytesRef> uidToScore, ParentChildIndexFieldData indexFieldData, String parentType) {
             this.uidToScore = uidToScore;
-            this.searchContext = searchContext;
+            this.indexFieldData = indexFieldData;
             this.parentType = parentType;
         }
 
         @Override
         public void collect(int doc) throws IOException {
-            if (typeCache == null) {
-                return;
+            // It can happen that for particular segment no document exist for an specific type. This prevents NPE
+            if (values != null) {
+                int numValues = values.setDocument(doc);
+                if (numValues == 1) {
+                    spare.bytes = values.nextValue();
+                    spare.hash = values.currentValueHash();
+                    if (!uidToScore.containsKey(spare)) {
+                        uidToScore.put(spare.deepCopy(), scorer.score());
+                    }
+                } else {
+                    assert numValues == 0;
+                }
             }
-
-            HashedBytesArray parentUid = typeCache.idByDoc(doc);
-            uidToScore.put(parentUid, scorer.score());
         }
 
         @Override
@@ -173,7 +184,7 @@ public class ParentQuery extends Query {
 
         @Override
         public void setNextReader(AtomicReaderContext context) throws IOException {
-            typeCache = searchContext.idCache().reader(context.reader()).type(parentType);
+            values = indexFieldData.load(context).getBytesValues(true, parentType);
         }
     }
 
@@ -181,13 +192,11 @@ public class ParentQuery extends Query {
 
         private final Weight parentWeight;
         private final Filter childrenFilter;
-        private final SearchContext searchContext;
-        private final Recycler.V<ObjectFloatOpenHashMap<HashedBytesArray>> uidToScore;
+        private final Recycler.V<ObjectFloatOpenHashMap<HashedBytesRef>> uidToScore;
 
-        private ChildWeight(Weight parentWeight, Filter childrenFilter, SearchContext searchContext, Recycler.V<ObjectFloatOpenHashMap<HashedBytesArray>> uidToScore) {
+        private ChildWeight(Weight parentWeight, Filter childrenFilter, Recycler.V<ObjectFloatOpenHashMap<HashedBytesRef>> uidToScore) {
             this.parentWeight = parentWeight;
             this.childrenFilter = new ApplyAcceptedDocsFilter(childrenFilter);
-            this.searchContext = searchContext;
             this.uidToScore = uidToScore;
         }
 
@@ -218,12 +227,12 @@ public class ParentQuery extends Query {
             if (DocIdSets.isEmpty(childrenDocSet)) {
                 return null;
             }
-            IdReaderTypeCache idTypeCache = searchContext.idCache().reader(context.reader()).type(parentType);
-            if (idTypeCache == null) {
+            BytesValues bytesValues = parentChildIndexFieldData.load(context).getBytesValues(true, parentType);
+            if (bytesValues == null) {
                 return null;
             }
 
-            return new ChildScorer(this, uidToScore.v(), childrenDocSet.iterator(), idTypeCache);
+            return new ChildScorer(this, uidToScore.v(), childrenDocSet.iterator(), bytesValues);
         }
 
         @Override
@@ -235,18 +244,19 @@ public class ParentQuery extends Query {
 
     private static class ChildScorer extends Scorer {
 
-        private final ObjectFloatOpenHashMap<HashedBytesArray> uidToScore;
+        private final ObjectFloatOpenHashMap<HashedBytesRef> uidToScore;
         private final DocIdSetIterator childrenIterator;
-        private final IdReaderTypeCache typeCache;
+        private final BytesValues bytesValues;
+        private final HashedBytesRef spare = new HashedBytesRef();
 
         private int currentChildDoc = -1;
         private float currentScore;
 
-        ChildScorer(Weight weight, ObjectFloatOpenHashMap<HashedBytesArray> uidToScore, DocIdSetIterator childrenIterator, IdReaderTypeCache typeCache) {
+        ChildScorer(Weight weight, ObjectFloatOpenHashMap<HashedBytesRef> uidToScore, DocIdSetIterator childrenIterator, BytesValues bytesValues) {
             super(weight);
             this.uidToScore = uidToScore;
             this.childrenIterator = childrenIterator;
-            this.typeCache = typeCache;
+            this.bytesValues = bytesValues;
         }
 
         @Override
@@ -274,14 +284,17 @@ public class ParentQuery extends Query {
                     return currentChildDoc;
                 }
 
-                HashedBytesArray uid = typeCache.parentIdByDoc(currentChildDoc);
-                if (uid == null) {
-                    continue;
-                }
-                if (uidToScore.containsKey(uid)) {
-                    // Can use lget b/c uidToScore is only used by one thread at the time (via CacheRecycler)
-                    currentScore = uidToScore.lget();
-                    return currentChildDoc;
+                int numValues = bytesValues.setDocument(currentChildDoc);
+                if (numValues == 1) {
+                    spare.bytes = bytesValues.nextValue();
+                    spare.hash = bytesValues.currentValueHash();
+                    if (uidToScore.containsKey(spare)) {
+                        // Can use lget b/c uidToScore is only used by one thread at the time (via CacheRecycler)
+                        currentScore = uidToScore.lget();
+                        return currentChildDoc;
+                    }
+                } else {
+                    assert numValues == 0;
                 }
             }
         }
@@ -292,16 +305,20 @@ public class ParentQuery extends Query {
             if (currentChildDoc == DocIdSetIterator.NO_MORE_DOCS) {
                 return currentChildDoc;
             }
-            HashedBytesArray uid = typeCache.parentIdByDoc(currentChildDoc);
-            if (uid == null) {
-                return nextDoc();
-            }
 
-            if (uidToScore.containsKey(uid)) {
-                // Can use lget b/c uidToScore is only used by one thread at the time (via CacheRecycler)
-                currentScore = uidToScore.lget();
-                return currentChildDoc;
+            int numValues = bytesValues.setDocument(currentChildDoc);
+            if (numValues == 1) {
+                spare.bytes = bytesValues.nextValue();
+                spare.hash = bytesValues.currentValueHash();
+                if (uidToScore.containsKey(spare)) {
+                    // Can use lget b/c uidToScore is only used by one thread at the time (via CacheRecycler)
+                    currentScore = uidToScore.lget();
+                    return currentChildDoc;
+                } else {
+                    return nextDoc();
+                }
             } else {
+                assert numValues == 0;
                 return nextDoc();
             }
         }
