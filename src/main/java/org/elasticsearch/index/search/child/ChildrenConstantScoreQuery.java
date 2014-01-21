@@ -221,18 +221,14 @@ public class ChildrenConstantScoreQuery extends Query {
                 }
 
                 int numValues = values.setDocument(doc);
-                if (numValues == 1) {
-                    BytesRef parentId = values.nextValue();
-                    int hash = values.currentValueHash();
-                    boolean match = parentIds.find(parentId, hash) >= 0;
-                    if (match) {
-                        remaining--;
-                    }
-                    return match;
-                } else {
-                    assert numValues == 0;
-                    return false;
+                assert numValues == 1;
+                BytesRef parentId = values.nextValue();
+                int hash = values.currentValueHash();
+                boolean match = parentIds.find(parentId, hash) >= 0;
+                if (match) {
+                    remaining--;
                 }
+                return match;
             }
         }
     }

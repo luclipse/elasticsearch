@@ -314,17 +314,14 @@ public class ChildrenQuery extends Query {
                     }
 
                     int numValues = bytesValues.setDocument(currentDocId);
-                    if (numValues == 1) {
-                        spare.bytes = bytesValues.nextValue();
-                        spare.hash = bytesValues.currentValueHash();
-                        if (uidToScore.containsKey(spare)) {
-                            // Can use lget b/c uidToScore is only used by one thread at the time (via CacheRecycler)
-                            currentScore = uidToScore.lget();
-                            remaining--;
-                            return currentDocId;
-                        }
-                    } else {
-                        assert numValues == 0;
+                    assert numValues == 1;
+                    spare.bytes = bytesValues.nextValue();
+                    spare.hash = bytesValues.currentValueHash();
+                    if (uidToScore.containsKey(spare)) {
+                        // Can use lget b/c uidToScore is only used by one thread at the time (via CacheRecycler)
+                        currentScore = uidToScore.lget();
+                        remaining--;
+                        return currentDocId;
                     }
                 }
             }
@@ -341,19 +338,15 @@ public class ChildrenQuery extends Query {
                 }
 
                 int numValues = bytesValues.setDocument(currentDocId);
-                if (numValues == 1) {
-                    spare.bytes = bytesValues.nextValue();
-                    spare.hash = bytesValues.currentValueHash();
-                    if (uidToScore.containsKey(spare)) {
-                        // Can use lget b/c uidToScore is only used by one thread at the time (via CacheRecycler)
-                        currentScore = uidToScore.lget();
-                        remaining--;
-                        return currentDocId;
-                    } else {
-                        return nextDoc();
-                    }
+                assert numValues == 1;
+                spare.bytes = bytesValues.nextValue();
+                spare.hash = bytesValues.currentValueHash();
+                if (uidToScore.containsKey(spare)) {
+                    // Can use lget b/c uidToScore is only used by one thread at the time (via CacheRecycler)
+                    currentScore = uidToScore.lget();
+                    remaining--;
+                    return currentDocId;
                 } else {
-                    assert numValues == 0;
                     return nextDoc();
                 }
             }
@@ -386,18 +379,15 @@ public class ChildrenQuery extends Query {
                     }
 
                     int numValues = bytesValues.setDocument(currentDocId);
-                    if (numValues == 1) {
-                        spare.bytes = bytesValues.nextValue();
-                        spare.hash = bytesValues.currentValueHash();
-                        if (uidToScore.containsKey(spare)) {
-                            // Can use lget b/c uidToScore is only used by one thread at the time (via CacheRecycler)
-                            currentScore = uidToScore.lget();
-                            currentScore /= uidToCount.get(spare);
-                            remaining--;
-                            return currentDocId;
-                        }
-                    } else {
-                        assert numValues == 0;
+                    assert numValues == 1;
+                    spare.bytes = bytesValues.nextValue();
+                    spare.hash = bytesValues.currentValueHash();
+                    if (uidToScore.containsKey(spare)) {
+                        // Can use lget b/c uidToScore is only used by one thread at the time (via CacheRecycler)
+                        currentScore = uidToScore.lget();
+                        currentScore /= uidToCount.get(spare);
+                        remaining--;
+                        return currentDocId;
                     }
                 }
             }
@@ -414,18 +404,15 @@ public class ChildrenQuery extends Query {
                 }
 
                 int numValues = bytesValues.setDocument(currentDocId);
-                if (numValues == 1) {
-                    spare.bytes = bytesValues.nextValue();
-                    spare.hash = bytesValues.currentValueHash();
-                    if (uidToScore.containsKey(spare)) {
-                        // Can use lget b/c uidToScore is only used by one thread at the time (via CacheRecycler)
-                        currentScore = uidToScore.lget();
-                        currentScore /= uidToCount.get(spare);
-                        remaining--;
-                        return currentDocId;
-                    } else {
-                        return nextDoc();
-                    }
+                assert numValues == 1;
+                spare.bytes = bytesValues.nextValue();
+                spare.hash = bytesValues.currentValueHash();
+                if (uidToScore.containsKey(spare)) {
+                    // Can use lget b/c uidToScore is only used by one thread at the time (via CacheRecycler)
+                    currentScore = uidToScore.lget();
+                    currentScore /= uidToCount.get(spare);
+                    remaining--;
+                    return currentDocId;
                 } else {
                     return nextDoc();
                 }
@@ -467,7 +454,7 @@ public class ChildrenQuery extends Query {
             if (uidToScore.containsKey(spare)) {
                 uidToScore.lset(uidToScore.lget() + currentScore);
             } else {
-                uidToScore.addTo(spare.deepCopy(), currentScore);
+                uidToScore.put(spare.deepCopy(), currentScore);
             }
         }
     }

@@ -165,14 +165,11 @@ public class ParentQuery extends Query {
             // It can happen that for particular segment no document exist for an specific type. This prevents NPE
             if (values != null) {
                 int numValues = values.setDocument(doc);
-                if (numValues == 1) {
-                    spare.bytes = values.nextValue();
-                    spare.hash = values.currentValueHash();
-                    if (!uidToScore.containsKey(spare)) {
-                        uidToScore.put(spare.deepCopy(), scorer.score());
-                    }
-                } else {
-                    assert numValues == 0;
+                assert numValues == 1;
+                spare.bytes = values.nextValue();
+                spare.hash = values.currentValueHash();
+                if (!uidToScore.containsKey(spare)) {
+                    uidToScore.put(spare.deepCopy(), scorer.score());
                 }
             }
         }
@@ -285,16 +282,13 @@ public class ParentQuery extends Query {
                 }
 
                 int numValues = bytesValues.setDocument(currentChildDoc);
-                if (numValues == 1) {
-                    spare.bytes = bytesValues.nextValue();
-                    spare.hash = bytesValues.currentValueHash();
-                    if (uidToScore.containsKey(spare)) {
-                        // Can use lget b/c uidToScore is only used by one thread at the time (via CacheRecycler)
-                        currentScore = uidToScore.lget();
-                        return currentChildDoc;
-                    }
-                } else {
-                    assert numValues == 0;
+                assert numValues == 1;
+                spare.bytes = bytesValues.nextValue();
+                spare.hash = bytesValues.currentValueHash();
+                if (uidToScore.containsKey(spare)) {
+                    // Can use lget b/c uidToScore is only used by one thread at the time (via CacheRecycler)
+                    currentScore = uidToScore.lget();
+                    return currentChildDoc;
                 }
             }
         }
@@ -307,18 +301,14 @@ public class ParentQuery extends Query {
             }
 
             int numValues = bytesValues.setDocument(currentChildDoc);
-            if (numValues == 1) {
-                spare.bytes = bytesValues.nextValue();
-                spare.hash = bytesValues.currentValueHash();
-                if (uidToScore.containsKey(spare)) {
-                    // Can use lget b/c uidToScore is only used by one thread at the time (via CacheRecycler)
-                    currentScore = uidToScore.lget();
-                    return currentChildDoc;
-                } else {
-                    return nextDoc();
-                }
+            assert numValues == 1;
+            spare.bytes = bytesValues.nextValue();
+            spare.hash = bytesValues.currentValueHash();
+            if (uidToScore.containsKey(spare)) {
+                // Can use lget b/c uidToScore is only used by one thread at the time (via CacheRecycler)
+                currentScore = uidToScore.lget();
+                return currentChildDoc;
             } else {
-                assert numValues == 0;
                 return nextDoc();
             }
         }

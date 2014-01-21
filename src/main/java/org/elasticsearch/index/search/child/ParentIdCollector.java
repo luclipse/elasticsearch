@@ -46,13 +46,8 @@ abstract class ParentIdCollector extends NoopCollector {
     public final void collect(int doc) throws IOException {
         if (values != null) {
             int numValues = values.setDocument(doc);
-            if (numValues == 1) {
-                BytesRef parentId = values.nextValue();
-                int hash = values.currentValueHash();
-                collect(doc, parentId, hash);
-            } else {
-                assert numValues == 0;
-            }
+            assert numValues == 1;
+            collect(doc, values.nextValue(), values.currentValueHash());
         }
     }
     

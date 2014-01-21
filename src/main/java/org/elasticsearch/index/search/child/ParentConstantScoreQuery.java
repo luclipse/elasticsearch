@@ -173,14 +173,10 @@ public class ParentConstantScoreQuery extends Query {
             @Override
             protected boolean match(int doc) {
                 int numValues = bytesValues.setDocument(doc);
-                if (numValues == 1) {
-                    BytesRef parentId = bytesValues.nextValue();
-                    int hash = bytesValues.currentValueHash();
-                    return parentIds.find(parentId, hash) >= 0;
-                } else {
-                    assert numValues == 0;
-                    return false;
-                }
+                assert numValues == 1;
+                BytesRef parentId = bytesValues.nextValue();
+                int hash = bytesValues.currentValueHash();
+                return parentIds.find(parentId, hash) >= 0;
             }
 
         }
@@ -204,13 +200,10 @@ public class ParentConstantScoreQuery extends Query {
             // It can happen that for particular segment no document exist for an specific type. This prevents NPE
             if (values != null) {
                 int numValues = values.setDocument(doc);
-                if (numValues == 1) {
-                    BytesRef parentId = values.nextValue();
-                    int hash = values.currentValueHash();
-                    parentIds.add(parentId, hash);
-                } else {
-                    assert numValues == 0;
-                }
+                assert numValues == 1;
+                BytesRef parentId = values.nextValue();
+                int hash = values.currentValueHash();
+                parentIds.add(parentId, hash);
             }
         }
 
