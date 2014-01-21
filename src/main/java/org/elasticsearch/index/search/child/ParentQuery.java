@@ -184,7 +184,7 @@ public class ParentQuery extends Query {
 
         @Override
         public void setNextReader(AtomicReaderContext context) throws IOException {
-            values = indexFieldData.load(context).getBytesValues(true, parentType);
+            values = indexFieldData.load(context).getBytesValues(parentType);
         }
     }
 
@@ -227,7 +227,7 @@ public class ParentQuery extends Query {
             if (DocIdSets.isEmpty(childrenDocSet)) {
                 return null;
             }
-            BytesValues bytesValues = parentChildIndexFieldData.load(context).getBytesValues(true, parentType);
+            BytesValues bytesValues = parentChildIndexFieldData.load(context).getBytesValues(parentType);
             if (bytesValues == null) {
                 return null;
             }

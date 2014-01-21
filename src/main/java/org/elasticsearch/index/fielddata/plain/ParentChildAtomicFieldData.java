@@ -60,10 +60,10 @@ public class ParentChildAtomicFieldData implements AtomicFieldData.WithOrdinals 
         throw new UnsupportedOperationException();
     }
 
-    public BytesValues.WithOrdinals getBytesValues(boolean needsHashes, String type) {
+    public BytesValues.WithOrdinals getBytesValues(String type) {
         WithOrdinals atomicFieldData = typeToIds.get(type);
         if (atomicFieldData != null) {
-            return atomicFieldData.getBytesValues(needsHashes);
+            return atomicFieldData.getBytesValues(true);
         } else {
             return null;
         }

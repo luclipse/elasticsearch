@@ -60,6 +60,6 @@ abstract class ParentIdCollector extends NoopCollector {
 
     @Override
     public void setNextReader(AtomicReaderContext context) throws IOException {
-        values = indexFieldData.load(context).getBytesValues(true, parentType);
+        values = indexFieldData.load(context).getBytesValues(parentType);
     }
 }

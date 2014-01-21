@@ -177,7 +177,7 @@ public class ChildrenConstantScoreQuery extends Query {
 
             DocIdSet parentDocIdSet = this.parentFilter.getDocIdSet(context, acceptDocs);
             if (!DocIdSets.isEmpty(parentDocIdSet)) {
-                BytesValues bytesValues = parentChildIndexFieldData.load(context).getBytesValues(true, parentType);
+                BytesValues bytesValues = parentChildIndexFieldData.load(context).getBytesValues(parentType);
                 // We can't be sure of the fact that liveDocs have been applied, so we apply it here. The "remaining"
                 // count down (short circuit) logic will then work as expected.
                 parentDocIdSet = BitsFilteredDocIdSet.wrap(parentDocIdSet, context.reader().getLiveDocs());

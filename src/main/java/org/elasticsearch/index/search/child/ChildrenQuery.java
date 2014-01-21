@@ -144,12 +144,18 @@ public class ChildrenQuery extends Query {
 
         final Collector collector;
         switch (scoreType) {
+            case MAX:
+                collector = new MaxChildIdCollector(parentChildIndexFieldData, parentType, uidToScore.v());
+                break;
+            case SUM:
+                collector = new SumChildIdCollector(parentChildIndexFieldData, parentType, uidToScore.v());
+                break;
             case AVG:
                 uidToCount = searchContext.cacheRecycler().objectIntMap(-1);
-                collector = new AvgChildUidCollector(scoreType, parentChildIndexFieldData, parentType, uidToScore.v(), uidToCount.v());
+                collector = new AvgChildUidCollector(parentChildIndexFieldData, parentType, uidToScore.v(), uidToCount.v());
                 break;
             default:
-                collector = new ChildUidCollector(scoreType, parentChildIndexFieldData, parentType, uidToScore.v());
+                throw new RuntimeException("Are we missing a score type here? -- " + scoreType);
         }
         final Query childQuery;
         if (rewrittenChildQuery == null) {
@@ -239,7 +245,7 @@ public class ChildrenQuery extends Query {
                 return null;
             }
 
-            BytesValues bytesValues = parentChildIndexFieldData.load(context).getBytesValues(true, parentType);
+            BytesValues bytesValues = parentChildIndexFieldData.load(context).getBytesValues(parentType);
             if (bytesValues == null) {
                 return null;
             }
@@ -421,7 +427,6 @@ public class ChildrenQuery extends Query {
                         return nextDoc();
                     }
                 } else {
-                    assert numValues == 0;
                     return nextDoc();
                 }
             }
@@ -429,17 +434,15 @@ public class ChildrenQuery extends Query {
 
     }
 
-    private static class ChildUidCollector extends ParentIdCollector {
+    private abstract static class ChildUidCollector extends ParentIdCollector {
 
         protected final ObjectFloatOpenHashMap<HashedBytesRef> uidToScore;
-        private final ScoreType scoreType;
+        protected final HashedBytesRef spare = new HashedBytesRef();
         protected Scorer scorer;
-        protected HashedBytesRef spare = new HashedBytesRef();
 
-        ChildUidCollector(ScoreType scoreType, ParentChildIndexFieldData indexFieldData, String childType, ObjectFloatOpenHashMap<HashedBytesRef> uidToScore) {
+        ChildUidCollector(ParentChildIndexFieldData indexFieldData, String childType, ObjectFloatOpenHashMap<HashedBytesRef> uidToScore) {
             super(childType, indexFieldData);
             this.uidToScore = uidToScore;
-            this.scoreType = scoreType;
         }
 
         @Override
@@ -447,47 +450,58 @@ public class ChildrenQuery extends Query {
             this.scorer = scorer;
         }
 
+    }
+
+    private final static class SumChildIdCollector extends ChildUidCollector {
+
+        private SumChildIdCollector(ParentChildIndexFieldData indexFieldData, String childType, ObjectFloatOpenHashMap<HashedBytesRef> uidToScore) {
+            super(indexFieldData, childType, uidToScore);
+        }
+
         @Override
         protected void collect(int doc, BytesRef parentId, int hash) throws IOException {
             float currentScore = scorer.score();
             spare.bytes = parentId;
             spare.hash = hash;
-            switch (scoreType) {
-                case SUM:
-                    if (uidToScore.containsKey(spare)) {
-                        uidToScore.lset(uidToScore.lget() + currentScore);
-                    } else {
-                        uidToScore.addTo(spare.deepCopy(), currentScore);
-                    }
-                    break;
-                case MAX:
-                    if (uidToScore.containsKey(spare)) {
-                        float previousScore = uidToScore.lget();
-                        if (currentScore > previousScore) {
-                            uidToScore.lset(currentScore);
-                        }
-                    } else {
-                        uidToScore.put(spare.deepCopy(), currentScore);
-                    }
-                    break;
-                case AVG:
-                    assert false : "AVG has its own collector";
-                default:
-                    assert false : "Are we missing a score type here? -- " + scoreType;
-                    break;
+
+            if (uidToScore.containsKey(spare)) {
+                uidToScore.lset(uidToScore.lget() + currentScore);
+            } else {
+                uidToScore.addTo(spare.deepCopy(), currentScore);
             }
         }
+    }
 
+    private final static class MaxChildIdCollector extends ChildUidCollector {
+
+        private MaxChildIdCollector(ParentChildIndexFieldData indexFieldData, String childType, ObjectFloatOpenHashMap<HashedBytesRef> uidToScore) {
+            super(indexFieldData, childType, uidToScore);
+        }
+
+        @Override
+        protected void collect(int doc, BytesRef parentId, int hash) throws IOException {
+            float currentScore = scorer.score();
+            spare.bytes = parentId;
+            spare.hash = hash;
+
+            if (uidToScore.containsKey(spare)) {
+                float previousScore = uidToScore.lget();
+                if (currentScore > previousScore) {
+                    uidToScore.lset(currentScore);
+                }
+            } else {
+                uidToScore.put(spare.deepCopy(), currentScore);
+            }
+        }
     }
 
     private final static class AvgChildUidCollector extends ChildUidCollector {
 
         private final ObjectIntOpenHashMap<HashedBytesRef> uidToCount;
 
-        AvgChildUidCollector(ScoreType scoreType, ParentChildIndexFieldData indexFieldData, String childType, ObjectFloatOpenHashMap<HashedBytesRef> uidToScore, ObjectIntOpenHashMap<HashedBytesRef> uidToCount) {
-            super(scoreType, indexFieldData, childType, uidToScore);
+        AvgChildUidCollector(ParentChildIndexFieldData indexFieldData, String childType, ObjectFloatOpenHashMap<HashedBytesRef> uidToScore, ObjectIntOpenHashMap<HashedBytesRef> uidToCount) {
+            super(indexFieldData, childType, uidToScore);
             this.uidToCount = uidToCount;
-            assert scoreType == ScoreType.AVG;
         }
 
         @Override

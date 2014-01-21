@@ -142,7 +142,7 @@ public class ParentConstantScoreQuery extends Query {
                 return null;
             }
 
-            BytesValues bytesValues = parentChildIndexFieldData.load(context).getBytesValues(true, parentType);
+            BytesValues bytesValues = parentChildIndexFieldData.load(context).getBytesValues(parentType);
             if (bytesValues != null) {
                 DocIdSetIterator innerIterator = childrenDocIdSet.iterator();
                 if (innerIterator != null) {
@@ -216,7 +216,7 @@ public class ParentConstantScoreQuery extends Query {
 
         @Override
         public void setNextReader(AtomicReaderContext readerContext) throws IOException {
-            values = indexFieldData.load(readerContext).getBytesValues(true, parentType);
+            values = indexFieldData.load(readerContext).getBytesValues(parentType);
         }
     }
 
