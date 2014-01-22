@@ -19,9 +19,10 @@
 package org.elasticsearch.index.search.child;
 
 import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.index.fielddata.BytesValues;
+import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 
 import java.io.IOException;
@@ -34,8 +35,10 @@ abstract class ParentIdCollector extends NoopCollector {
 
     protected final String parentType;
     private final ParentChildIndexFieldData indexFieldData;
+    private final HashedBytesRef spare = new HashedBytesRef();
 
-    private BytesValues values;
+    protected BytesValues.WithOrdinals values;
+    private Ordinals.Docs ordinals;
 
     protected ParentIdCollector(String parentType, ParentChildIndexFieldData indexFieldData) {
         this.parentType = parentType;
@@ -45,16 +48,18 @@ abstract class ParentIdCollector extends NoopCollector {
     @Override
     public final void collect(int doc) throws IOException {
         if (values != null) {
-            int numValues = values.setDocument(doc);
-            assert numValues == 1;
-            collect(doc, values.nextValue(), values.currentValueHash());
+            long ord = ordinals.getOrd(doc);
+            spare.bytes = values.getValueByOrd(ord);
+            spare.hash = values.currentValueHash();
+            collect(spare);
         }
     }
     
-    protected abstract void collect(int doc, BytesRef parentId, int hash) throws IOException;
+    protected abstract void collect(HashedBytesRef spare) throws IOException;
 
     @Override
     public void setNextReader(AtomicReaderContext context) throws IOException {
         values = indexFieldData.load(context).getBytesValues(parentType);
+        ordinals = values.ordinals();
     }
 }

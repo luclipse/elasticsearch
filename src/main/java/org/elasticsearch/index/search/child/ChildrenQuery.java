@@ -446,15 +446,13 @@ public class ChildrenQuery extends Query {
         }
 
         @Override
-        protected void collect(int doc, BytesRef parentId, int hash) throws IOException {
+        protected void collect(HashedBytesRef spare) throws IOException {
             float currentScore = scorer.score();
-            spare.bytes = parentId;
-            spare.hash = hash;
-
             if (uidToScore.containsKey(spare)) {
                 uidToScore.lset(uidToScore.lget() + currentScore);
             } else {
-                uidToScore.put(spare.deepCopy(), currentScore);
+                HashedBytesRef hashedParentId = new HashedBytesRef(values.copyShared(), spare.hash);
+                uidToScore.put(hashedParentId, currentScore);
             }
         }
     }
@@ -466,18 +464,16 @@ public class ChildrenQuery extends Query {
         }
 
         @Override
-        protected void collect(int doc, BytesRef parentId, int hash) throws IOException {
+        protected void collect(HashedBytesRef spare) throws IOException {
             float currentScore = scorer.score();
-            spare.bytes = parentId;
-            spare.hash = hash;
-
             if (uidToScore.containsKey(spare)) {
                 float previousScore = uidToScore.lget();
                 if (currentScore > previousScore) {
                     uidToScore.lset(currentScore);
                 }
             } else {
-                uidToScore.put(spare.deepCopy(), currentScore);
+                HashedBytesRef hashedParentId = new HashedBytesRef(values.copyShared(), spare.hash);
+                uidToScore.put(hashedParentId, currentScore);
             }
         }
     }
@@ -492,15 +488,13 @@ public class ChildrenQuery extends Query {
         }
 
         @Override
-        protected void collect(int doc, BytesRef parentId, int hash) throws IOException {
-            spare.bytes = parentId;
-            spare.hash = hash;
+        protected void collect(HashedBytesRef spare) throws IOException {
             float currentScore = scorer.score();
             if (uidToScore.containsKey(spare)) {
                 uidToScore.lset(uidToScore.lget() + currentScore);
                 uidToCount.addTo(uidToScore.lkey(), 1);
             } else {
-                HashedBytesRef hashedParentId = spare.deepCopy();
+                HashedBytesRef hashedParentId = new HashedBytesRef(values.copyShared(), spare.hash);
                 uidToScore.put(hashedParentId, currentScore);
                 uidToCount.put(hashedParentId, 1);
             }

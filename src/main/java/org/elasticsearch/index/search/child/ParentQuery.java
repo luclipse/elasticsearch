@@ -166,10 +166,12 @@ public class ParentQuery extends Query {
             if (values != null) {
                 int numValues = values.setDocument(doc);
                 assert numValues == 1;
-                spare.bytes = values.nextValue();
+                values.nextValue();
+                spare.bytes = values.copyShared();
                 spare.hash = values.currentValueHash();
                 if (!uidToScore.containsKey(spare)) {
-                    uidToScore.put(spare.deepCopy(), scorer.score());
+                    HashedBytesRef hashedParentId = new HashedBytesRef(spare.bytes, spare.hash);
+                    uidToScore.put(hashedParentId, scorer.score());
                 }
             }
         }
