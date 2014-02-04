@@ -19,6 +19,8 @@
 package org.elasticsearch.search.aggregations.bucket.missing;
 
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.fielddata.AtomicFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -73,7 +75,7 @@ public class MissingParser implements Aggregator.Parser {
             return new MissingAggregator.Factory(aggregationName, config);
         }
 
-        config.fieldContext(new FieldContext(field, context.fieldData().getForField(mapper)));
+        config.fieldContext(new FieldContext(field, context.fieldData().<IndexFieldData<AtomicFieldData>>getForField(mapper)));
         return new MissingAggregator.Factory(aggregationName, config);
     }
 }

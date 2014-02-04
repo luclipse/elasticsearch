@@ -31,12 +31,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.fielddata.global.GlobalOrdinalsIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.*;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
@@ -47,14 +48,16 @@ public class IndexFieldDataService extends AbstractIndexComponent {
 
     private static final String DISABLED_FORMAT = "disabled";
     private static final String DOC_VALUES_FORMAT = "doc_values";
+    private static final String GLOBAL_ORDINALS_FORMAT = "global_ordinals";
+    private static final String GLOBAL_NOMINALS_FORMAT = "global_nominals";
     private static final String ARRAY_FORMAT = "array";
     private static final String PAGED_BYTES_FORMAT = "paged_bytes";
     private static final String FST_FORMAT = "fst";
     private static final String COMPRESSED_FORMAT = "compressed";
 
-    private final static ImmutableMap<String, IndexFieldData.Builder> buildersByType;
-    private final static ImmutableMap<String, IndexFieldData.Builder> docValuesBuildersByType;
-    private final static ImmutableMap<Tuple<String, String>, IndexFieldData.Builder> buildersByTypeAndFormat;
+    private final static ImmutableMap<String, BaseFieldData.Builder> buildersByType;
+    private final static ImmutableMap<String, BaseFieldData.Builder> docValuesBuildersByType;
+    private final static ImmutableMap<Tuple<String, String>, BaseFieldData.Builder> buildersByTypeAndFormat;
     private final CircuitBreakerService circuitBreakerService;
 
     static {
@@ -83,6 +86,8 @@ public class IndexFieldDataService extends AbstractIndexComponent {
         buildersByTypeAndFormat = MapBuilder.<Tuple<String, String>, IndexFieldData.Builder>newMapBuilder()
                 .put(Tuple.tuple("string", PAGED_BYTES_FORMAT), new PagedBytesIndexFieldData.Builder())
                 .put(Tuple.tuple("string", FST_FORMAT), new FSTBytesIndexFieldData.Builder())
+                .put(Tuple.tuple("string", GLOBAL_ORDINALS_FORMAT), new GlobalOrdinalsIndexFieldData.Builder())
+                .put(Tuple.tuple("string", GLOBAL_NOMINALS_FORMAT), new GlobalOrdinalsIndexFieldData.Builder())
                 .put(Tuple.tuple("string", DOC_VALUES_FORMAT), new DocValuesIndexFieldData.Builder())
                 .put(Tuple.tuple("string", DISABLED_FORMAT), new DisabledIndexFieldData.Builder())
 
@@ -187,7 +192,7 @@ public class IndexFieldDataService extends AbstractIndexComponent {
         }
     }
 
-    public <IFD extends IndexFieldData<?>> IFD getForField(FieldMapper<?> mapper) {
+    public <IFD extends BaseFieldData> IFD getForField(FieldMapper<?> mapper) {
         final FieldMapper.Names fieldNames = mapper.names();
         final FieldDataType type = mapper.fieldDataType();
         final boolean docValues = mapper.hasDocValues();

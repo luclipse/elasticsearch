@@ -1,0 +1,150 @@
+package org.elasticsearch.index.fielddata;
+
+import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.FieldComparatorSource;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexComponent;
+import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
+
+/**
+ */
+public interface BaseFieldData extends IndexComponent {
+
+    /**
+     * The field name.
+     */
+    FieldMapper.Names getFieldNames();
+
+    /**
+     * Are the values ordered? (in ascending manner).
+     */
+    boolean valuesOrdered();
+
+    /**
+     * Comparator used for sorting.
+     */
+    XFieldComparatorSource comparatorSource(@Nullable Object missingValue, SortMode sortMode);
+
+    /**
+     * Clears any resources associated with this field data.
+     */
+    void clear();
+
+    void clear(IndexReader reader);
+
+    // we need this extended source we we have custom comparators to reuse our field data
+    // in this case, we need to reduce type that will be used when search results are reduced
+    // on another node (we don't have the custom source them...)
+    public abstract class XFieldComparatorSource extends FieldComparatorSource {
+
+        /** UTF-8 term containing a single code point: {@link Character#MAX_CODE_POINT} which will compare greater than all other index terms
+         *  since {@link Character#MAX_CODE_POINT} is a noncharacter and thus shouldn't appear in an index term. */
+        public static final BytesRef MAX_TERM;
+        static {
+            MAX_TERM = new BytesRef();
+            final char[] chars = Character.toChars(Character.MAX_CODE_POINT);
+            UnicodeUtil.UTF16toUTF8(chars, 0, chars.length, MAX_TERM);
+        }
+
+        /** Whether missing values should be sorted first. */
+        protected final boolean sortMissingFirst(Object missingValue) {
+            return "_first".equals(missingValue);
+        }
+
+        /** Whether missing values should be sorted last, this is the default. */
+        protected final boolean sortMissingLast(Object missingValue) {
+            return missingValue == null || "_last".equals(missingValue);
+        }
+
+        /** Return the missing object value according to the reduced type of the comparator. */
+        protected final Object missingObject(Object missingValue, boolean reversed) {
+            if (sortMissingFirst(missingValue) || sortMissingLast(missingValue)) {
+                final boolean min = sortMissingFirst(missingValue) ^ reversed;
+                switch (reducedType()) {
+                    case INT:
+                        return min ? Integer.MIN_VALUE : Integer.MAX_VALUE;
+                    case LONG:
+                        return min ? Long.MIN_VALUE : Long.MAX_VALUE;
+                    case FLOAT:
+                        return min ? Float.NEGATIVE_INFINITY : Float.POSITIVE_INFINITY;
+                    case DOUBLE:
+                        return min ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;
+                    case STRING:
+                    case STRING_VAL:
+                        return min ? null : MAX_TERM;
+                    default:
+                        throw new UnsupportedOperationException("Unsupported reduced type: " + reducedType());
+                }
+            } else {
+                switch (reducedType()) {
+                    case INT:
+                        if (missingValue instanceof Number) {
+                            return ((Number) missingValue).intValue();
+                        } else {
+                            return Integer.parseInt(missingValue.toString());
+                        }
+                    case LONG:
+                        if (missingValue instanceof Number) {
+                            return ((Number) missingValue).longValue();
+                        } else {
+                            return Long.parseLong(missingValue.toString());
+                        }
+                    case FLOAT:
+                        if (missingValue instanceof Number) {
+                            return ((Number) missingValue).floatValue();
+                        } else {
+                            return Float.parseFloat(missingValue.toString());
+                        }
+                    case DOUBLE:
+                        if (missingValue instanceof Number) {
+                            return ((Number) missingValue).doubleValue();
+                        } else {
+                            return Double.parseDouble(missingValue.toString());
+                        }
+                    case STRING:
+                    case STRING_VAL:
+                        if (missingValue instanceof BytesRef) {
+                            return (BytesRef) missingValue;
+                        } else if (missingValue instanceof byte[]) {
+                            return new BytesRef((byte[]) missingValue);
+                        } else {
+                            return new BytesRef(missingValue.toString());
+                        }
+                    default:
+                        throw new UnsupportedOperationException("Unsupported reduced type: " + reducedType());
+                }
+            }
+        }
+
+        public abstract SortField.Type reducedType();
+    }
+
+    interface Builder {
+
+        BaseFieldData build(Index index, @IndexSettings Settings indexSettings, FieldMapper<?> mapper, IndexFieldDataCache cache,
+                             CircuitBreakerService breakerService);
+    }
+
+    public interface WithOrdinals<FD extends AtomicFieldData.WithOrdinals> extends IndexFieldData<FD> {
+
+        /**
+         * Loads the atomic field data for the reader, possibly cached.
+         */
+        FD load(AtomicReaderContext context);
+
+        /**
+         * Loads directly the atomic field data for the reader, ignoring any caching involved.
+         */
+        FD loadDirect(AtomicReaderContext context) throws Exception;
+    }
+
+}

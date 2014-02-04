@@ -22,6 +22,7 @@ import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.SearchHitField;
@@ -82,7 +83,7 @@ public class FieldDataFieldsFetchSubPhase implements FetchSubPhase {
             }
             FieldMapper mapper = context.mapperService().smartNameFieldMapper(field.name());
             if (mapper != null) {
-                AtomicFieldData data = context.fieldData().getForField(mapper).load(hitContext.readerContext());
+                AtomicFieldData data = context.fieldData().<IndexFieldData>getForField(mapper).load(hitContext.readerContext());
                 ScriptDocValues values = data.getScriptValues();
                 values.setNextDocId(hitContext.docId());
                 hitField.values().addAll(values.getValues());

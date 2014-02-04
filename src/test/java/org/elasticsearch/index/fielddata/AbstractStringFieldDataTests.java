@@ -38,7 +38,7 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.apache.lucene.util._TestUtil;
 import org.elasticsearch.common.lucene.search.NotFilter;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
-import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
+import org.elasticsearch.index.fielddata.BaseFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
 import org.elasticsearch.index.search.nested.NestedFieldComparatorSource;
