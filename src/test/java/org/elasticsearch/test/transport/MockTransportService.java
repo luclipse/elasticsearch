@@ -133,6 +133,7 @@ public class MockTransportService extends TransportService {
                 TimeValue delay = getDelay();
                 if (delay.millis() <= 0) {
                     original.connectToNode(node);
+                    return;
                 }
 
                 // TODO: Replace with proper setting
@@ -155,6 +156,7 @@ public class MockTransportService extends TransportService {
                 TimeValue delay = getDelay();
                 if (delay.millis() <= 0) {
                     original.connectToNodeLight(node);
+                    return;
                 }
 
                 // TODO: Replace with proper setting
@@ -179,6 +181,7 @@ public class MockTransportService extends TransportService {
                 TimeValue delay = getDelay();
                 if (delay.millis() <= 0) {
                     original.sendRequest(node, requestId, action, request, options);
+                    return;
                 }
 
                 // poor mans request cloning...
