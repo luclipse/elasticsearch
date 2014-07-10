@@ -198,6 +198,13 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         });
     }
 
+    /**
+     * Clears the list of temporal responses, used to enrich ping responses with other nodes (gohsep)
+     */
+    public void clearTemporalReponses() {
+        temporalResponses.clear();
+    }
+
     class SendPingsHandler {
         private final int id;
         private volatile ExecutorService executor;

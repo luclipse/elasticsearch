@@ -37,6 +37,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.discovery.zen.ping.ZenPing;
+import org.elasticsearch.discovery.zen.ping.ZenPingService;
+import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.*;
@@ -46,10 +49,7 @@ import org.elasticsearch.transport.TransportModule;
 import org.junit.Test;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -67,6 +67,7 @@ import static org.hamcrest.Matchers.is;
 public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationTest {
 
     private static final Settings nodeSettings = ImmutableSettings.settingsBuilder()
+            .put("node.mode", "network")
             .put("discovery.type", "zen") // <-- To override the local setting if set externally
             .put("discovery.zen.fd.ping_timeout", "1s") // <-- for hitting simulated network failures quickly
             .put("discovery.zen.fd.ping_retries", "1") // <-- for hitting simulated network failures quickly
@@ -139,6 +140,86 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
         for (String node : nodes) {
             ClusterState state = getNodeClusterState(node);
             assertThat(state.nodes().size(), equalTo(3));
+            // The elected master shouldn't have changed, since the unlucky node never could have elected himself as
+            // master since m_m_n of 2 could never be satisfied.
+            assertThat(state.nodes().masterNode().name(), equalTo(masterNode));
+        }
+    }
+
+    @Test
+    @TestLogging("discovery.zen:TRACE,action:TRACE")
+    public void failWithMinimumMasterNodesConfigured_unicast() throws Exception {
+        final List<String> nodes = new ArrayList<>();
+        Settings unicastSettings = ImmutableSettings.builder()
+                .put(nodeSettings)
+                .put("discovery.zen.minimum_master_nodes", 3)
+                .put("discovery.zen.ping.multicast.enabled", false)
+                .put("discovery.zen.ping.unicast.hosts", "localhost:10000")
+                .build();
+
+        Settings nodeSettings = ImmutableSettings.builder()
+                .put(unicastSettings).put("transport.tcp.port", "10000")
+                .build();
+        Future<String> f1 = internalCluster().startNodeAsync(nodeSettings);
+        nodeSettings = ImmutableSettings.builder()
+                .put(unicastSettings).put("transport.tcp.port", "10001")
+                .build();
+        Future<String> f2 = internalCluster().startNodeAsync(nodeSettings);
+        nodeSettings = ImmutableSettings.builder()
+                .put(unicastSettings).put("transport.tcp.port", "10002")
+                .build();
+        Future<String> f3 = internalCluster().startNodeAsync(nodeSettings);
+        nodes.add(f1.get());
+        nodes.add(f2.get());
+        nodes.add(f3.get());
+        ensureStableCluster(3);
+
+        nodeSettings = ImmutableSettings.builder()
+                .put(unicastSettings).put("transport.tcp.port", "10003")
+                .build();
+        Future<String> f4 = internalCluster().startNodeAsync(nodeSettings);
+        final String unluckyNode;
+        nodes.add(unluckyNode = f4.get());
+
+        // Wait until 3 nodes are part of the cluster
+        ensureStableCluster(4);
+        // Figure out what is the elected master node
+        final String masterNode = internalCluster().getMasterName();
+        logger.info("---> legit elected master node=" + masterNode);
+
+        for (ZenPingService pingService : internalCluster().getInstances(ZenPingService.class)) {
+            for (ZenPing zenPing : pingService.zenPings()) {
+                ((UnicastZenPing)zenPing).clearTemporalReponses();
+            }
+        }
+
+        // Simulate a network issue between the unlucky node and elected master node in both directions.
+        NetworkDisconnectPartition networkDisconnect = new NetworkDisconnectPartition(masterNode, unluckyNode, getRandom());
+        setDisruptionScheme(networkDisconnect);
+        networkDisconnect.startDisrupting();
+        // Wait until elected master has removed that the unlucky node...
+        ensureStableCluster(3, masterNode);
+
+        // The unlucky node must report *no* master node, since it can't connect to master and in fact it should
+        // continuously ping until network failures have been resolved. However
+        // It may a take a bit before the node detects it has been cut off from the elected master
+        boolean success = awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(Object input) {
+                ClusterState localClusterState = getNodeClusterState(unluckyNode);
+                DiscoveryNodes localDiscoveryNodes = localClusterState.nodes();
+                logger.info("localDiscoveryNodes=" + localDiscoveryNodes.prettyPrint());
+                return localDiscoveryNodes.masterNode() == null;
+            }
+        }, 10, TimeUnit.SECONDS);
+        assertThat(success, is(true));
+        networkDisconnect.stopDisrupting();
+        // Wait until the master node sees all 3 nodes again.
+        ensureStableCluster(4);
+
+        for (String node : nodes) {
+            ClusterState state = getNodeClusterState(node);
+            assertThat(state.nodes().size(), equalTo(4));
             // The elected master shouldn't have changed, since the unlucky node never could have elected himself as
             // master since m_m_n of 2 could never be satisfied.
             assertThat(state.nodes().masterNode().name(), equalTo(masterNode));

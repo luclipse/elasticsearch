@@ -64,7 +64,7 @@ public class MockTransportService extends TransportService {
      * Clears the rule associated with the provided node.
      */
     public void clearRule(DiscoveryNode node) {
-        ((LookupTestTransport) transport).transports.remove(node);
+        ((LookupTestTransport) transport).transports.remove(node.getAddress());
     }
 
     /**
@@ -72,7 +72,7 @@ public class MockTransportService extends TransportService {
      * is added to fail as well.
      */
     public void addFailToSendNoConnectRule(DiscoveryNode node) {
-        ((LookupTestTransport) transport).transports.put(node, new DelegateTransport(original) {
+        ((LookupTestTransport) transport).transports.put(node.getAddress(), new DelegateTransport(original) {
             @Override
             public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
                 throw new ConnectTransportException(node, "DISCONNECT: simulated");
@@ -95,7 +95,7 @@ public class MockTransportService extends TransportService {
      * and failing to connect once the rule was added.
      */
     public void addUnresponsiveRule(DiscoveryNode node) {
-        ((LookupTestTransport) transport).transports.put(node, new DelegateTransport(original) {
+        ((LookupTestTransport) transport).transports.put(node.getAddress(), new DelegateTransport(original) {
             @Override
             public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
                 throw new ConnectTransportException(node, "UNRESPONSIVE: simulated");
@@ -122,7 +122,7 @@ public class MockTransportService extends TransportService {
     public void addUnresponsiveRule(DiscoveryNode node, final TimeValue duration) {
         final long startTime = System.currentTimeMillis();
 
-        ((LookupTestTransport) transport).transports.put(node, new DelegateTransport(original) {
+        ((LookupTestTransport) transport).transports.put(node.getAddress(), new DelegateTransport(original) {
 
             TimeValue getDelay() {
                 return new TimeValue(duration.millis() - (System.currentTimeMillis() - startTime));
@@ -211,14 +211,14 @@ public class MockTransportService extends TransportService {
      */
     private static class LookupTestTransport extends DelegateTransport {
 
-        final ConcurrentMap<DiscoveryNode, Transport> transports = ConcurrentCollections.newConcurrentMap();
+        final ConcurrentMap<TransportAddress, Transport> transports = ConcurrentCollections.newConcurrentMap();
 
         LookupTestTransport(Transport transport) {
             super(transport);
         }
 
         private Transport getTransport(DiscoveryNode node) {
-            Transport transport = transports.get(node);
+            Transport transport = transports.get(node.getAddress());
             if (transport != null) {
                 return transport;
             }
