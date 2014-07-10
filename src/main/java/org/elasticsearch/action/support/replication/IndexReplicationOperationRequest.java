@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.support.replication;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.WriteConsistencyLevel;
@@ -41,6 +42,7 @@ public class IndexReplicationOperationRequest<T extends IndexReplicationOperatio
 
     protected ReplicationType replicationType = ReplicationType.DEFAULT;
     protected WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
+    protected Boolean validateWriteConsistency;
 
     public TimeValue timeout() {
         return timeout;
@@ -89,6 +91,15 @@ public class IndexReplicationOperationRequest<T extends IndexReplicationOperatio
         return (T) this;
     }
 
+    public Boolean validateWriteConsistency() {
+        return validateWriteConsistency;
+    }
+
+    public T validateWriteConsistency(Boolean validateWriteConsistency) {
+        this.validateWriteConsistency = validateWriteConsistency;
+        return (T) this;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
@@ -105,6 +116,11 @@ public class IndexReplicationOperationRequest<T extends IndexReplicationOperatio
         consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
         timeout = TimeValue.readTimeValue(in);
         index = in.readString();
+        if (in.getVersion().onOrAfter(Version.V_2_0_0)) {
+            if (in.readBoolean()) {
+                validateWriteConsistency = in.readBoolean();
+            }
+        }
     }
 
     @Override
@@ -114,5 +130,13 @@ public class IndexReplicationOperationRequest<T extends IndexReplicationOperatio
         out.writeByte(consistencyLevel.id());
         timeout.writeTo(out);
         out.writeString(index);
+        if (out.getVersion().onOrAfter(Version.V_2_0_0)) {
+            if (validateWriteConsistency != null) {
+                out.writeBoolean(true);
+                out.writeBoolean(validateWriteConsistency);
+            } else {
+                out.writeBoolean(false);
+            }
+        }
     }
 }

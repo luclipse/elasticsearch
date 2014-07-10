@@ -46,6 +46,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.store.TransportShardActive;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -63,8 +64,9 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
     @Inject
     public TransportDeleteAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                  IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
-                                 TransportCreateIndexAction createIndexAction, TransportIndexDeleteAction indexDeleteAction) {
-        super(settings, transportService, clusterService, indicesService, threadPool, shardStateAction);
+                                 TransportCreateIndexAction createIndexAction, TransportIndexDeleteAction indexDeleteAction,
+                                 TransportShardActive transportShardActive) {
+        super(settings, transportService, clusterService, indicesService, threadPool, shardStateAction, transportShardActive);
         this.createIndexAction = createIndexAction;
         this.indexDeleteAction = indexDeleteAction;
         this.autoCreateIndex = new AutoCreateIndex(settings);

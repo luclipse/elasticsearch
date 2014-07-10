@@ -20,8 +20,8 @@
 package org.elasticsearch.discovery;
 
 import com.google.common.base.Predicate;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
@@ -337,7 +337,6 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
      * We also collect & report the type of indexing failures that occur.
      */
     @Test
-    @LuceneTestCase.AwaitsFix(bugUrl = "MvG will fix")
     @TestLogging("action.index:TRACE,action.get:TRACE,discovery:TRACE,cluster.service:TRACE,indices.recovery:TRACE,indices.cluster:TRACE")
     public void testAckedIndexing() throws Exception {
         final List<String> nodes = internalCluster().startNodesAsync(3, nodeSettings).get();
@@ -384,7 +383,11 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
                                     id = Integer.toString(idGenerator.incrementAndGet());
                                     int shard = ((InternalTestCluster) cluster()).getInstance(DjbHashFunction.class).hash(id) % numPrimaries;
                                     logger.trace("[{}] indexing id [{}] through node [{}] targeting shard [{}]", name, id, node, shard);
-                                    IndexResponse response = client.prepareIndex("test", "type", id).setSource("{}").setTimeout("1s").get();
+                                    IndexResponse response = client.prepareIndex("test", "type", id).setSource("{}")
+                                            .setTimeout("1s")
+                                            .setConsistencyLevel(WriteConsistencyLevel.ALL)
+                                            .setValidateWriteConsistency(true)
+                                            .get();
                                     assertThat(response.getVersion(), equalTo(1l));
                                     ackedDocs.put(id, node);
                                     logger.trace("[{}] indexed id [{}] through node [{}]", name, id, node);

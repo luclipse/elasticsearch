@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.support.replication;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.WriteConsistencyLevel;
@@ -40,6 +41,7 @@ public class IndicesReplicationOperationRequest<T extends IndicesReplicationOper
 
     protected ReplicationType replicationType = ReplicationType.DEFAULT;
     protected WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
+    protected Boolean validateWriteConsistency;
 
     public TimeValue timeout() {
         return timeout;
@@ -127,6 +129,16 @@ public class IndicesReplicationOperationRequest<T extends IndicesReplicationOper
         return (T) this;
     }
 
+    public Boolean validateWriteConsistency() {
+        return validateWriteConsistency;
+    }
+
+    @SuppressWarnings("unchecked")
+    public T validateWriteConsistency(Boolean validateWriteConsistencyLevel) {
+        this.validateWriteConsistency = validateWriteConsistencyLevel;
+        return (T) this;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         return null;
@@ -140,6 +152,11 @@ public class IndicesReplicationOperationRequest<T extends IndicesReplicationOper
         timeout = TimeValue.readTimeValue(in);
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
+        if (in.getVersion().onOrAfter(Version.V_2_0_0)) {
+            if (in.readBoolean()) {
+                validateWriteConsistency = in.readBoolean();
+            }
+        }
     }
 
     @Override
@@ -150,5 +167,13 @@ public class IndicesReplicationOperationRequest<T extends IndicesReplicationOper
         timeout.writeTo(out);
         out.writeStringArrayNullable(indices);
         indicesOptions.writeIndicesOptions(out);
+        if (out.getVersion().onOrAfter(Version.V_2_0_0)) {
+            if (validateWriteConsistency != null) {
+                out.writeBoolean(true);
+                out.writeBoolean(validateWriteConsistency);
+            } else {
+                out.writeBoolean(false);
+            }
+        }
     }
 }

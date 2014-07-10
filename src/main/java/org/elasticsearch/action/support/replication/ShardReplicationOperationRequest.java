@@ -46,6 +46,7 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
     private boolean threadedOperation = true;
     private ReplicationType replicationType = ReplicationType.DEFAULT;
     private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
+    private Boolean validateWriteConsistency;
     private boolean canHaveDuplicates = false;
 
     protected ShardReplicationOperationRequest() {
@@ -63,6 +64,7 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
         this.threadedOperation = request.operationThreaded();
         this.replicationType = request.replicationType();
         this.consistencyLevel = request.consistencyLevel();
+        this.validateWriteConsistency = request.validateWriteConsistency();
     }
 
     void setCanHaveDuplicates() {
@@ -159,6 +161,16 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
         return (T) this;
     }
 
+    public Boolean validateWriteConsistency() {
+        return validateWriteConsistency;
+    }
+
+    @SuppressWarnings("unchecked")
+    public T validateWriteConsistency(Boolean validateWriteConsistency) {
+        this.validateWriteConsistency = validateWriteConsistency;
+        return (T) this;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
@@ -178,6 +190,11 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
         if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
             canHaveDuplicates = in.readBoolean();
         }
+        if (in.getVersion().onOrAfter(Version.V_2_0_0)) {
+            if (in.readBoolean()) {
+                validateWriteConsistency = in.readBoolean();
+            }
+        }
         // no need to serialize threaded* parameters, since they only matter locally
     }
 
@@ -190,6 +207,14 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
         out.writeSharedString(index);
         if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
             out.writeBoolean(canHaveDuplicates);
+        }
+        if (out.getVersion().onOrAfter(Version.V_2_0_0)) {
+            if (validateWriteConsistency != null) {
+                out.writeBoolean(true);
+                out.writeBoolean(validateWriteConsistency);
+            } else {
+                out.writeBoolean(false);
+            }
         }
     }
 

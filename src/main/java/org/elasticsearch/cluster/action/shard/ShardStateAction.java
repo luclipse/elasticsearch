@@ -79,8 +79,9 @@ public class ShardStateAction extends AbstractComponent {
         DiscoveryNode masterNode = clusterService.state().nodes().masterNode();
         if (masterNode == null) {
             logger.debug("can't send shard failed for {}. no master known.", shardRouting);
+        } else {
+            shardFailed(shardRouting, indexUUID, reason, masterNode);
         }
-        shardFailed(shardRouting, indexUUID, reason, masterNode);
     }
 
     public void shardFailed(final ShardRouting shardRouting, final String indexUUID, final String reason, final DiscoveryNode masterNode) throws ElasticsearchException {
@@ -89,7 +90,7 @@ public class ShardStateAction extends AbstractComponent {
         if (clusterService.localNode().equals(masterNode)) {
             innerShardFailed(shardRoutingEntry);
         } else {
-            transportService.sendRequest(clusterService.state().nodes().masterNode(),
+            transportService.sendRequest(masterNode,
                     ShardFailedTransportHandler.ACTION, shardRoutingEntry, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
                 @Override
                 public void handleException(TransportException exp) {

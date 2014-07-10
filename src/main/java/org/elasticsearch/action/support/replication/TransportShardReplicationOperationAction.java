@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -50,6 +51,7 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.store.TransportShardActive;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -63,6 +65,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public abstract class TransportShardReplicationOperationAction<Request extends ShardReplicationOperationRequest, ReplicaRequest extends ShardReplicationOperationRequest, Response extends ActionResponse> extends TransportAction<Request, Response> {
 
+    public final static String VALIDATE_QUAROM = "action.replication.validate_quorum";
+
     protected final TransportService transportService;
     protected final ClusterService clusterService;
     protected final IndicesService indicesService;
@@ -70,6 +74,8 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
     protected final ReplicationType defaultReplicationType;
     protected final WriteConsistencyLevel defaultWriteConsistencyLevel;
     protected final TransportRequestOptions transportOptions;
+    protected final TransportShardActive transportShardActive;
+    protected final boolean defaultValidateWriteConsistency;
 
     final String transportAction;
     final String transportReplicaAction;
@@ -78,12 +84,14 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
     protected TransportShardReplicationOperationAction(Settings settings, TransportService transportService,
                                                        ClusterService clusterService, IndicesService indicesService,
-                                                       ThreadPool threadPool, ShardStateAction shardStateAction) {
+                                                       ThreadPool threadPool, ShardStateAction shardStateAction,
+                                                       TransportShardActive transportShardActive) {
         super(settings, threadPool);
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.shardStateAction = shardStateAction;
+        this.transportShardActive = transportShardActive;
 
         this.transportAction = transportAction();
         this.transportReplicaAction = transportReplicaAction();
@@ -97,6 +105,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
         this.defaultReplicationType = ReplicationType.fromString(settings.get("action.replication_type", "sync"));
         this.defaultWriteConsistencyLevel = WriteConsistencyLevel.fromString(settings.get("action.write_consistency", "quorum"));
+        this.defaultValidateWriteConsistency = settings.getAsBoolean(VALIDATE_QUAROM, false);
     }
 
     @Override
@@ -318,8 +327,9 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         private final AtomicBoolean primaryOperationStarted = new AtomicBoolean();
         private final ReplicationType replicationType;
         private volatile ClusterStateObserver observer;
+        private volatile TimeValue raisedTimeout = null;
 
-        AsyncShardOperationAction(Request request, ActionListener<Response> listener) {
+        AsyncShardOperationAction(Request request, final ActionListener<Response> listener) {
             this.request = request;
             this.listener = listener;
 
@@ -393,25 +403,32 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 }
 
                 // check here for consistency
+                final int requiredNumber;
+                final WriteConsistencyLevel consistencyLevel;
                 if (checkWriteConsistency) {
-                    WriteConsistencyLevel consistencyLevel = defaultWriteConsistencyLevel;
                     if (request.consistencyLevel() != WriteConsistencyLevel.DEFAULT) {
                         consistencyLevel = request.consistencyLevel();
+                    } else {
+                        consistencyLevel = defaultWriteConsistencyLevel;
                     }
-                    int requiredNumber = 1;
                     if (consistencyLevel == WriteConsistencyLevel.QUORUM && shardIt.size() > 2) {
                         // only for more than 2 in the number of shardIt it makes sense, otherwise its 1 shard with 1 replica, quorum is 1 (which is what it is initialized to)
                         requiredNumber = (shardIt.size() / 2) + 1;
                     } else if (consistencyLevel == WriteConsistencyLevel.ALL) {
                         requiredNumber = shardIt.size();
+                    } else {
+                        requiredNumber = 1;
                     }
 
                     if (shardIt.sizeActive() < requiredNumber) {
-                        logger.trace("not enough active copies of shard [{}] to meet write consistency of [{}] (have {}, needed {}), scheduling a retry.",
+                        logger.trace("not enough active copies of shard [{}] to meet the write consistency check of [{}] (have {}, needed {}), scheduling a retry.",
                                 shard.shardId(), consistencyLevel, shardIt.sizeActive(), requiredNumber);
                         retry(null);
                         return false;
                     }
+                } else {
+                    requiredNumber = -1;
+                    consistencyLevel = null;
                 }
 
                 if (!primaryOperationStarted.compareAndSet(false, true)) {
@@ -427,14 +444,14 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                                 @Override
                                 public void run() {
                                     try {
-                                        performOnPrimary(shard.id(), shard, observer.observedState());
+                                        performOnPrimary(shard.id(), shard, observer.observedState(), consistencyLevel, requiredNumber);
                                     } catch (Throwable t) {
                                         listener.onFailure(t);
                                     }
                                 }
                             });
                         } else {
-                            performOnPrimary(shard.id(), shard, observer.observedState());
+                            performOnPrimary(shard.id(), shard, observer.observedState(), consistencyLevel, requiredNumber);
                         }
                     } catch (Throwable t) {
                         listener.onFailure(t);
@@ -507,6 +524,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
                 @Override
                 public void onTimeout(TimeValue timeout) {
+                    raisedTimeout = timeout;
                     if (doStart()) {
                         return;
                     }
@@ -526,7 +544,51 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             listener.onFailure(failure);
         }
 
-        void performOnPrimary(int primaryShardId, final ShardRouting shard, ClusterState clusterState) {
+        void performOnPrimary(final int primaryShardId, final ShardRouting shard, final ClusterState clusterState, final WriteConsistencyLevel consistencyLevel, final int requiredNumber) {
+            final boolean validateWriteConsistency;
+            if (request.validateWriteConsistency() != null) {
+                validateWriteConsistency = request.validateWriteConsistency();
+            } else {
+                validateWriteConsistency = defaultValidateWriteConsistency;
+            }
+            if (validateWriteConsistency) {
+                ShardsIterator shards = shards(clusterState, request);
+                transportShardActive.shardActiveCount(clusterState, shard.shardId(), shards.asUnordered(), new ActionListener<TransportShardActive.Result>() {
+                    @Override
+                    public void onResponse(TransportShardActive.Result result) {
+                        final int activeShards = result.getActiveShards();
+                        if (activeShards < requiredNumber) {
+                            retryOrFail(activeShards);
+                        } else {
+                            innerPerformOnPrimary(primaryShardId, shard, clusterState);
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Throwable e) {
+                        logger.debug("Write consistency validation failed [{}]", shard.shardId(), e);
+                        retryOrFail(-1);
+                    }
+
+                    private void retryOrFail(int activeShards) {
+                        if (raisedTimeout != null) {
+                            raiseTimeoutFailure(raisedTimeout, null);
+                        } else {
+                            logger.info(
+                                    "not enough active copies of shard [{}] to meet the write consistency validation of [{}] (have {}, needed {}), scheduling a retry.",
+                                    shard.shardId(), consistencyLevel, activeShards, requiredNumber
+                            );
+                            primaryOperationStarted.set(false);
+                            retry(null);
+                        }
+                    }
+                });
+            } else {
+                innerPerformOnPrimary(primaryShardId, shard, clusterState);
+            }
+        }
+
+        void innerPerformOnPrimary(int primaryShardId, final ShardRouting shard, ClusterState clusterState) {
             try {
                 PrimaryResponse<Response, ReplicaRequest> response = shardOperationOnPrimary(clusterState, new PrimaryOperationRequest(primaryShardId, request));
                 performReplicas(response);

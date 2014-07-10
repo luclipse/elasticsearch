@@ -20,6 +20,7 @@
 package org.elasticsearch.action.update;
 
 import com.google.common.collect.Maps;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
@@ -68,6 +69,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
 
     private ReplicationType replicationType = ReplicationType.DEFAULT;
     private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
+    private Boolean validateWriteConsistency;
 
     private IndexRequest upsertRequest;
 
@@ -366,6 +368,15 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         return this;
     }
 
+    public Boolean validateWriteConsistency() {
+        return validateWriteConsistency;
+    }
+
+    public UpdateRequest validateWriteConsistency(Boolean validateWriteConsistency) {
+        this.validateWriteConsistency = validateWriteConsistency;
+        return this;
+    }
+
     /**
      * Sets the doc to use for updates when a script is not specified.
      */
@@ -611,6 +622,11 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         docAsUpsert = in.readBoolean();
         version = Versions.readVersion(in);
         versionType = VersionType.fromValue(in.readByte());
+        if (in.getVersion().onOrAfter(Version.V_2_0_0)) {
+            if (in.readBoolean()) {
+                validateWriteConsistency = in.readBoolean();
+            }
+        }
     }
 
     @Override
@@ -657,6 +673,14 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         out.writeBoolean(docAsUpsert);
         Versions.writeVersion(version, out);
         out.writeByte(versionType.getValue());
+        if (out.getVersion().onOrAfter(Version.V_2_0_0)) {
+            if (validateWriteConsistency != null) {
+                out.writeBoolean(true);
+                out.writeBoolean(validateWriteConsistency);
+            } else {
+                out.writeBoolean(false);
+            }
+        }
     }
 
 }

@@ -59,6 +59,7 @@ import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.store.TransportShardActive;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -82,8 +83,8 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
     @Inject
     public TransportShardBulkAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                     IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
-                                    MappingUpdatedAction mappingUpdatedAction, UpdateHelper updateHelper) {
-        super(settings, transportService, clusterService, indicesService, threadPool, shardStateAction);
+                                    MappingUpdatedAction mappingUpdatedAction, UpdateHelper updateHelper, TransportShardActive transportShardActive) {
+        super(settings, transportService, clusterService, indicesService, threadPool, shardStateAction, transportShardActive);
         this.mappingUpdatedAction = mappingUpdatedAction;
         this.updateHelper = updateHelper;
         this.allowIdGeneration = settings.getAsBoolean("action.allow_id_generation", true);
