@@ -102,6 +102,7 @@ public class ChildrenQueryTests extends AbstractChildTests {
         IntOpenHashSet filteredOrDeletedDocs = new IntOpenHashSet();
 
         int childDocId = 0;
+        boolean docValues = useParentDocValues();
         int numParentDocs = scaledRandomIntBetween(1, numUniqueChildValues);
         ObjectObjectOpenHashMap<String, NavigableMap<String, FloatArrayList>> childValueToParentIds = new ObjectObjectOpenHashMap<>();
         for (int parentDocId = 0; parentDocId < numParentDocs; parentDocId++) {
@@ -119,6 +120,9 @@ public class ChildrenQueryTests extends AbstractChildTests {
                 filteredOrDeletedDocs.add(parentDocId);
                 document.add(new StringField("filter", "me", Field.Store.NO));
             }
+            if (docValues) {
+                document.add(ParentFieldMapper.createParentIdField("parent", parent));
+            }
             indexWriter.addDocument(document);
 
             int numChildDocs = scaledRandomIntBetween(0, 100);
@@ -133,6 +137,9 @@ public class ChildrenQueryTests extends AbstractChildTests {
                 document.add(new StringField("field1", childValue, Field.Store.NO));
                 if (markChildAsDeleted) {
                     document.add(new StringField("delete", "me", Field.Store.NO));
+                }
+                if (docValues) {
+                    document.add(ParentFieldMapper.createParentIdField("parent", parent));
                 }
                 indexWriter.addDocument(document);
 
@@ -197,13 +204,17 @@ public class ChildrenQueryTests extends AbstractChildTests {
                     do {
                         parentId = random().nextInt(numParentDocs);
                     } while (filteredOrDeletedDocs.contains(parentId));
+                    String parent = Integer.toString(parentId);
 
-                    String parentUid = Uid.createUid("parent", Integer.toString(parentId));
+                    String parentUid = Uid.createUid("parent", parent);
                     indexWriter.deleteDocuments(new Term(UidFieldMapper.NAME, parentUid));
 
                     Document document = new Document();
                     document.add(new StringField(UidFieldMapper.NAME, parentUid, Field.Store.YES));
                     document.add(new StringField(TypeFieldMapper.NAME, "parent", Field.Store.NO));
+                    if (docValues) {
+                        document.add(ParentFieldMapper.createParentIdField("parent", parent));
+                    }
                     indexWriter.addDocument(document);
                 }
 

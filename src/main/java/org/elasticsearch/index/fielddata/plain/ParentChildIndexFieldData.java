@@ -60,8 +60,13 @@ import java.util.concurrent.TimeUnit;
  */
 public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicParentChildFieldData> implements IndexParentChildFieldData, DocumentTypeListener {
 
+    // From 2.0 and up this option should be removed and parent/child only work with doc values
+    public final static String PARENT_DOC_VALUES = "index._parent.doc_values";
+
     private final NavigableSet<BytesRef> parentTypes;
     private final CircuitBreakerService breakerService;
+
+    private final boolean docValues;
 
     // If child type (a type with _parent field) is added or removed, we want to make sure modifications don't happen
     // while loading.
@@ -77,11 +82,44 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
             beforeCreate(documentMapper);
         }
         mapperService.addTypeListener(this);
+        this.docValues = indexSettings.getAsBoolean(PARENT_DOC_VALUES, true);
     }
 
     @Override
     public XFieldComparatorSource comparatorSource(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested) {
         return new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);
+    }
+
+    @Override
+    public AtomicParentChildFieldData load(AtomicReaderContext context) {
+        if (docValues) {
+            final NavigableSet<BytesRef> parentTypes;
+            synchronized (lock) {
+                parentTypes = ImmutableSortedSet.copyOf(BytesRef.getUTF8SortedAsUnicodeComparator(), this.parentTypes);
+            }
+
+            AtomicReader reader = context.reader();
+            ObjectObjectOpenHashMap<String, SortedSetDVBytesAtomicFieldData> typeDvBuilders = ObjectObjectOpenHashMap.newInstance();
+            for (BytesRef parentType : parentTypes) {
+                String type = parentType.utf8ToString();
+                String field = ParentFieldMapper.NAME + "#" + type;
+                FieldInfo fieldInfo = reader.getFieldInfos().fieldInfo(field);
+                if (fieldInfo != null && fieldInfo.hasDocValues()) {
+                    typeDvBuilders.put(type, new SortedSetDVBytesAtomicFieldData(reader, field));
+                }
+            }
+            if (!typeDvBuilders.isEmpty()) {
+                // An index has either doc values fields for p/c or none at all
+                assert typeDvBuilders.size() == parentTypes.size();
+                ImmutableOpenMap.Builder<String, AtomicOrdinalsFieldData> typeToAtomicFieldData = ImmutableOpenMap.builder(typeDvBuilders.size());
+                for (ObjectObjectCursor<String, SortedSetDVBytesAtomicFieldData> cursor : typeDvBuilders) {
+                    typeToAtomicFieldData.put(cursor.key, cursor.value);
+                }
+                return new ParentChildAtomicFieldData(typeToAtomicFieldData.build());
+            }
+            // If we got here then this is a < 1.4.0 index, which doesn't have doc values field for _parent mapping
+        }
+        return super.load(context);
     }
 
     @Override

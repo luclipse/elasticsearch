@@ -85,10 +85,15 @@ public class ChildrenConstantScoreQueryTests extends AbstractChildTests {
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
 
+        boolean docValues = useParentDocValues();
         for (int parent = 1; parent <= 5; parent++) {
+            String parentId = Integer.toString(parent);
             Document document = new Document();
-            document.add(new StringField(UidFieldMapper.NAME, Uid.createUid("parent", Integer.toString(parent)), Field.Store.NO));
+            document.add(new StringField(UidFieldMapper.NAME, Uid.createUid("parent", parentId), Field.Store.NO));
             document.add(new StringField(TypeFieldMapper.NAME, "parent", Field.Store.NO));
+            if (docValues) {
+                document.add(ParentFieldMapper.createParentIdField("parent", parentId));
+            }
             indexWriter.addDocument(document);
 
             for (int child = 1; child <= 3; child++) {
@@ -97,6 +102,9 @@ public class ChildrenConstantScoreQueryTests extends AbstractChildTests {
                 document.add(new StringField(TypeFieldMapper.NAME, "child", Field.Store.NO));
                 document.add(new StringField(ParentFieldMapper.NAME, Uid.createUid("parent", Integer.toString(parent)), Field.Store.NO));
                 document.add(new StringField("field1", "value" + child, Field.Store.NO));
+                if (docValues) {
+                    document.add(ParentFieldMapper.createParentIdField("parent", parentId));
+                }
                 indexWriter.addDocument(document);
             }
         }
@@ -140,6 +148,7 @@ public class ChildrenConstantScoreQueryTests extends AbstractChildTests {
             childValues[i] = Integer.toString(i);
         }
 
+        boolean docValues = useParentDocValues();
         IntOpenHashSet filteredOrDeletedDocs = new IntOpenHashSet();
         int childDocId = 0;
         int numParentDocs = scaledRandomIntBetween(1, numUniqueChildValues);
@@ -159,6 +168,9 @@ public class ChildrenConstantScoreQueryTests extends AbstractChildTests {
                 filteredOrDeletedDocs.add(parentDocId);
                 document.add(new StringField("filter", "me", Field.Store.NO));
             }
+            if (docValues) {
+                document.add(ParentFieldMapper.createParentIdField("parent", parent));
+            }
             indexWriter.addDocument(document);
 
             final int numChildDocs = scaledRandomIntBetween(0, 100);
@@ -173,6 +185,9 @@ public class ChildrenConstantScoreQueryTests extends AbstractChildTests {
                 document.add(new StringField("field1", childValue, Field.Store.NO));
                 if (markChildAsDeleted) {
                     document.add(new StringField("delete", "me", Field.Store.NO));
+                }
+                if (docValues) {
+                    document.add(ParentFieldMapper.createParentIdField("parent", parent));
                 }
                 indexWriter.addDocument(document);
 
@@ -233,13 +248,17 @@ public class ChildrenConstantScoreQueryTests extends AbstractChildTests {
                     do {
                         parentId = random().nextInt(numParentDocs);
                     } while (filteredOrDeletedDocs.contains(parentId));
+                    String parent = Integer.toString(parentId);
 
-                    String parentUid = Uid.createUid("parent", Integer.toString(parentId));
+                    String parentUid = Uid.createUid("parent", parent);
                     indexWriter.deleteDocuments(new Term(UidFieldMapper.NAME, parentUid));
 
                     Document document = new Document();
                     document.add(new StringField(UidFieldMapper.NAME, parentUid, Field.Store.YES));
                     document.add(new StringField(TypeFieldMapper.NAME, "parent", Field.Store.NO));
+                    if (docValues) {
+                        document.add(ParentFieldMapper.createParentIdField("parent", parent));
+                    }
                     indexWriter.addDocument(document);
                 }
 

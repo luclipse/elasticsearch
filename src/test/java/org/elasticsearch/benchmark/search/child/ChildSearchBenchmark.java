@@ -25,6 +25,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.node.Node;
 
@@ -46,6 +47,7 @@ public class ChildSearchBenchmark {
     public static void main(String[] args) throws Exception {
         Settings settings = settingsBuilder()
                 .put("index.refresh_interval", "-1")
+                .put(ParentChildIndexFieldData.PARENT_DOC_VALUES, true)
                 .put("gateway.type", "local")
                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)

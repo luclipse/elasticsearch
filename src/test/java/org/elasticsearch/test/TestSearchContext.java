@@ -614,4 +614,8 @@ public class TestSearchContext extends SearchContext {
     public SearchContext useSlowScroll(boolean useSlowScroll) {
         return null;
     }
+
+    public IndexService getIndexService() {
+        return indexService;
+    }
 }

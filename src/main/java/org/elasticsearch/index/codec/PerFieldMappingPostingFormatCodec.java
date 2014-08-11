@@ -25,8 +25,10 @@ import org.apache.lucene.codecs.lucene49.Lucene49Codec;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 
 /**
  * {@link PerFieldMappingPostingFormatCodec This postings format} is the default
@@ -63,7 +65,22 @@ public class PerFieldMappingPostingFormatCodec extends Lucene49Codec {
 
     @Override
     public DocValuesFormat getDocValuesFormatForField(String field) {
-        final FieldMappers indexName = mapperService.indexName(field);
+        FieldMappers indexName = mapperService.indexName(field);
+        if (indexName == null) {
+            // The _parent field produces doc values fields that start with the prefix: _parent
+            // Since those fields don't match with the index field name of the _parent field itself, this would print
+            // a warning. Catching this on this point seems like the cleanest solution to me.
+            if (field.startsWith(ParentFieldMapper.NAME)) {
+                int indexOf = field.indexOf('#');
+                if (indexOf != -1) {
+                    String type = field.substring(indexOf + 1);
+                    DocumentMapper documentMapper = mapperService.documentMapper(type);
+                    if (documentMapper != null) {
+                        indexName = documentMapper.mappers().indexName(ParentFieldMapper.NAME);
+                    }
+                }
+            }
+        }
         if (indexName == null) {
             logger.warn("no index mapper found for field: [{}] returning default doc values format", field);
             return defaultDocValuesFormat;

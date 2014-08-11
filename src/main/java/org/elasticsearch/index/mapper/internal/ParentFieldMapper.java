@@ -20,6 +20,7 @@ package org.elasticsearch.index.mapper.internal;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermFilter;
@@ -28,8 +29,10 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.ImmutableOpenSet;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -40,6 +43,7 @@ import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
+import org.elasticsearch.index.mapper.core.TypeParsers;
 import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
@@ -52,7 +56,7 @@ import static org.elasticsearch.index.mapper.MapperBuilders.parent;
 /**
  *
  */
-public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements InternalMapper, RootMapper {
+public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements InternalMapper, RootMapper, DocumentTypeListener {
 
     public static final String NAME = "_parent";
 
@@ -64,6 +68,7 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
         public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
 
         static {
+            // TODO: index and store can be false now. Should we do this in 2.0?
             FIELD_TYPE.setIndexed(true);
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setStored(true);
@@ -105,7 +110,8 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
             if (type == null) {
                 throw new MapperParsingException("Parent mapping must contain the parent type");
             }
-            return new ParentFieldMapper(name, indexName, type, postingsFormat, FIELD_DATA_SETTINGS, context.indexSettings());
+            boolean docValues = context.indexCreatedVersion().onOrAfter(Version.V_1_4_0);
+            return new ParentFieldMapper(name, indexName, type, postingsFormat, FIELD_DATA_SETTINGS, context.indexSettings(), docValues);
         }
     }
 
@@ -129,16 +135,20 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
 
     private final String type;
     private final BytesRef typeAsBytes;
+    private final boolean storeDocValues;
+    private MapperService mapperService;
+    private volatile ImmutableOpenSet<String> parentTypes;
 
-    protected ParentFieldMapper(String name, String indexName, String type, PostingsFormatProvider postingsFormat, @Nullable Settings fieldDataSettings, Settings indexSettings) {
+    protected ParentFieldMapper(String name, String indexName, String type, PostingsFormatProvider postingsFormat, @Nullable Settings fieldDataSettings, Settings indexSettings, boolean storeDocValues) {
         super(new Names(name, indexName, indexName, name), Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), null,
                 Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, postingsFormat, null, null, null, fieldDataSettings, indexSettings);
         this.type = type;
         this.typeAsBytes = type == null ? null : new BytesRef(type);
+        this.storeDocValues = storeDocValues;
     }
 
     public ParentFieldMapper() {
-        this(Defaults.NAME, Defaults.NAME, null, null, null, null);
+        this(Defaults.NAME, Defaults.NAME, null, null, null, null, false);
     }
 
     public String type() {
@@ -157,7 +167,7 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
 
     @Override
     public boolean hasDocValues() {
-        return false;
+        return storeDocValues;
     }
 
     @Override
@@ -177,19 +187,29 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
     @Override
     protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
         if (!active()) {
+            // If this is a parent document referred by a child doc that has doc values enabled in the _parent field
+            // we need to save the id in the _parent doc values field
+            for (DocumentMapper documentMapper : mapperService.docMappers(false)) {
+                ParentFieldMapper parentFieldMapper = documentMapper.parentFieldMapper();
+                if (parentFieldMapper.active() && parentFieldMapper.hasDocValues() && parentFieldMapper.parentTypes.contains(context.type())) {
+                    fields.add(createParentIdField(context.type(), context.id()));
+                    break;
+                }
+            }
             return;
         }
 
+        String parentId = null;
         if (context.parser().currentName() != null && context.parser().currentName().equals(Defaults.NAME)) {
             // we are in the parsing of _parent phase
-            String parentId = context.parser().text();
+            parentId = context.parser().text();
             context.sourceToParse().parent(parentId);
             fields.add(new Field(names.indexName(), Uid.createUid(context.stringBuilder(), type, parentId), fieldType));
         } else {
             // otherwise, we are running it post processing of the xcontent
             String parsedParentId = context.doc().get(Defaults.NAME);
             if (context.sourceToParse().parent() != null) {
-                String parentId = context.sourceToParse().parent();
+                parentId = context.sourceToParse().parent();
                 if (parsedParentId == null) {
                     if (parentId == null) {
                         throw new MapperParsingException("No parent id provided, not within the document, and not externally");
@@ -201,7 +221,21 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
                 }
             }
         }
-        // we have parent mapping, yet no value was set, ignore it...
+        if (hasDocValues() && parentId != null) {
+            // Doc values is enabled for the _parent field, so we add an extra field
+            fields.add(createParentIdField(type(), parentId));
+        }
+
+        // A document can be both child and parent:
+        DocumentMapper documentMapper = mapperService.documentMapper(context.type());
+        if (documentMapper.parentFieldMapper().active() && documentMapper.parentFieldMapper().hasDocValues() && parentTypes.contains(context.type())) {
+            fields.add(createParentIdField(context.type(), context.id()));
+        }
+    }
+
+    public static SortedSetDocValuesField createParentIdField(String parentType, String id) {
+        String fieldName = ParentFieldMapper.NAME + "#" + parentType;
+        return new SortedSetDocValuesField(fieldName, new BytesRef(id));
     }
 
     @Override
@@ -333,9 +367,11 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
         if (!active()) {
             return builder;
         }
+        boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
 
         builder.startObject(CONTENT_TYPE);
         builder.field("type", type);
+        builder.field(TypeParsers.DOC_VALUES, storeDocValues);
         builder.endObject();
         return builder;
     }
@@ -347,7 +383,7 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
             return;
         }
 
-        if (active() != other.active() || !type.equals(other.type)) {
+        if (active() != other.active() || !type.equals(other.type) || hasDocValues() != other.hasDocValues()) {
             mergeContext.addConflict("The _parent field can't be added or updated");
         }
     }
@@ -359,4 +395,35 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
         return type != null;
     }
 
+    @Override
+    public void beforeCreate(DocumentMapper mapper) {
+        ParentFieldMapper fieldMapper = mapper.parentFieldMapper();
+        if (fieldMapper.active()) {
+            ImmutableOpenSet.Builder<String> builder = ImmutableOpenSet.builder(parentTypes);
+            builder.add(fieldMapper.type());
+            this.parentTypes = builder.build();
+        }
+    }
+
+    @Override
+    public void afterRemove(DocumentMapper mapper) {
+        ParentFieldMapper fieldMapper = mapper.parentFieldMapper();
+        if (fieldMapper.active()) {
+            ImmutableOpenSet.Builder<String> builder = ImmutableOpenSet.builder(parentTypes);
+            builder.remove(fieldMapper.type());
+            this.parentTypes = builder.build();
+        }
+    }
+
+    public void setMappingService(MapperService mapperService) {
+        ImmutableOpenSet.Builder<String> parentTypesBuilder = ImmutableOpenSet.builder();
+        for (DocumentMapper documentMapper : mapperService.docMappers(false)) {
+            if (documentMapper.parentFieldMapper().active()) {
+                parentTypesBuilder.add(documentMapper.parentFieldMapper().type());
+            }
+        }
+        mapperService.addTypeListener(this);
+        this.mapperService = mapperService;
+        this.parentTypes = parentTypesBuilder.build();
+    }
 }

@@ -362,6 +362,7 @@ public class MapperService extends AbstractIndexComponent  {
                 mapper.traverse(objectMappersAgg);
                 addObjectMappers(objectMappersAgg.mappers.toArray(new ObjectMapper[objectMappersAgg.mappers.size()]));
                 mapper.addObjectMapperListener(objectMapperListener, false);
+                mapper.parentFieldMapper().setMappingService(this);
 
                 for (DocumentTypeListener typeListener : typeListeners) {
                     typeListener.beforeCreate(mapper);
@@ -405,6 +406,7 @@ public class MapperService extends AbstractIndexComponent  {
                 return;
             }
             docMapper.close();
+            removeTypeListener(docMapper.parentFieldMapper());
             mappers = newMapBuilder(mappers).remove(type).map();
             removeObjectAndFieldMappers(docMapper);
             for (DocumentTypeListener typeListener : typeListeners) {

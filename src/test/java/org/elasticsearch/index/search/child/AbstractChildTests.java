@@ -27,11 +27,14 @@ import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.compress.CompressedString;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ElasticsearchSingleNodeLuceneTestCase;
+import org.elasticsearch.test.TestSearchContext;
 import org.hamcrest.Description;
 import org.hamcrest.StringDescription;
 import org.junit.Ignore;
@@ -45,10 +48,14 @@ import static org.hamcrest.Matchers.equalTo;
 public abstract class AbstractChildTests extends ElasticsearchSingleNodeLuceneTestCase {
 
     static SearchContext createSearchContext(String indexName, String parentType, String childType) throws IOException {
-        IndexService indexService = createIndex(indexName);
+        IndexService indexService = createIndex(indexName, ImmutableSettings.builder().put(ParentChildIndexFieldData.PARENT_DOC_VALUES, random().nextBoolean()).build());
         MapperService mapperService = indexService.mapperService();
         mapperService.merge(childType, new CompressedString(PutMappingRequest.buildFromSimplifiedDef(childType, "_parent", "type=" + parentType).string()), true);
         return createSearchContext(indexService);
+    }
+
+    static boolean useParentDocValues() {
+        return ((TestSearchContext) SearchContext.current()).getIndexService().settingsService().getSettings().getAsBoolean(ParentChildIndexFieldData.PARENT_DOC_VALUES, true);
     }
 
     static void assertBitSet(FixedBitSet actual, FixedBitSet expected, IndexSearcher searcher) throws IOException {

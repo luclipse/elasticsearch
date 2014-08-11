@@ -95,6 +95,7 @@ public class ParentConstantScoreQueryTests extends AbstractChildTests {
         }
 
         int childDocId = 0;
+        boolean docValues = useParentDocValues();
         int numParentDocs = scaledRandomIntBetween(1, numUniqueParentValues);
         ObjectObjectOpenHashMap<String, NavigableSet<String>> parentValueToChildDocIds = new ObjectObjectOpenHashMap<>();
         IntIntOpenHashMap childIdToParentId = new IntIntOpenHashMap();
@@ -108,6 +109,9 @@ public class ParentConstantScoreQueryTests extends AbstractChildTests {
             document.add(new StringField("field1", parentValue, Field.Store.NO));
             if (markParentAsDeleted) {
                 document.add(new StringField("delete", "me", Field.Store.NO));
+            }
+            if (docValues) {
+                document.add(ParentFieldMapper.createParentIdField("parent", parent));
             }
             indexWriter.addDocument(document);
 
@@ -130,6 +134,9 @@ public class ParentConstantScoreQueryTests extends AbstractChildTests {
                 }
                 if (filterMe) {
                     document.add(new StringField("filter", "me", Field.Store.NO));
+                }
+                if (docValues) {
+                    document.add(ParentFieldMapper.createParentIdField("parent", parent));
                 }
                 indexWriter.addDocument(document);
 
@@ -190,12 +197,16 @@ public class ParentConstantScoreQueryTests extends AbstractChildTests {
                     int childId = childIds[random().nextInt(childIds.length)];
                     String childUid = Uid.createUid("child", Integer.toString(childId));
                     indexWriter.deleteDocuments(new Term(UidFieldMapper.NAME, childUid));
+                    String parent = Integer.toString(childIdToParentId.get(childId));
 
                     Document document = new Document();
                     document.add(new StringField(UidFieldMapper.NAME, childUid, Field.Store.YES));
                     document.add(new StringField(TypeFieldMapper.NAME, "child", Field.Store.NO));
-                    String parentUid = Uid.createUid("parent", Integer.toString(childIdToParentId.get(childId)));
+                    String parentUid = Uid.createUid("parent", parent);
                     document.add(new StringField(ParentFieldMapper.NAME, parentUid, Field.Store.NO));
+                    if (docValues) {
+                        document.add(ParentFieldMapper.createParentIdField("parent", parent));
+                    }
                     indexWriter.addDocument(document);
                 }
 
