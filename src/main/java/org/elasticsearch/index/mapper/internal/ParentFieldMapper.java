@@ -20,7 +20,7 @@ package org.elasticsearch.index.mapper.internal;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermFilter;
@@ -233,9 +233,9 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
         }
     }
 
-    public static SortedSetDocValuesField createParentIdField(String parentType, String id) {
+    public static SortedDocValuesField createParentIdField(String parentType, String id) {
         String fieldName = ParentFieldMapper.NAME + "#" + parentType;
-        return new SortedSetDocValuesField(fieldName, new BytesRef(id));
+        return new SortedDocValuesField(fieldName, new BytesRef(id));
     }
 
     @Override
