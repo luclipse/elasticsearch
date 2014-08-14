@@ -25,6 +25,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -35,6 +36,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.NetworkDisconnectPartition;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -106,7 +108,7 @@ public class JepsenReproductionTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @TestLogging("discovery.zen:DEBUG,action.index:TRACE")
+    @TestLogging("discovery.zen:DEBUG,action.index:TRACE,cluster.service:TRACE,indices.recovery:TRACE")
     public void jepsenCreateTest() throws Exception {
         final int portOffset = randomIntBetween(25000, 35000);
         int n0port = portOffset + 0;
@@ -623,7 +625,9 @@ public class JepsenReproductionTests extends ElasticsearchIntegrationTest {
                                     .setSource("{\"num\": " + id + "}")
                                     .setTimeout(TimeValue.timeValueSeconds(5000))
                                     .get();
-                            logger.info("--> {} indexed document {} in {}ms", node, resp.getId(), System.currentTimeMillis() - start);
+                            // TODO: Move to a helper method in test cluster:
+                            int shard = Math.abs(((InternalTestCluster) cluster()).getInstance(DjbHashFunction.class).hash(resp.getId()) % 5);
+                            logger.info("--> {} indexed document {} into shard {} in {}ms", node, resp.getId(), shard, System.currentTimeMillis() - start);
                             successIds.add(resp.getId());
                             return true;
                         } catch (Exception e) {
