@@ -89,12 +89,6 @@ public class JepsenReproductionTests extends ElasticsearchIntegrationTest {
                 .build();
     }
 
-    private static final AtomicInteger docCount = new AtomicInteger(0);
-    private static final AtomicInteger successfullDocs = new AtomicInteger(0);
-    private static final AtomicInteger timedOutDocs = new AtomicInteger(0);
-    private static final AtomicInteger failedDocs = new AtomicInteger(0);
-    private static final Set<String> successIds = Collections.synchronizedSet(new HashSet<String>());
-
     @Override
     protected int numberOfShards() {
         // Unset by Jepsen, so defaults to 5
@@ -195,15 +189,16 @@ public class JepsenReproductionTests extends ElasticsearchIntegrationTest {
         prepareCreate("test").addMapping("number", mapping).get();
         ensureGreen("test");
 
-        OperationProcessor op0 = new OperationProcessor(node0);
+        Context context = new Context();
+        OperationProcessor op0 = new OperationProcessor(node0, context);
         Thread t0 = new Thread(op0);
-        OperationProcessor op1 = new OperationProcessor(node1);
+        OperationProcessor op1 = new OperationProcessor(node1, context);
         Thread t1 = new Thread(op1);
-        OperationProcessor op2 = new OperationProcessor(node2);
+        OperationProcessor op2 = new OperationProcessor(node2, context);
         Thread t2 = new Thread(op2);
-        OperationProcessor op3 = new OperationProcessor(node3);
+        OperationProcessor op3 = new OperationProcessor(node3, context);
         Thread t3 = new Thread(op3);
-        OperationProcessor op4 = new OperationProcessor(node4);
+        OperationProcessor op4 = new OperationProcessor(node4, context);
         Thread t4 = new Thread(op4);
         logger.info("--> starting processors...");
         t0.start();
@@ -288,40 +283,40 @@ public class JepsenReproductionTests extends ElasticsearchIntegrationTest {
             logger.info("--> {} sees {} nodes: {}", node, state.nodes().size(), seenNodes);
         }
 
-        logger.info("--> indexed {} documents in total", docCount.get());
-        logger.info("--> FINAL STATS - attempts: {}, success: {}, failed: {}, timed out: {}", docCount.get(), successfullDocs.get(), failedDocs.get(), timedOutDocs.get());
-        assertThat("each indexed document should be successfully indexed", docCount.get(), equalTo(successfullDocs.get() + timedOutDocs.get()));
+        logger.info("--> indexed {} documents in total", context.docCount.get());
+        logger.info("--> FINAL STATS - attempts: {}, success: {}, failed: {}, timed out: {}", context.docCount.get(), context.successfullDocs.get(), context.failedDocs.get(), context.timedOutDocs.get());
+        assertThat("each indexed document should be successfully indexed", context.docCount.get(), equalTo(context.successfullDocs.get() + context.timedOutDocs.get()));
 
         refresh();
-        int numDocs = docCount.get() * 2;
+        int numDocs = context.docCount.get() * 2;
         Set<String> fetchedIds = newHashSet();
         SearchResponse resp = client().prepareSearch("test").setQuery(matchAllQuery()).setSize(numDocs).get();
         for (SearchHit hit : resp.getHits().getHits()) {
             fetchedIds.add(hit.getId());
         }
 
-        if (successfullDocs.get() != successIds.size()) {
+        if (context.successfullDocs.get() != context.successIds.size()) {
             logger.info("--> expected {} successful docs, but {} actually succeeded [diff:{}] (some timed out docs were successful)",
-                    successfullDocs.get(), successIds.size(), successIds.size() - successfullDocs.get());
+                    context.successfullDocs.get(), context.successIds.size(), context.successIds.size() - context.successfullDocs.get());
         }
 
         // Check for documents that are part of the successful ids but not returned from the query
         Set<String> missingIds = newHashSet();
-        missingIds.addAll(successIds);
+        missingIds.addAll(context.successIds);
         missingIds.removeAll(fetchedIds);
         assertThat("ids that were marked as successful but are missing: " + missingIds, missingIds.size(), equalTo(0));
 
         // Check for documents that were returned from the query but were not marked as successful
         Set<String> extraIds = newHashSet();
         extraIds.addAll(fetchedIds);
-        extraIds.removeAll(successIds);
+        extraIds.removeAll(context.successIds);
         assertThat("ids that were NOT marked as successful but actually exist: " + extraIds, extraIds.size(), equalTo(0));
 
         // The number of ids that we fetched should be the same as the number
         // of ids that were successful from the perspective of the processors
-        assertThat("queried ids should match fetched:" + fetchedIds.size() + " expected successful: " + successIds.size() +
-                        " missing: " + Math.abs(fetchedIds.size() - successIds.size()),
-                fetchedIds.size(), equalTo(successIds.size()));
+        assertThat("queried ids should match fetched:" + fetchedIds.size() + " expected successful: " + context.successIds.size() +
+                        " missing: " + Math.abs(fetchedIds.size() - context.successIds.size()),
+                fetchedIds.size(), equalTo(context.successIds.size()));
     }
 
     /**
@@ -417,15 +412,16 @@ public class JepsenReproductionTests extends ElasticsearchIntegrationTest {
         prepareCreate("test").addMapping("number", mapping).get();
         ensureGreen("test");
 
-        OperationProcessor op0 = new OperationProcessor(node0);
+        Context context = new Context();
+        OperationProcessor op0 = new OperationProcessor(node0, context);
         Thread t0 = new Thread(op0);
-        OperationProcessor op1 = new OperationProcessor(node1);
+        OperationProcessor op1 = new OperationProcessor(node1, context);
         Thread t1 = new Thread(op1);
-        OperationProcessor op2 = new OperationProcessor(node2);
+        OperationProcessor op2 = new OperationProcessor(node2, context);
         Thread t2 = new Thread(op2);
-        OperationProcessor op3 = new OperationProcessor(node3);
+        OperationProcessor op3 = new OperationProcessor(node3, context);
         Thread t3 = new Thread(op3);
-        OperationProcessor op4 = new OperationProcessor(node4);
+        OperationProcessor op4 = new OperationProcessor(node4, context);
         Thread t4 = new Thread(op4);
         logger.info("--> starting processors...");
         t0.start();
@@ -529,40 +525,40 @@ public class JepsenReproductionTests extends ElasticsearchIntegrationTest {
             logger.info("--> {} sees {} nodes: {}", node, state.nodes().size(), seenNodes);
         }
 
-        logger.info("--> indexed {} documents in total", docCount.get());
-        logger.info("--> FINAL STATS - attempts: {}, success: {}, failed: {}, timed out: {}", docCount.get(), successfullDocs.get(), failedDocs.get(), timedOutDocs.get());
-        assertThat("each indexed document should be successfully indexed", docCount.get(), equalTo(successfullDocs.get() + timedOutDocs.get()));
+        logger.info("--> indexed {} documents in total", context.docCount.get());
+        logger.info("--> FINAL STATS - attempts: {}, success: {}, failed: {}, timed out: {}", context.docCount.get(), context.successfullDocs.get(), context.failedDocs.get(), context.timedOutDocs.get());
+        assertThat("each indexed document should be successfully indexed", context.docCount.get(), equalTo(context.successfullDocs.get() + context.timedOutDocs.get()));
 
         refresh();
-        int numDocs = docCount.get() * 2;
+        int numDocs = context.docCount.get() * 2;
         Set<String> fetchedIds = newHashSet();
         SearchResponse resp = client().prepareSearch("test").setQuery(matchAllQuery()).setSize(numDocs).get();
         for (SearchHit hit : resp.getHits().getHits()) {
             fetchedIds.add(hit.getId());
         }
 
-        if (successfullDocs.get() != successIds.size()) {
+        if (context.successfullDocs.get() != context.successIds.size()) {
             logger.info("--> expected {} successful docs, but {} actually succeeded [diff:{}] (some timed out docs were successful)",
-                    successfullDocs.get(), successIds.size(), successIds.size() - successfullDocs.get());
+                    context.successfullDocs.get(), context.successIds.size(), context.successIds.size() - context.successfullDocs.get());
         }
 
         // Check for documents that are part of the successful ids but not returned from the query
         Set<String> missingIds = newHashSet();
-        missingIds.addAll(successIds);
+        missingIds.addAll(context.successIds);
         missingIds.removeAll(fetchedIds);
         assertThat("ids that were marked as successful but are missing: " + missingIds, missingIds.size(), equalTo(0));
 
         // Check for documents that were returned from the query but were not marked as successful
         Set<String> extraIds = newHashSet();
         extraIds.addAll(fetchedIds);
-        extraIds.removeAll(successIds);
+        extraIds.removeAll(context.successIds);
         assertThat("ids that were NOT marked as successful but actually exist: " + extraIds, extraIds.size(), equalTo(0));
 
         // The number of ids that we fetched should be the same as the number
         // of ids that were successful from the perspective of the processors
-        assertThat("queried ids should match fetched:" + fetchedIds.size() + " expected successful: " + successIds.size() +
-                        " missing: " + Math.abs(fetchedIds.size() - successIds.size()),
-                fetchedIds.size(), equalTo(successIds.size()));
+        assertThat("queried ids should match fetched:" + fetchedIds.size() + " expected successful: " + context.successIds.size() +
+                        " missing: " + Math.abs(fetchedIds.size() - context.successIds.size()),
+                fetchedIds.size(), equalTo(context.successIds.size()));
     }
 
     private ClusterState getNodeClusterState(String node) {
@@ -600,14 +596,26 @@ public class JepsenReproductionTests extends ElasticsearchIntegrationTest {
         }
     }
 
+    private static final class Context {
+
+        final AtomicInteger docCount = new AtomicInteger(0);
+        final AtomicInteger successfullDocs = new AtomicInteger(0);
+        final AtomicInteger timedOutDocs = new AtomicInteger(0);
+        final AtomicInteger failedDocs = new AtomicInteger(0);
+        final Set<String> successIds = Collections.synchronizedSet(new HashSet<String>());
+
+    }
+
     public class OperationProcessor implements Runnable {
         public volatile boolean run = true;
 
         private final String node;
+        private final Context context;
         private final ExecutorService service = Executors.newSingleThreadExecutor();
 
-        public OperationProcessor(String node) {
+        public OperationProcessor(String node, Context context) {
             this.node = node;
+            this.context = context;
         }
 
         @Override
@@ -615,7 +623,7 @@ public class JepsenReproductionTests extends ElasticsearchIntegrationTest {
             while (run) {
                 // Delay for 0 - 200 ms
                 stagger(200);
-                final int id = docCount.incrementAndGet();
+                final int id = context.docCount.incrementAndGet();
                 Callable<Boolean> call = new Callable<Boolean>() {
                     @Override
                     public Boolean call() {
@@ -628,7 +636,7 @@ public class JepsenReproductionTests extends ElasticsearchIntegrationTest {
                             // TODO: Move to a helper method in test cluster:
                             int shard = Math.abs(((InternalTestCluster) cluster()).getInstance(DjbHashFunction.class).hash(resp.getId()) % 5);
                             logger.info("--> {} indexed document {} into shard {} in {}ms", node, resp.getId(), shard, System.currentTimeMillis() - start);
-                            successIds.add(resp.getId());
+                            context.successIds.add(resp.getId());
                             return true;
                         } catch (Exception e) {
                             return false;
@@ -641,15 +649,15 @@ public class JepsenReproductionTests extends ElasticsearchIntegrationTest {
                 service.execute(future);
                 try {
                     if ((Boolean) future.get(5000, TimeUnit.MILLISECONDS)) {
-                        successfullDocs.incrementAndGet();
+                        context.successfullDocs.incrementAndGet();
                     } else {
-                        failedDocs.incrementAndGet();
+                        context.failedDocs.incrementAndGet();
                         logger.info("--> indexing unsuccessful");
                     }
                     // Jepsen adds a 1 second sleep after a write
                     Thread.sleep(1000);
                 } catch (TimeoutException te) {
-                    timedOutDocs.incrementAndGet();
+                    context.timedOutDocs.incrementAndGet();
                     logger.info("--> {} operation #{} timed out after 5 seconds", node, id);
                 } catch (Exception te) {
                     logger.info("--> {} operation #{} had an error", node, id);
