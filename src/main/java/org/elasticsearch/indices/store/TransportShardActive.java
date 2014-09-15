@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.store;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
@@ -43,6 +44,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -82,44 +84,61 @@ public class TransportShardActive extends AbstractComponent {
             }
         }
 
+        boolean m = false;
+        for (Tuple<DiscoveryNode, ShardActiveRequest> tuple : requests) {
+            if (tuple.v1().equals(state.getNodes().masterNode())) {
+                m = true;
+                break;
+            }
+        }
+
+        if (!m) {
+            ShardActiveRequest request = new ShardActiveRequest(clusterName, null, null);
+            requests.add(new Tuple<>(state.nodes().masterNode(), request));
+        }
+
         ShardActiveResponseHandler responseHandler = new ShardActiveResponseHandler(shardId, requests.size(), listener);
         for (Tuple<DiscoveryNode, ShardActiveRequest> request : requests) {
             DiscoveryNode target = request.v1();
             if (clusterService.localNode().equals(target)) {
-                responseHandler.handleResponse(new ShardActiveResponse(shardActive(request.v2()), target));
+                responseHandler.handleResponse(nodeOperation(request.v2(), clusterService.localNode()));
             } else {
-                logger.trace("Sending shard exists request to node [{}] for shard [{}]", target, shardId);
+                logger.trace("Sending shard exists request to node [{}] for shard {}", target, shardId);
                 transportService.sendRequest(target, ACTION_SHARD_EXISTS, request.v2(), responseHandler);
             }
         }
     }
 
-    private boolean shardActive(ShardActiveRequest request) {
-        ClusterName thisClusterName = clusterService.state().getClusterName();
+    private ShardActiveResponse nodeOperation(ShardActiveRequest request, DiscoveryNode localNode) {
+        boolean shardActive = false;
+        ClusterState state = clusterService.state();
+        ClusterName thisClusterName = state.getClusterName();
         if (!thisClusterName.equals(request.clusterName)) {
             logger.trace("shard exists request meant for cluster[{}], but this is cluster[{}], ignoring request", request.clusterName, thisClusterName);
-            return false;
-        }
-
-        ShardId shardId = request.shardId;
-        IndexService indexService = indicesService.indexService(shardId.index().getName());
-        if (indexService != null && indexService.indexUUID().equals(request.indexUUID)) {
-            IndexShard indexShard = indexService.shard(shardId.getId());
-            if (indexShard != null) {
-                return ACTIVE_STATES.contains(indexShard.state());
+        } else if (request.shardId != null) {
+            ShardId shardId = request.shardId;
+            IndexService indexService = indicesService.indexService(shardId.index().getName());
+            if (indexService != null && indexService.indexUUID().equals(request.indexUUID)) {
+                IndexShard indexShard = indexService.shard(shardId.getId());
+                if (indexShard != null) {
+                    shardActive = ACTIVE_STATES.contains(indexShard.state());
+                }
             }
         }
-        return false;
+
+        return new ShardActiveResponse(shardActive, state.nodes().localNodeMaster(), localNode);
     }
 
     public static class Result {
 
         private final int targetedShards;
         private final int activeShards;
+        private final boolean masterVerified;
 
-        public Result(int targetedShards, int activeShards) {
+        public Result(int targetedShards, int activeShards, boolean masterVerified) {
             this.targetedShards = targetedShards;
             this.activeShards = activeShards;
+            this.masterVerified = masterVerified;
         }
 
         public int getTargetedShards() {
@@ -128,6 +147,10 @@ public class TransportShardActive extends AbstractComponent {
 
         public int getActiveShards() {
             return activeShards;
+        }
+
+        public boolean isMasterVerified() {
+            return masterVerified;
         }
     }
 
@@ -167,12 +190,14 @@ public class TransportShardActive extends AbstractComponent {
 
         private boolean shardActive;
         private DiscoveryNode node;
+        private boolean masterVerified;
 
-        ShardActiveResponse() {
+        private ShardActiveResponse() {
         }
 
-        ShardActiveResponse(boolean shardActive, DiscoveryNode node) {
+        ShardActiveResponse(boolean shardActive, boolean isMaster, DiscoveryNode node) {
             this.shardActive = shardActive;
+            this.masterVerified = isMaster;
             this.node = node;
         }
 
@@ -181,6 +206,9 @@ public class TransportShardActive extends AbstractComponent {
             super.readFrom(in);
             shardActive = in.readBoolean();
             node = DiscoveryNode.readNode(in);
+            if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+                masterVerified = in.readBoolean();
+            }
         }
 
         @Override
@@ -188,6 +216,9 @@ public class TransportShardActive extends AbstractComponent {
             super.writeTo(out);
             out.writeBoolean(shardActive);
             node.writeTo(out);
+            if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+                out.writeBoolean(masterVerified);
+            }
         }
     }
 
@@ -205,7 +236,7 @@ public class TransportShardActive extends AbstractComponent {
 
         @Override
         public void messageReceived(ShardActiveRequest request, TransportChannel channel) throws Exception {
-            channel.sendResponse(new ShardActiveResponse(shardActive(request), clusterService.localNode()));
+            channel.sendResponse(nodeOperation(request, clusterService.localNode()));
         }
     }
 
@@ -217,6 +248,7 @@ public class TransportShardActive extends AbstractComponent {
 
         private final AtomicInteger awaitingResponses;
         private final AtomicInteger activeCopies;
+        private final AtomicBoolean masterVerified;
 
         public ShardActiveResponseHandler(ShardId shardId, int expectedActiveCopies, ActionListener<Result> listener) {
             this.shardId = shardId;
@@ -224,6 +256,7 @@ public class TransportShardActive extends AbstractComponent {
             this.listener = listener;
             this.awaitingResponses = new AtomicInteger(expectedActiveCopies);
             this.activeCopies = new AtomicInteger();
+            this.masterVerified = new AtomicBoolean(false);
         }
 
         @Override
@@ -237,6 +270,9 @@ public class TransportShardActive extends AbstractComponent {
                 logger.trace("[{}] exists on node [{}]", shardId, response.node);
                 activeCopies.incrementAndGet();
             }
+            if (response.masterVerified) {
+                masterVerified.set(true);
+            }
             countDownAndFinish();
         }
 
@@ -248,7 +284,7 @@ public class TransportShardActive extends AbstractComponent {
 
         private void countDownAndFinish() {
             if (awaitingResponses.decrementAndGet() == 0) {
-                listener.onResponse(new Result(expectedActiveCopies, activeCopies.get()));
+                listener.onResponse(new Result(expectedActiveCopies, activeCopies.get(), masterVerified.get()));
             }
         }
 

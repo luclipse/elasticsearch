@@ -102,7 +102,7 @@ public class JepsenReproductionTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @TestLogging("discovery.zen:DEBUG,action.index:TRACE,cluster.service:TRACE,indices.recovery:TRACE")
+    @TestLogging("discovery.zen:DEBUG,action.index:TRACE,cluster.service:TRACE,indices.recovery:TRACE,indices.store:TRACE")
     public void jepsenCreateTest() throws Exception {
         final int portOffset = randomIntBetween(25000, 35000);
         int n0port = portOffset + 0;
@@ -135,11 +135,11 @@ public class JepsenReproductionTests extends ElasticsearchIntegrationTest {
                 n4settings).get());
 
         logger.info("--> nodes: " + nodes);
-        String node0 = "node_0";
-        String node1 = "node_1";
-        String node2 = "node_2";
-        String node3 = "node_3";
-        String node4 = "node_4";
+        String node0 = "node_t0";
+        String node1 = "node_t1";
+        String node2 = "node_t2";
+        String node3 = "node_t3";
+        String node4 = "node_t4";
 
         // Wait until 5 nodes are part of the cluster
         ensureStableCluster(5);
@@ -264,11 +264,11 @@ public class JepsenReproductionTests extends ElasticsearchIntegrationTest {
         op2.run = false;
         op3.run = false;
         op4.run = false;
-        t0.join(10000);
-        t1.join(10000);
-        t2.join(10000);
-        t3.join(10000);
-        t4.join(10000);
+        t0.join();
+        t1.join();
+        t2.join();
+        t3.join();
+        t4.join();
 
         // wait for the cluster to be green
         ensureGreen();
@@ -358,11 +358,11 @@ public class JepsenReproductionTests extends ElasticsearchIntegrationTest {
                 n4settings).get());
 
         logger.info("--> nodes: " + nodes);
-        String node0 = "node_0";
-        String node1 = "node_1";
-        String node2 = "node_2";
-        String node3 = "node_3";
-        String node4 = "node_4";
+        String node0 = "node_t0";
+        String node1 = "node_t1";
+        String node2 = "node_t2";
+        String node3 = "node_t3";
+        String node4 = "node_t4";
 
         // Wait until 5 nodes are part of the cluster
         ensureStableCluster(5);
@@ -632,6 +632,7 @@ public class JepsenReproductionTests extends ElasticsearchIntegrationTest {
                             IndexResponse resp = client(node).prepareIndex("test", "number")
                                     .setSource("{\"num\": " + id + "}")
                                     .setTimeout(TimeValue.timeValueSeconds(5000))
+                                    .setValidateWriteConsistency(true)
                                     .get();
                             // TODO: Move to a helper method in test cluster:
                             int shard = Math.abs(((InternalTestCluster) cluster()).getInstance(DjbHashFunction.class).hash(resp.getId()) % 5);
@@ -660,7 +661,7 @@ public class JepsenReproductionTests extends ElasticsearchIntegrationTest {
                     context.timedOutDocs.incrementAndGet();
                     logger.info("--> {} operation #{} timed out after 5 seconds", node, id);
                 } catch (Exception te) {
-                    logger.info("--> {} operation #{} had an error", node, id);
+                    logger.info("--> {} operation #{} had an error", te, node, id);
                 }
             }
         }
