@@ -456,21 +456,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 foundPrimary = true;
                 if (shard.currentNodeId().equals(observer.observedState().nodes().localNodeId())) {
                     try {
-                        if (internalRequest.request().operationThreaded()) {
-                            internalRequest.request().beforeLocalFork();
-                            threadPool.executor(executor).execute(new Runnable() {
-                                @Override
-                                public void run() {
-                                    try {
-                                        performOnPrimary(shard.id(), shard, observer.observedState(), consistencyLevel, requiredNumber);
-                                    } catch (Throwable t) {
-                                        listener.onFailure(t);
-                                    }
-                                }
-                            });
-                        } else {
-                            performOnPrimary(shard.id(), shard, observer.observedState(), consistencyLevel, requiredNumber);
-                        }
+                        performOnPrimary(shard.id(), shard, observer.observedState(), consistencyLevel, requiredNumber);
                     } catch (Throwable t) {
                         listener.onFailure(t);
                     }
@@ -571,33 +557,61 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             }
             if (validateWriteConsistency) {
                 ShardsIterator shards = shards(clusterState, internalRequest);
+                logger.trace("Start write consistency validation failed for {} to {}", internalRequest.request(), shard.shardId());
                 transportShardActive.shardActiveCount(clusterState, shard.shardId(), shards.asUnordered(), new ActionListener<TransportShardActive.Result>() {
                     @Override
                     public void onResponse(TransportShardActive.Result result) {
                         final int activeShards = result.getActiveShards();
-                        if (activeShards < requiredNumber) {
-                            retryOrFail(activeShards);
-                        } else {
-                            innerPerformOnPrimary(primaryShardId, shard, clusterState);
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(Throwable e) {
-                        logger.debug("Write consistency validation failed [{}]", e, shard.shardId());
-                        retryOrFail(-1);
-                    }
-
-                    private void retryOrFail(int activeShards) {
-                        if (raisedTimeout != null) {
-                            raiseTimeoutFailure(raisedTimeout, null);
-                        } else {
+                        if (!result.isMasterVerified()) {
+                            logger.debug("Master couldn't be verified, scheduling a retry");
+                            retryOrFail();
+                        } else if (activeShards < requiredNumber) {
                             logger.debug(
                                     "not enough active copies of shard [{}] to meet the write consistency validation of [{}] (have {}, needed {}), scheduling a retry.",
                                     shard.shardId(), consistencyLevel, activeShards, requiredNumber
                             );
+                            retryOrFail();
+                        } else {
+                            logger.trace("Write consistency validation succeeded for {} to {}, activeShards[{}], masterVerified[{}]", internalRequest.request(), shard.shardId(), result.getActiveShards(), result.isMasterVerified());
+                            beforeInnerPerformOnPrimary(primaryShardId, shard, clusterState);
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Throwable exp) {
+                        logger.debug("Write consistency validation failed {}", exp, shard.shardId());
+                        Throwable cause = ExceptionsHelper.unwrapCause(exp);
+                        if (cause instanceof ConnectTransportException || cause instanceof NodeClosedException || retryPrimaryException(exp)) {
+                            retryOrFail();
+                        } else {
+                            listener.onFailure(exp);
+                        }
+                    }
+
+                    private void retryOrFail() {
+                        if (raisedTimeout != null) {
+                            raiseTimeoutFailure(raisedTimeout, null);
+                        } else {
                             primaryOperationStarted.set(false);
                             retry(null);
+                        }
+                    }
+                });
+            } else {
+                beforeInnerPerformOnPrimary(primaryShardId, shard, clusterState);
+            }
+        }
+
+        void beforeInnerPerformOnPrimary(final int primaryShardId, final ShardRouting shard, final ClusterState clusterState) {
+            if (internalRequest.request().operationThreaded()) {
+                internalRequest.request().beforeLocalFork();
+                threadPool.executor(executor).execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            innerPerformOnPrimary(primaryShardId, shard, clusterState);
+                        } catch (Throwable t) {
+                            listener.onFailure(t);
                         }
                     }
                 });
