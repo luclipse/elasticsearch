@@ -30,6 +30,7 @@ import org.elasticsearch.index.AlreadyExpiredException;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -59,6 +60,7 @@ public class TTLPercolatorTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @TestLogging("indices.store:TRACE")
     public void testPercolatingWithTimeToLive() throws Exception {
         final Client client = client();
         ensureGreen();
@@ -155,6 +157,7 @@ public class TTLPercolatorTests extends ElasticsearchIntegrationTest {
 
 
     @Test
+    @TestLogging("indices.store:TRACE")
     public void testEnsureTTLDoesNotCreateIndex() throws IOException, InterruptedException {
         ensureGreen();
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder()

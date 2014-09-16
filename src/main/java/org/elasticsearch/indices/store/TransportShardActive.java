@@ -70,6 +70,8 @@ public class TransportShardActive extends AbstractComponent {
     public void shardActiveCount(ClusterState state, ShardId shardId, Iterable<ShardRouting> indexShardRoutingTable, ActionListener<Result> listener) {
         List<Tuple<DiscoveryNode, ShardActiveRequest>> requests = new ArrayList<>(4);
         String indexUUID = state.getMetaData().index(shardId.getIndex()).getUUID();
+        assert indexUUID != null;
+
         ClusterName clusterName = state.getClusterName();
         for (ShardRouting shardRouting : indexShardRoutingTable) {
             DiscoveryNode currentNode = state.nodes().get(shardRouting.currentNodeId());
@@ -173,16 +175,28 @@ public class TransportShardActive extends AbstractComponent {
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             clusterName = ClusterName.readClusterName(in);
-            indexUUID = in.readString();
-            shardId = ShardId.readShardId(in);
+            if (in.getVersion().before(Version.V_1_5_0)) {
+                indexUUID = in.readString();
+                shardId = ShardId.readShardId(in);
+            } else {
+                indexUUID = in.readOptionalString();
+                if (in.readBoolean()) {
+                    shardId = ShardId.readShardId(in);
+                }
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             clusterName.writeTo(out);
-            out.writeString(indexUUID);
-            shardId.writeTo(out);
+            if (out.getVersion().before(Version.V_1_5_0)) {
+                out.writeString(indexUUID);
+                shardId.writeTo(out);
+            } else {
+                out.writeOptionalString(indexUUID);
+                out.writeOptionalStreamable(shardId);
+            }
         }
     }
 
@@ -206,7 +220,7 @@ public class TransportShardActive extends AbstractComponent {
             super.readFrom(in);
             shardActive = in.readBoolean();
             node = DiscoveryNode.readNode(in);
-            if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+            if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
                 masterVerified = in.readBoolean();
             }
         }
@@ -216,7 +230,7 @@ public class TransportShardActive extends AbstractComponent {
             super.writeTo(out);
             out.writeBoolean(shardActive);
             node.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+            if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
                 out.writeBoolean(masterVerified);
             }
         }
