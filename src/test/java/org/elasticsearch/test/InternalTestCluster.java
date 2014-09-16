@@ -274,9 +274,6 @@ public final class InternalTestCluster extends TestCluster {
         if (Strings.hasLength(System.getProperty("es.logger.prefix"))) {
             builder.put("logger.prefix", System.getProperty("es.logger.level"));
         }
-        if (randomBoolean()) {
-            builder.put(TransportShardReplicationOperationAction.VALIDATE_WRITE_CONSISTENCY, randomBoolean());
-        }
         defaultSettings = builder.build();
         executor = EsExecutors.newCached(1, TimeUnit.MINUTES, EsExecutors.daemonThreadFactory("test_" + clusterName));
         this.hasFilterCache = random.nextBoolean();
@@ -407,6 +404,9 @@ public final class InternalTestCluster extends TestCluster {
         }
         if (random.nextBoolean()) {
             builder.put(MapperService.DEFAULT_FIELD_MAPPERS_COLLECTION_SWITCH, RandomInts.randomIntBetween(random, 0, 5));
+        }
+        if (random.nextBoolean()) {
+            builder.put(TransportShardReplicationOperationAction.VALIDATE_WRITE_CONSISTENCY, randomBoolean());
         }
 
         return builder.build();
