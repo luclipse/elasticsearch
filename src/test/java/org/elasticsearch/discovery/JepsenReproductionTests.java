@@ -19,7 +19,6 @@
 
 package org.elasticsearch.discovery;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
@@ -41,6 +40,7 @@ import org.elasticsearch.test.disruption.NetworkDisconnectPartition;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportModule;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.util.Collections;
@@ -64,29 +64,27 @@ import static org.hamcrest.Matchers.is;
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
 public class JepsenReproductionTests extends ElasticsearchIntegrationTest {
 
-    private static final Settings getNodeSettings(int offset, int port, String unicastList) {
-        return ImmutableSettings.settingsBuilder()
-                // name the node
-                .put("node.name", "node_" + offset)
-                // To override the local setting if set externally
-                .put("discovery.type", "zen")
-                // required for unicast to work
-                .put("node.mode", "network")
-                // Jepsen sets this
-                .put("discovery.zen.fd.ping_timeout", "3s")
-                // Jepsen sets this
-                .put("discovery.zen.minimum_master_nodes", 3)
-                // disable multicast
-                .put("discovery.zen.ping.multicast.enabled", false)
-                // Use unicast
-                .put("discovery.zen.ping.unicast.hosts", unicastList)
-                // Need to use custom tcp port range otherwise we collide with the shared cluster
-                .put("transport.tcp.port", port)
-                // force no rejoining
-                //.put("discovery.zen.rejoin_on_master_gone", false)
-                // Mock the transport layer so partitioning can happen
-                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName())
-                .build();
+    private ClusterDiscoveryConfiguration discoveryConfig;
+
+    private static final Settings DEFAULT_SETTINGS = ImmutableSettings.settingsBuilder()
+            // Jepsen sets this
+            .put("discovery.zen.fd.ping_timeout", "3s")
+            // Jepsen sets this
+            .put("discovery.zen.minimum_master_nodes", 3)
+            // disable multicast
+            .put("discovery.zen.ping.multicast.enabled", false)
+            .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName())
+            .put("http.enabled", false) // just to make test quicker
+            .build();
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return discoveryConfig.node(nodeOrdinal);
+    }
+
+    @Before
+    public void clearConfig() {
+        discoveryConfig = null;
     }
 
     @Override
@@ -104,42 +102,15 @@ public class JepsenReproductionTests extends ElasticsearchIntegrationTest {
     @Test
     @TestLogging("discovery.zen:DEBUG,action.index:TRACE,cluster.service:TRACE,indices.recovery:TRACE,indices.store:TRACE")
     public void jepsenCreateTest() throws Exception {
-        final int portOffset = randomIntBetween(25000, 35000);
-        int n0port = portOffset + 0;
-        int n1port = portOffset + 1;
-        int n2port = portOffset + 2;
-        int n3port = portOffset + 3;
-        int n4port = portOffset + 4;
-
-        // Build a unicast list from each node's port
-        StringBuilder unicastSB = new StringBuilder();
-        unicastSB.append("localhost:" + n0port + ",");
-        unicastSB.append("localhost:" + n1port + ",");
-        unicastSB.append("localhost:" + n2port + ",");
-        unicastSB.append("localhost:" + n3port + ",");
-        unicastSB.append("localhost:" + n4port);
-        String unicastString = unicastSB.toString();
-        logger.info("--> Unicast setting: {}", unicastString);
-
-        Settings n0settings = getNodeSettings(0, n0port, unicastString);
-        Settings n1settings = getNodeSettings(1, n1port, unicastString);
-        Settings n2settings = getNodeSettings(2, n2port, unicastString);
-        Settings n3settings = getNodeSettings(3, n3port, unicastString);
-        Settings n4settings = getNodeSettings(4, n4port, unicastString);
-
-        ImmutableList<String> nodes = ImmutableList.copyOf(internalCluster().startNodesAsync(
-                n0settings,
-                n1settings,
-                n2settings,
-                n3settings,
-                n4settings).get());
+        discoveryConfig = new ClusterDiscoveryConfiguration.UnicastZen(5, DEFAULT_SETTINGS);
+        List<String> nodes = internalCluster().startNodesAsync(5).get();
 
         logger.info("--> nodes: " + nodes);
-        String node0 = "node_t0";
-        String node1 = "node_t1";
-        String node2 = "node_t2";
-        String node3 = "node_t3";
-        String node4 = "node_t4";
+        String node0 = nodes.get(0);
+        String node1 = nodes.get(1);
+        String node2 = nodes.get(2);
+        String node3 = nodes.get(3);
+        String node4 = nodes.get(4);
 
         // Wait until 5 nodes are part of the cluster
         ensureStableCluster(5);
@@ -327,42 +298,15 @@ public class JepsenReproductionTests extends ElasticsearchIntegrationTest {
     @Test
     @TestLogging("discovery.zen:DEBUG,action.index:TRACE")
     public void muchMoreEvilJepsenCreateTest() throws Exception {
-        final int portOffset = randomIntBetween(25000, 35000);
-        int n0port = portOffset + 0;
-        int n1port = portOffset + 1;
-        int n2port = portOffset + 2;
-        int n3port = portOffset + 3;
-        int n4port = portOffset + 4;
-
-        // Build a unicast list from each node's port
-        StringBuilder unicastSB = new StringBuilder();
-        unicastSB.append("localhost:" + n0port + ",");
-        unicastSB.append("localhost:" + n1port + ",");
-        unicastSB.append("localhost:" + n2port + ",");
-        unicastSB.append("localhost:" + n3port + ",");
-        unicastSB.append("localhost:" + n4port);
-        String unicastString = unicastSB.toString();
-        logger.info("--> Unicast setting: {}", unicastString);
-
-        Settings n0settings = getNodeSettings(0, n0port, unicastString);
-        Settings n1settings = getNodeSettings(1, n1port, unicastString);
-        Settings n2settings = getNodeSettings(2, n2port, unicastString);
-        Settings n3settings = getNodeSettings(3, n3port, unicastString);
-        Settings n4settings = getNodeSettings(4, n4port, unicastString);
-
-        ImmutableList<String> nodes = ImmutableList.copyOf(internalCluster().startNodesAsync(
-                n0settings,
-                n1settings,
-                n2settings,
-                n3settings,
-                n4settings).get());
+        discoveryConfig = new ClusterDiscoveryConfiguration.UnicastZen(5, DEFAULT_SETTINGS);
+        List<String> nodes = internalCluster().startNodesAsync(5).get();
 
         logger.info("--> nodes: " + nodes);
-        String node0 = "node_t0";
-        String node1 = "node_t1";
-        String node2 = "node_t2";
-        String node3 = "node_t3";
-        String node4 = "node_t4";
+        String node0 = nodes.get(0);
+        String node1 = nodes.get(1);
+        String node2 = nodes.get(2);
+        String node3 = nodes.get(3);
+        String node4 = nodes.get(4);
 
         // Wait until 5 nodes are part of the cluster
         ensureStableCluster(5);
