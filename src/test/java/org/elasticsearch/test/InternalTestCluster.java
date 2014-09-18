@@ -404,7 +404,7 @@ public final class InternalTestCluster extends TestCluster {
         if (random.nextBoolean()) {
             builder.put(MapperService.DEFAULT_FIELD_MAPPERS_COLLECTION_SWITCH, RandomInts.randomIntBetween(random, 0, 5));
         }
-        if (false && random.nextBoolean()) {
+        if (random.nextBoolean()) {
             builder.put(TransportShardReplicationOperationAction.VALIDATE_WRITE_CONSISTENCY, random.nextBoolean());
         }
 
