@@ -86,16 +86,16 @@ public class TransportShardActive extends AbstractComponent {
             }
         }
 
-        boolean m = false;
+        boolean requireShardRequestToMaster = false;
         for (Tuple<DiscoveryNode, ShardActiveRequest> tuple : requests) {
             if (tuple.v1().equals(state.getNodes().masterNode())) {
-                m = true;
+                requireShardRequestToMaster = true;
                 break;
             }
         }
 
-        if (!m) {
-            ShardActiveRequest request = new ShardActiveRequest(clusterName, null, null);
+        if (!requireShardRequestToMaster) {
+            ShardActiveRequest request = new ShardActiveRequest(clusterName);
             requests.add(new Tuple<>(state.nodes().masterNode(), request));
         }
 
@@ -117,7 +117,7 @@ public class TransportShardActive extends AbstractComponent {
         ClusterName thisClusterName = state.getClusterName();
         if (!thisClusterName.equals(request.clusterName)) {
             logger.trace("shard exists request meant for cluster[{}], but this is cluster[{}], ignoring request", request.clusterName, thisClusterName);
-        } else if (request.shardId != null) {
+        } else if (request.checkShardActive) {
             ShardId shardId = request.shardId;
             IndexService indexService = indicesService.indexService(shardId.index().getName());
             if (indexService != null && indexService.indexUUID().equals(request.indexUUID)) {
@@ -161,6 +161,7 @@ public class TransportShardActive extends AbstractComponent {
         private ClusterName clusterName;
         private String indexUUID;
         private ShardId shardId;
+        private boolean checkShardActive;
 
         ShardActiveRequest() {
         }
@@ -169,20 +170,24 @@ public class TransportShardActive extends AbstractComponent {
             this.shardId = shardId;
             this.indexUUID = indexUUID;
             this.clusterName = clusterName;
+            this.checkShardActive = true;
+        }
+
+        private ShardActiveRequest(ClusterName clusterName) {
+            this.clusterName = clusterName;
+            this.indexUUID = ""; // dummy value for bwc serialization
+            this.shardId = new ShardId("", 0); // dummy value for bwc serialization
+            this.checkShardActive = false;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             clusterName = ClusterName.readClusterName(in);
+            indexUUID = in.readString();
+            shardId = ShardId.readShardId(in);
             if (in.getVersion().before(Version.V_1_5_0)) {
-                indexUUID = in.readString();
-                shardId = ShardId.readShardId(in);
-            } else {
-                indexUUID = in.readOptionalString();
-                if (in.readBoolean()) {
-                    shardId = ShardId.readShardId(in);
-                }
+                checkShardActive = in.readBoolean();
             }
         }
 
@@ -190,12 +195,10 @@ public class TransportShardActive extends AbstractComponent {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             clusterName.writeTo(out);
+            out.writeString(indexUUID);
+            shardId.writeTo(out);
             if (out.getVersion().before(Version.V_1_5_0)) {
-                out.writeString(indexUUID);
-                shardId.writeTo(out);
-            } else {
-                out.writeOptionalString(indexUUID);
-                out.writeOptionalStreamable(shardId);
+                out.writeBoolean(checkShardActive);
             }
         }
     }
