@@ -105,25 +105,28 @@ public class TransportShardActive extends AbstractComponent {
             if (clusterService.localNode().equals(target)) {
                 responseHandler.handleResponse(nodeOperation(request.v2(), clusterService.localNode()));
             } else {
-                logger.trace("Sending shard exists request to node [{}] for shard {}", target, shardId);
+                logger.trace("Sending shard exists request to node {} for shard {}", target, shardId);
                 transportService.sendRequest(target, ACTION_SHARD_EXISTS, request.v2(), responseHandler);
             }
         }
     }
 
     private ShardActiveResponse nodeOperation(ShardActiveRequest request, DiscoveryNode localNode) {
-        boolean shardActive = false;
         ClusterState state = clusterService.state();
         ClusterName thisClusterName = state.getClusterName();
         if (!thisClusterName.equals(request.clusterName)) {
-            logger.trace("shard exists request meant for cluster[{}], but this is cluster[{}], ignoring request", request.clusterName, thisClusterName);
-        } else if (request.checkShardActive) {
-            ShardId shardId = request.shardId;
-            IndexService indexService = indicesService.indexService(shardId.index().getName());
-            if (indexService != null && indexService.indexUUID().equals(request.indexUUID)) {
-                IndexShard indexShard = indexService.shard(shardId.getId());
-                if (indexShard != null) {
-                    shardActive = ACTIVE_STATES.contains(indexShard.state());
+            logger.trace("shard exists request meant for {}, but this is {}, ignoring request", request.clusterName, thisClusterName);
+        }
+
+        boolean shardActive = false;
+        ShardId shardId = request.shardId;
+        IndexService indexService = indicesService.indexService(shardId.index().getName());
+        if (indexService != null && indexService.indexUUID().equals(request.indexUUID)) {
+            IndexShard indexShard = indexService.shard(shardId.getId());
+            if (indexShard != null) {
+                shardActive = ACTIVE_STATES.contains(indexShard.state());
+                if (shardActive) {
+                    logger.trace("Shard {} exists on node {}", shardId, localNode);
                 }
             }
         }
@@ -161,7 +164,6 @@ public class TransportShardActive extends AbstractComponent {
         private ClusterName clusterName;
         private String indexUUID;
         private ShardId shardId;
-        private boolean checkShardActive;
 
         ShardActiveRequest() {
         }
@@ -170,14 +172,12 @@ public class TransportShardActive extends AbstractComponent {
             this.shardId = shardId;
             this.indexUUID = indexUUID;
             this.clusterName = clusterName;
-            this.checkShardActive = true;
         }
 
         private ShardActiveRequest(ClusterName clusterName) {
             this.clusterName = clusterName;
             this.indexUUID = ""; // dummy value for bwc serialization
             this.shardId = new ShardId("", 0); // dummy value for bwc serialization
-            this.checkShardActive = false;
         }
 
         @Override
@@ -186,9 +186,6 @@ public class TransportShardActive extends AbstractComponent {
             clusterName = ClusterName.readClusterName(in);
             indexUUID = in.readString();
             shardId = ShardId.readShardId(in);
-            if (in.getVersion().before(Version.V_1_5_0)) {
-                checkShardActive = in.readBoolean();
-            }
         }
 
         @Override
@@ -197,9 +194,6 @@ public class TransportShardActive extends AbstractComponent {
             clusterName.writeTo(out);
             out.writeString(indexUUID);
             shardId.writeTo(out);
-            if (out.getVersion().before(Version.V_1_5_0)) {
-                out.writeBoolean(checkShardActive);
-            }
         }
     }
 
