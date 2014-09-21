@@ -46,6 +46,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.service.IndexService;
@@ -605,16 +606,20 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         void beforeInnerPerformOnPrimary(final int primaryShardId, final ShardRouting shard, final ClusterState clusterState) {
             if (internalRequest.request().operationThreaded()) {
                 internalRequest.request().beforeLocalFork();
-                threadPool.executor(executor).execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            innerPerformOnPrimary(primaryShardId, shard, clusterState);
-                        } catch (Throwable t) {
-                            listener.onFailure(t);
+                try {
+                    threadPool.executor(executor).execute(new Runnable() {
+                        @Override
+                        public void run() {
+                            try {
+                                innerPerformOnPrimary(primaryShardId, shard, clusterState);
+                            } catch (Throwable t) {
+                                listener.onFailure(t);
+                            }
                         }
-                    }
-                });
+                    });
+                } catch (EsRejectedExecutionException e) {
+                    listener.onFailure(e);
+                }
             } else {
                 innerPerformOnPrimary(primaryShardId, shard, clusterState);
             }
