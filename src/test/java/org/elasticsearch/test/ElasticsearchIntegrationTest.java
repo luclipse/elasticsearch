@@ -593,19 +593,23 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                             .persistentSettings().getAsMap().size(), equalTo(0));
                     assertThat("test leaves transient cluster metadata behind: " + metaData.transientSettings().getAsMap(), metaData
                             .transientSettings().getAsMap().size(), equalTo(0));
-                }
-                ensureClusterSizeConsistency();
-                if (enableCheckIndex()) {
-                    ClusterState state = client().admin().cluster().prepareState().get().getState();
-                    String[] indices = state.getMetaData().concreteAllIndices();
-                    if (indices.length > 0) {
-                        assertAcked(client().admin().indices().prepareClose(indices));
-                        assertAcked(client().admin().indices().prepareUpdateSettings(indices)
-                                .setSettings(ImmutableSettings.builder().put("index.shard.check_on_startup", true)));
-                        assertAcked(client().admin().indices().prepareOpen(indices));
-                        ensureGreen(indices);
+
+                    // Suites with test scope test have a tendency to leave things behind in a weird state, for example:
+                    // 1) not enough nodes for green state
+                    // 2) using mock transport, but not clearing it.
+                    if (enableCheckIndex()) {
+                        ClusterState state = client().admin().cluster().prepareState().get().getState();
+                        String[] indices = state.getMetaData().concreteAllIndices();
+                        if (indices.length > 0) {
+                            assertAcked(client().admin().indices().prepareClose(indices));
+                            assertAcked(client().admin().indices().prepareUpdateSettings(indices)
+                                    .setSettings(ImmutableSettings.builder().put("index.shard.check_on_startup", true)));
+                            assertAcked(client().admin().indices().prepareOpen(indices));
+                            ensureGreen(indices);
+                        }
                     }
                 }
+                ensureClusterSizeConsistency();
 
                 cluster().wipe(); // wipe after to make sure we fail in the test that didn't ack the delete
                 cluster().assertAfterTest();
