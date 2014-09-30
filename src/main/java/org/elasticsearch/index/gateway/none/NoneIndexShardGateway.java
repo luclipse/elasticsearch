@@ -64,6 +64,7 @@ public class NoneIndexShardGateway extends AbstractIndexShardComponent implement
         // in the none case, we simply start the shard
         // clean the store, there should be nothing there...
         try {
+            indexShard.checkIndex();
             logger.debug("cleaning shard content before creation");
             indexShard.store().deleteContent();
         } catch (IOException e) {

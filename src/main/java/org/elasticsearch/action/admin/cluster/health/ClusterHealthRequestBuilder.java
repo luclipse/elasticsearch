@@ -69,6 +69,11 @@ public class ClusterHealthRequestBuilder extends MasterNodeReadOperationRequestB
         return this;
     }
 
+    public ClusterHealthRequestBuilder setWaitForInitializingShards(int waitForRelocatingShards) {
+        request.waitForInitializingShards(waitForRelocatingShards);
+        return this;
+    }
+
     public ClusterHealthRequestBuilder setWaitForActiveShards(int waitForActiveShards) {
         request.waitForActiveShards(waitForActiveShards);
         return this;

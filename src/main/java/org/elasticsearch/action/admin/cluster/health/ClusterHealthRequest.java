@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.health;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -43,6 +44,7 @@ public class ClusterHealthRequest extends MasterNodeReadOperationRequest<Cluster
     private TimeValue timeout = new TimeValue(30, TimeUnit.SECONDS);
     private ClusterHealthStatus waitForStatus;
     private int waitForRelocatingShards = -1;
+    private int waitForInitializingShards = -1;
     private int waitForActiveShards = -1;
     private String waitForNodes = "";
     private Priority waitForEvents = null;
@@ -112,6 +114,15 @@ public class ClusterHealthRequest extends MasterNodeReadOperationRequest<Cluster
         return this;
     }
 
+    public int waitForInitializingShards() {
+        return waitForInitializingShards;
+    }
+
+    public ClusterHealthRequest waitForInitializingShards(int waitForInitializingShards) {
+        this.waitForInitializingShards = waitForInitializingShards;
+        return this;
+    }
+
     public int waitForActiveShards() {
         return waitForActiveShards;
     }
@@ -164,6 +175,9 @@ public class ClusterHealthRequest extends MasterNodeReadOperationRequest<Cluster
             waitForStatus = ClusterHealthStatus.fromValue(in.readByte());
         }
         waitForRelocatingShards = in.readInt();
+        if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
+            waitForInitializingShards = in.readInt();
+        }
         waitForActiveShards = in.readInt();
         waitForNodes = in.readString();
         readLocal(in);
@@ -191,6 +205,9 @@ public class ClusterHealthRequest extends MasterNodeReadOperationRequest<Cluster
             out.writeByte(waitForStatus.value());
         }
         out.writeInt(waitForRelocatingShards);
+        if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
+            out.writeInt(waitForInitializingShards);
+        }
         out.writeInt(waitForActiveShards);
         out.writeString(waitForNodes);
         writeLocal(out);

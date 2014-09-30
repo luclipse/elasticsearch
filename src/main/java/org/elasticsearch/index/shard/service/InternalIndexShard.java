@@ -715,6 +715,12 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         return this;
     }
 
+    public void checkIndex() {
+        if (Booleans.parseBoolean(checkIndexOnStartup, false)) {
+            checkIndex(true);
+        }
+    }
+
     /**
      * After the store has been recovered, we need to start the engine in order to apply operations
      */

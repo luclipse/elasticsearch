@@ -64,6 +64,11 @@ public class CorruptedTranslogTests extends ElasticsearchIntegrationTest {
                 .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName()).build();
     }
 
+    @Override
+    protected boolean enableCheckIndex() {
+        return false;
+    }
+
     @Test
     public void testCorruptTranslogFiles() throws Exception {
         internalCluster().startNodesAsync(1, ImmutableSettings.EMPTY).get();
