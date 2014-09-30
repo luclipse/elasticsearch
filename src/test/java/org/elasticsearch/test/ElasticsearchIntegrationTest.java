@@ -599,7 +599,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                         ClusterState state = client().admin().cluster().prepareState().get().getState();
                         String[] indices = state.getMetaData().concreteAllIndices();
                         if (indices.length > 0) {
-                            client().admin().indices().prepareFlush(indices).setForce(true).get();
+                            client().admin().indices().prepareFlush("_all").setForce(true).get();
                             assertAcked(client().admin().indices().prepareClose(indices));
                             assertAcked(client().admin().indices().prepareUpdateSettings(indices)
                                     .setSettings(ImmutableSettings.builder().put("index.shard.check_on_startup", true)));
