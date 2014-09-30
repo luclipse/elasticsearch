@@ -55,6 +55,7 @@ import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
@@ -594,6 +595,18 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                             .transientSettings().getAsMap().size(), equalTo(0));
                 }
                 ensureClusterSizeConsistency();
+                if (enableCheckIndex()) {
+                    ClusterState state = client().admin().cluster().prepareState().get().getState();
+                    String[] indices = state.getMetaData().concreteAllIndices();
+                    if (indices.length > 0) {
+                        assertAcked(client().admin().indices().prepareClose(indices));
+                        assertAcked(client().admin().indices().prepareUpdateSettings(indices)
+                                .setSettings(ImmutableSettings.builder().put("index.shard.check_on_startup", true)));
+                        assertAcked(client().admin().indices().prepareOpen(indices));
+                        ensureGreen(indices);
+                    }
+                }
+
                 cluster().wipe(); // wipe after to make sure we fail in the test that didn't ack the delete
                 cluster().assertAfterTest();
             } finally {
@@ -1695,6 +1708,10 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             this.dataCopies = numReplicas + 1;
             this.totalNumShards = numPrimaries * dataCopies;
         }
+    }
+
+    protected boolean enableCheckIndex() {
+        return true;
     }
 
     private static boolean runTestScopeLifecycle() {
