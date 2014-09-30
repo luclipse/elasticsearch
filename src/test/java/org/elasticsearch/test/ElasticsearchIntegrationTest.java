@@ -594,9 +594,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                     assertThat("test leaves transient cluster metadata behind: " + metaData.transientSettings().getAsMap(), metaData
                             .transientSettings().getAsMap().size(), equalTo(0));
 
-                    // Suites with test scope test have a tendency to leave things behind in a weird state, for example:
-                    // 1) not enough nodes for green state
-                    // 2) using mock transport, but not clearing it.
+                    // Suites with test scope test have a tendency to leave things behind in a weird state
                     if (enableCheckIndex()) {
                         ClusterState state = client().admin().cluster().prepareState().get().getState();
                         String[] indices = state.getMetaData().concreteAllIndices();
@@ -605,7 +603,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                             assertAcked(client().admin().indices().prepareUpdateSettings(indices)
                                     .setSettings(ImmutableSettings.builder().put("index.shard.check_on_startup", true)));
                             assertAcked(client().admin().indices().prepareOpen(indices));
-                            ensureGreen(indices);
+                            ensureYellow(indices);
                         }
                     }
                 }
