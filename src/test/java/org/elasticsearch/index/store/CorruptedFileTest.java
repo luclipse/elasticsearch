@@ -35,7 +35,6 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -94,6 +93,11 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
                 // and we need to make sure primaries are not just trashed if we don'tmvn have replicas
                 .put(super.nodeSettings(nodeOrdinal)).put("gateway.type", "local")
                 .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName()).build();
+    }
+
+    @Override
+    protected boolean enableCheckIndex() {
+        return false;
     }
 
     /**
