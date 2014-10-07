@@ -22,6 +22,7 @@ package org.elasticsearch.discovery;
 import com.google.common.base.Predicate;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -844,6 +845,172 @@ public class DiscoveryWithServiceDisruptions extends ElasticsearchIntegrationTes
         ensureStableCluster(3);
     }
 
+    /**
+     * Test the we do not loose document whose indexing request was successful, under a randomly selected disruption scheme
+     * We also collect & report the type of indexing failures that occur.
+     */
+    @Test
+    @TestLogging("action.index:TRACE,action.get:TRACE,discovery:TRACE,cluster.service:TRACE,indices.recovery:TRACE,indices.cluster:TRACE,indices.store:TRACE")
+    public void testAckedIndexing_withReplicas() throws Exception {
+        int numReplicas = randomIntBetween(3, 5);
+        testAckedIndexing(numReplicas, numReplicas + 1, WriteConsistencyLevel.DEFAULT);
+    }
+
+    /**
+     * Same as {@link #testAckedIndexing_withReplicas()} ()}, but then with one replica.
+     */
+    @Test
+    @TestLogging("action.index:TRACE,action.get:TRACE,discovery:TRACE,cluster.service:TRACE,indices.recovery:TRACE,indices.cluster:TRACE,indices.store:TRACE")
+    public void testAckedIndexing_withOneReplica() throws Exception {
+        // When the number of replicas is equal to 1, then write consistency level quorum is
+        // actually ONE instead, so in order for the validate write consistency to be helpful
+        // we require all shard copies to be active.
+        testAckedIndexing(1, 3, WriteConsistencyLevel.ALL);
+    }
+
+    /**
+     * Same as {@link #testAckedIndexing_withReplicas()} ()}, but then with no replicas.
+     */
+    @Test
+    @TestLogging("action.index:TRACE,action.get:TRACE,discovery:TRACE,cluster.service:TRACE,indices.recovery:TRACE,indices.cluster:TRACE,zen.ping.unicast:TRACE")
+    public void testAckedIndexing_withoutReplicas() throws Exception {
+        testAckedIndexing(0, 3, WriteConsistencyLevel.DEFAULT);
+    }
+
+    private void testAckedIndexing(final int numReplicas, int numNodes, final WriteConsistencyLevel level) throws Exception {
+        final List<String> nodes = startCluster(numNodes);
+
+        assertAcked(prepareCreate("test")
+                .setSettings(ImmutableSettings.builder()
+                                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1 + randomInt(2))
+                                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numReplicas)
+                ));
+        ensureGreen();
+
+        ServiceDisruptionScheme disruptionScheme = addRandomDisruptionScheme();
+        setDisruptionScheme(disruptionScheme);
+        logger.info("disruption scheme [{}] added", disruptionScheme);
+
+        final ConcurrentHashMap<String, String> ackedDocs = new ConcurrentHashMap<>(); // id -> node sent.
+
+        final AtomicBoolean stop = new AtomicBoolean(false);
+        List<Thread> indexers = new ArrayList<>(nodes.size());
+        List<Semaphore> semaphores = new ArrayList<>(nodes.size());
+        final AtomicInteger idGenerator = new AtomicInteger(0);
+        final AtomicReference<CountDownLatch> countDownLatchRef = new AtomicReference<>();
+        final List<Exception> exceptedExceptions = Collections.synchronizedList(new ArrayList<Exception>());
+
+        logger.info("starting indexers");
+        try {
+            for (final String node : nodes) {
+                final Semaphore semaphore = new Semaphore(0);
+                semaphores.add(semaphore);
+                final Client client = client(node);
+                final String name = "indexer_" + indexers.size();
+                final int numPrimaries = getNumShards("test").numPrimaries;
+                Thread thread = new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        while (!stop.get()) {
+                            String id = null;
+                            try {
+                                if (!semaphore.tryAcquire(10, TimeUnit.SECONDS)) {
+                                    continue;
+                                }
+                                logger.info("[{}] Acquired semaphore and it has {} permits left", name, semaphore.availablePermits());
+                                try {
+                                    id = Integer.toString(idGenerator.incrementAndGet());
+                                    int shard = ((InternalTestCluster) cluster()).getInstance(DjbHashFunction.class).hash(id) % numPrimaries;
+                                    logger.trace("[{}] indexing id [{}] through node [{}] targeting shard [{}]", name, id, node, shard);
+                                    IndexResponse response = client.prepareIndex("test", "type", id).setSource("{}")
+                                            .setTimeout("1s")
+                                            .setConsistencyLevel(level)
+                                            .get();
+                                    assertThat(response.getVersion(), equalTo(1l));
+                                    ackedDocs.put(id, node);
+                                    logger.trace("[{}] indexed id [{}] through node [{}]", name, id, node);
+                                } catch (ElasticsearchException e) {
+                                    exceptedExceptions.add(e);
+                                    logger.trace("[{}] failed id [{}] through node [{}]", e, name, id, node);
+                                } finally {
+                                    countDownLatchRef.get().countDown();
+                                    logger.trace("[{}] decreased counter : {}", name, countDownLatchRef.get().getCount());
+                                }
+                            } catch (InterruptedException e) {
+                                // fine - semaphore interrupt
+                            } catch (Throwable t) {
+                                logger.info("unexpected exception in background thread of [{}]", t, node);
+                            }
+                        }
+                    }
+                });
+
+                thread.setName(name);
+                thread.setDaemon(true);
+                thread.start();
+                indexers.add(thread);
+            }
+
+            int docsPerIndexer = randomInt(3);
+            logger.info("indexing " + docsPerIndexer + " docs per indexer before partition");
+            countDownLatchRef.set(new CountDownLatch(docsPerIndexer * indexers.size()));
+            for (Semaphore semaphore : semaphores) {
+                semaphore.release(docsPerIndexer);
+            }
+            assertTrue(countDownLatchRef.get().await(1, TimeUnit.MINUTES));
+
+            for (int iter = 1 + randomInt(2); iter > 0; iter--) {
+                logger.info("starting disruptions & indexing (iteration [{}])", iter);
+                disruptionScheme.startDisrupting();
+
+                docsPerIndexer = 1 + randomInt(5);
+                logger.info("indexing " + docsPerIndexer + " docs per indexer during partition");
+                countDownLatchRef.set(new CountDownLatch(docsPerIndexer * indexers.size()));
+                Collections.shuffle(semaphores);
+                for (Semaphore semaphore : semaphores) {
+                    assertThat(semaphore.availablePermits(), equalTo(0));
+                    semaphore.release(docsPerIndexer);
+                }
+                long awaitTime = 60000 + (disruptionScheme.expectedTimeToHeal().millis() * (docsPerIndexer * indexers.size()));
+                logger.info("await time: {} ms", awaitTime);
+                assertTrue(countDownLatchRef.get().await(awaitTime, TimeUnit.MILLISECONDS));
+
+                logger.info("stopping disruption");
+                disruptionScheme.stopDisrupting();
+                ensureStableCluster(numNodes, TimeValue.timeValueMillis(disruptionScheme.expectedTimeToHeal().millis() + DISRUPTION_HEALING_OVERHEAD.millis()));
+                ensureGreen("test");
+
+                logger.info("validating successful docs");
+                for (String node : nodes) {
+                    try {
+                        logger.debug("validating through node [{}]", node);
+                        for (String id : ackedDocs.keySet()) {
+                            assertTrue("doc [" + id + "] indexed via node [" + ackedDocs.get(id) + "] not found",
+                                    client(node).prepareGet("test", "type", id).setPreference("_local").get().isExists());
+                        }
+                    } catch (AssertionError e) {
+                        throw new AssertionError(e.getMessage() + " (checked via node [" + node + "]", e);
+                    }
+                }
+
+                logger.info("done validating (iteration [{}])", iter);
+            }
+        } finally {
+            if (exceptedExceptions.size() > 0) {
+                StringBuilder sb = new StringBuilder("Indexing exceptions during disruption:");
+                for (Exception e : exceptedExceptions) {
+                    sb.append("\n").append(e.getMessage());
+                }
+                logger.debug(sb.toString());
+            }
+            logger.info("shutting down indexers");
+            stop.set(true);
+            for (Thread indexer : indexers) {
+                indexer.interrupt();
+                indexer.join(60000);
+            }
+        }
+    }
 
     protected NetworkPartition addRandomPartition() {
         NetworkPartition partition;
@@ -878,15 +1045,15 @@ public class DiscoveryWithServiceDisruptions extends ElasticsearchIntegrationTes
 
     private ServiceDisruptionScheme addRandomDisruptionScheme() {
         // TODO: add partial partitions
-        List<ServiceDisruptionScheme> list = Arrays.asList(
+        /*List<ServiceDisruptionScheme> list = Arrays.asList(
                 new NetworkUnresponsivePartition(getRandom()),
                 new NetworkDelaysPartition(getRandom()),
                 new NetworkDisconnectPartition(getRandom()),
                 new SlowClusterStateProcessing(getRandom())
         );
         Collections.shuffle(list);
-        setDisruptionScheme(list.get(0));
-        return list.get(0);
+        setDisruptionScheme(list.get(0));*/
+        return new NetworkDisconnectPartition(getRandom());
     }
 
     private void ensureStableCluster(int nodeCount) {

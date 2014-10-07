@@ -30,10 +30,12 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.store.TransportShardActive;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -44,6 +46,7 @@ public class ElectPrimaryService extends AbstractComponent {
     private final ClusterService clusterService;
     private final String consistency;
 
+    @Inject
     public ElectPrimaryService(Settings settings, TransportShardActive transportShardActive, ClusterService clusterService) {
         super(settings);
         this.transportShardActive = transportShardActive;
@@ -51,80 +54,99 @@ public class ElectPrimaryService extends AbstractComponent {
         this.consistency = settings.get("consistency", "quorum");
     }
 
-    public boolean electUnassignedPrimaryShards(ClusterState state) {
-        RoutingNodes nodes = state.routingNodes();
-        RoutingNodes.UnassignedShards unassignedShards = nodes.unassigned();
-        for (final MutableShardRouting unassignedShard : unassignedShards) {
+    public boolean electUnassignedPrimaryShards(RoutingNodes routingNodes, ClusterState state) {
+        Iterator<MutableShardRouting> unassignedShards = routingNodes.unassigned().iterator();
+        while (unassignedShards.hasNext()) {
+            final MutableShardRouting unassignedShard = unassignedShards.next();
             if (!unassignedShard.primary()) {
                 continue;
             }
 
             List<MutableShardRouting> candidatePrimaryShards = new ArrayList<>();
-            for (MutableShardRouting shardRouting : nodes.assignedShards(unassignedShard)) {
+            for (MutableShardRouting shardRouting : routingNodes.assignedShards(unassignedShard)) {
                 if (!shardRouting.primary() && shardRouting.active()) {
                     candidatePrimaryShards.add(shardRouting);
                 }
             }
+            int activeReplicas = candidatePrimaryShards.size();
 
             final int requiredSize;
-            if (candidatePrimaryShards.size() == 1) {
+            if (activeReplicas == 0) {
+                logger.info("No active replicas");
+                return false;
+            } else if (activeReplicas == 1) {
                 MutableShardRouting candidate = candidatePrimaryShards.get(0);
-                swapPrimary(nodes, unassignedShard, candidate);
-                return true;
-            } else if (candidatePrimaryShards.size() == 2) {
+                logger.info("Just one active replica {}", candidate);
+                return swapPrimary(routingNodes, unassignedShard, candidate);
+            } else if (activeReplicas == 2) {
                 requiredSize = 2;
             } else {
                 requiredSize = (candidatePrimaryShards.size() / 2) + 1;
             }
 
+            // Ignore the primary shard for the rest of the allocation,
+            // in the primary_election cluster update task a new primary will get elected
+            routingNodes.ignoredUnassigned().add(unassignedShard);
+            unassignedShards.remove();
 
+            logger.info("Electing a primary for shard group {} based on the following candidates [{}]", unassignedShard.shardId(), candidatePrimaryShards);
             transportShardActive.shardActiveCount(state, unassignedShard.shardId(), candidatePrimaryShards, new ActionListener<TransportShardActive.Result>() {
                 @Override
-                public void onResponse(TransportShardActive.Result result) {
-                    if (result.getActiveShards() >= requiredSize) {
-                        clusterService.submitStateUpdateTask("primary_election", Priority.IMMEDIATE, new ClusterStateUpdateTask() {
-
-                            @Override
-                            public ClusterState execute(ClusterState currentState) throws Exception {
-                                RoutingNodes nodes = currentState.routingNodes();
-                                RoutingNodes.UnassignedShards unassignedShards = nodes.unassigned();
-
-                                MutableShardRouting unassignedPrimary = null;
-                                for (MutableShardRouting shard : unassignedShards) {
-                                    if (shard.shardId().equals(unassignedShard.shardId()) && shard.primary()) {
-                                        unassignedPrimary = shard;
-                                        break;
-                                    }
-                                }
-
-                                if (unassignedPrimary == null) {
-                                    return currentState;
-                                }
-
-                                // TODO: do something better here with the shard active result...
-                                List<MutableShardRouting> candidatePrimaryShards = new ArrayList<>();
-                                for (MutableShardRouting shardRouting : nodes.assignedShards(unassignedShard)) {
-                                    if (!shardRouting.primary() && shardRouting.active()) {
-                                        candidatePrimaryShards.add(shardRouting);
-                                    }
-                                }
-
-                                RoutingNodes routingNodes = currentState.routingNodes();
-                                swapPrimary(routingNodes, unassignedPrimary, candidatePrimaryShards.get(0));
-                                return ClusterState.builder(currentState)
-                                        .routingTable(new RoutingTable.Builder()
-                                                        .updateNodes(routingNodes)
-                                                        .build()
-                                                        .validateRaiseException(currentState.metaData())
-                                        ).build();
-                            }
-
-                            @Override
-                            public void onFailure(String source, @Nullable Throwable t) {
-                                logger.warn("[{}] Updating cluster state for primary election failed", t, source);
-                            }
-                        });
+                public void onResponse(final TransportShardActive.Result result) {
+                    if (result.getActiveShards() < requiredSize) {
+                        logger.warn("Not electing primary for shard group {}, require [{}], but found [{}]", unassignedShard.shardId(), result.getActiveShards(), requiredSize);
+                        return;
                     }
+
+                    logger.info("Electing primary for shard group {}, required [{}] and found [{}]", unassignedShard.shardId(), requiredSize, result.getActiveShards());
+                    clusterService.submitStateUpdateTask("primary_election", Priority.IMMEDIATE, new ClusterStateUpdateTask() {
+
+                        @Override
+                        public ClusterState execute(ClusterState currentState) throws Exception {
+                            RoutingNodes routingNodes = currentState.routingNodes();
+                            RoutingNodes.UnassignedShards unassignedShards = routingNodes.unassigned();
+
+                            MutableShardRouting unassignedPrimary = null;
+                            for (MutableShardRouting shard : unassignedShards) {
+                                if (shard.shardId().equals(unassignedShard.shardId()) && shard.primary()) {
+                                    unassignedPrimary = shard;
+                                    break;
+                                }
+                            }
+
+                            if (unassignedPrimary == null) {
+                                return currentState;
+                            }
+
+                            long lowestTimeElapsedSinceLastWrite = Long.MAX_VALUE;
+                            MutableShardRouting newPrimaryShard = null;
+                            for (MutableShardRouting shardRouting : routingNodes.assignedShards(unassignedShard)) {
+                                if (!shardRouting.primary() && shardRouting.active()) {
+                                    Long timeElapsedSinceLastWrite = result.getTimeElapsedSinceLastWritePerNode().get(shardRouting.currentNodeId());
+                                    if (timeElapsedSinceLastWrite != null) {
+                                        if (timeElapsedSinceLastWrite < lowestTimeElapsedSinceLastWrite) {
+                                            lowestTimeElapsedSinceLastWrite = timeElapsedSinceLastWrite;
+                                            newPrimaryShard = shardRouting;
+                                            logger.info("Shard {} is the best candidate, because time elapsed since last write is {}", newPrimaryShard, lowestTimeElapsedSinceLastWrite);
+                                        }
+                                    }
+                                }
+                            }
+
+                            assert newPrimaryShard != null;
+                            logger.info("Chose {} as the new primary shard", newPrimaryShard);
+
+                            swapPrimary(routingNodes, unassignedPrimary, newPrimaryShard);
+
+                            RoutingTable routingTable = new RoutingTable.Builder().updateNodes(routingNodes).build().validateRaiseException(currentState.metaData());
+                            return ClusterState.builder(currentState).routingTable(routingTable).build();
+                        }
+
+                        @Override
+                        public void onFailure(String source, @Nullable Throwable t) {
+                            logger.warn("[{}] Updating cluster state for primary election failed", t, source);
+                        }
+                    });
                 }
 
                 @Override
@@ -137,9 +159,12 @@ public class ElectPrimaryService extends AbstractComponent {
         return false;
     }
 
-    private void swapPrimary(RoutingNodes nodes, MutableShardRouting unassignedPrimary, MutableShardRouting newPrimary) {
+    private boolean swapPrimary(RoutingNodes nodes, MutableShardRouting unassignedPrimary, MutableShardRouting newPrimary) {
+        logger.info("Swapping primary flag from {} to {}", unassignedPrimary, newPrimary);
         nodes.swapPrimaryFlag(unassignedPrimary, newPrimary);
+        boolean b = false;
         if (newPrimary.relocatingNodeId() != null) {
+            b = true;
             // its also relocating, make sure to move the other routing to primary
             RoutingNode node = nodes.node(newPrimary.relocatingNodeId());
             if (node != null) {
@@ -151,6 +176,7 @@ public class ElectPrimaryService extends AbstractComponent {
                 }
             }
         }
+        return b;
     }
 
 }

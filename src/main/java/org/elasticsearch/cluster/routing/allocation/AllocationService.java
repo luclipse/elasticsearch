@@ -294,7 +294,7 @@ public class AllocationService extends AbstractComponent {
         }
 
         if (electPrimaryService != null) {
-            return electPrimaryService.electUnassignedPrimaryShards(allocation.state());
+            changed |= electPrimaryService.electUnassignedPrimaryShards(routingNodes, allocation.state());
         }
 
         // now, go over and elect a new primary if possible, not, from this code block on, if one is elected,

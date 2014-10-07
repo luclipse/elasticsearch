@@ -49,6 +49,8 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
 
     private volatile Map<String, StatsHolder> typesStats = ImmutableMap.of();
 
+    private volatile long lastWriteTime;
+
     @Inject
     public ShardIndexingService(ShardId shardId, @IndexSettings Settings indexSettings, ShardSlowLogIndexingService slowLog) {
         super(shardId, indexSettings);
@@ -108,6 +110,7 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
     }
 
     public void postCreate(Engine.Create create) {
+        lastWriteTime = create.startTime();
         long took = create.endTime() - create.startTime();
         totalStats.indexMetric.inc(took);
         totalStats.indexCurrent.dec();
@@ -144,6 +147,7 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
     }
 
     public void postIndex(Engine.Index index) {
+        lastWriteTime = index.startTime();
         long took = index.endTime() - index.startTime();
         totalStats.indexMetric.inc(took);
         totalStats.indexCurrent.dec();
@@ -185,6 +189,7 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
     }
 
     public void postDelete(Engine.Delete delete) {
+        lastWriteTime = delete.startTime();
         long took = delete.endTime() - delete.startTime();
         totalStats.deleteMetric.inc(took);
         totalStats.deleteCurrent.dec();
@@ -213,6 +218,7 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
     }
 
     public void postDeleteByQuery(Engine.DeleteByQuery deleteByQuery) {
+        lastWriteTime = deleteByQuery.startTime();
         for (IndexingOperationListener listener : listeners) {
             listener.postDeleteByQuery(deleteByQuery);
         }
@@ -237,6 +243,10 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
                 typesStats = typesStatsBuilder.immutableMap();
             }
         }
+    }
+
+    public long getTimeElapsedSinceLastWrite() {
+        return System.nanoTime() - lastWriteTime;
     }
 
     private StatsHolder typeStats(String type) {

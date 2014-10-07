@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.store;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
@@ -43,6 +45,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -116,6 +119,7 @@ public class TransportShardActive extends AbstractComponent {
             logger.trace("shard exists request meant for {}, but this is {}, ignoring request", request.clusterName, thisClusterName);
         }
 
+        long timeElapsedSinceLastWrite = Long.MAX_VALUE;
         boolean shardActive = false;
         ShardId shardId = request.shardId;
         IndexService indexService = indicesService.indexService(shardId.index().getName());
@@ -123,23 +127,26 @@ public class TransportShardActive extends AbstractComponent {
             IndexShard indexShard = indexService.shard(shardId.getId());
             if (indexShard != null) {
                 shardActive = ACTIVE_STATES.contains(indexShard.state());
+                timeElapsedSinceLastWrite = indexShard.indexingService().getTimeElapsedSinceLastWrite();
                 if (shardActive) {
                     logger.trace("Shard {} exists on node {}", shardId, localNode);
                 }
             }
         }
 
-        return new ShardActiveResponse(shardActive, localNode);
+        return new ShardActiveResponse(shardActive, localNode, timeElapsedSinceLastWrite);
     }
 
     public static class Result {
 
         private final int targetedShards;
         private final int activeShards;
+        private final ConcurrentMap<String, Long> timeElapsedSinceLastWritePerNode;
 
-        public Result(int targetedShards, int activeShards) {
+        public Result(int targetedShards, int activeShards, ConcurrentMap<String, Long> timeElapsedSinceLastWritePerNode) {
             this.targetedShards = targetedShards;
             this.activeShards = activeShards;
+            this.timeElapsedSinceLastWritePerNode = timeElapsedSinceLastWritePerNode;
         }
 
         public int getTargetedShards() {
@@ -150,6 +157,9 @@ public class TransportShardActive extends AbstractComponent {
             return activeShards;
         }
 
+        public ConcurrentMap<String, Long> getTimeElapsedSinceLastWritePerNode() {
+            return timeElapsedSinceLastWritePerNode;
+        }
     }
 
     private static class ShardActiveRequest extends TransportRequest {
@@ -194,13 +204,15 @@ public class TransportShardActive extends AbstractComponent {
 
         private boolean shardActive;
         private DiscoveryNode node;
+        private long timeElapsedSinceLastWrite = Long.MAX_VALUE;
 
         private ShardActiveResponse() {
         }
 
-        ShardActiveResponse(boolean shardActive, DiscoveryNode node) {
+        ShardActiveResponse(boolean shardActive, DiscoveryNode node, long timeElapsedSinceLastWrite) {
             this.shardActive = shardActive;
             this.node = node;
+            this.timeElapsedSinceLastWrite = timeElapsedSinceLastWrite;
         }
 
         @Override
@@ -208,6 +220,9 @@ public class TransportShardActive extends AbstractComponent {
             super.readFrom(in);
             shardActive = in.readBoolean();
             node = DiscoveryNode.readNode(in);
+            if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
+                timeElapsedSinceLastWrite = in.readLong();
+            }
         }
 
         @Override
@@ -215,6 +230,9 @@ public class TransportShardActive extends AbstractComponent {
             super.writeTo(out);
             out.writeBoolean(shardActive);
             node.writeTo(out);
+            if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
+                out.writeLong(timeElapsedSinceLastWrite);
+            }
         }
     }
 
@@ -244,6 +262,7 @@ public class TransportShardActive extends AbstractComponent {
 
         private final AtomicInteger awaitingResponses;
         private final AtomicInteger activeCopies;
+        private final ConcurrentMap<String, Long> timeElapsedSinceLastWritePerNode = ConcurrentCollections.newConcurrentMap();
 
         public ShardActiveResponseHandler(ShardId shardId, int expectedActiveCopies, ActionListener<Result> listener) {
             this.shardId = shardId;
@@ -263,6 +282,7 @@ public class TransportShardActive extends AbstractComponent {
             if (response.shardActive) {
                 logger.trace("[{}] exists on node [{}]", shardId, response.node);
                 activeCopies.incrementAndGet();
+                timeElapsedSinceLastWritePerNode.put(response.node.getId(), response.timeElapsedSinceLastWrite);
             }
             countDownAndFinish();
         }
@@ -275,7 +295,7 @@ public class TransportShardActive extends AbstractComponent {
 
         private void countDownAndFinish() {
             if (awaitingResponses.decrementAndGet() == 0) {
-                listener.onResponse(new Result(expectedActiveCopies, activeCopies.get()));
+                listener.onResponse(new Result(expectedActiveCopies, activeCopies.get(), timeElapsedSinceLastWritePerNode));
             }
         }
 
