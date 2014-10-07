@@ -443,7 +443,7 @@ public class BalanceConfigurationTests extends ElasticsearchAllocationTestCase {
                 unassigned.clear();
                 return changed;
             }
-        }), ClusterInfoService.EMPTY);
+        }), ClusterInfoService.EMPTY, null);
         MetaData.Builder metaDataBuilder = MetaData.builder();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         IndexMetaData.Builder indexMeta = IndexMetaData.builder("test").numberOfShards(5).numberOfReplicas(1);

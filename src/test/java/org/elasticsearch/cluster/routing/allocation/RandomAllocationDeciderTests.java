@@ -59,7 +59,7 @@ public class RandomAllocationDeciderTests extends ElasticsearchAllocationTestCas
         RandomAllocationDecider randomAllocationDecider = new RandomAllocationDecider(getRandom());
         AllocationService strategy = new AllocationService(settingsBuilder().build(), new AllocationDeciders(ImmutableSettings.EMPTY,
                 new HashSet<>(Arrays.asList(new SameShardAllocationDecider(ImmutableSettings.EMPTY),
-                        randomAllocationDecider))), new ShardsAllocators(), ClusterInfoService.EMPTY);
+                        randomAllocationDecider))), new ShardsAllocators(), ClusterInfoService.EMPTY, null);
         int indices = scaledRandomIntBetween(1, 20);
         Builder metaBuilder = MetaData.builder();
         int maxNumReplicas = 1;

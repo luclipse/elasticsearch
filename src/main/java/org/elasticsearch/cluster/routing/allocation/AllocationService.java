@@ -54,13 +54,15 @@ public class AllocationService extends AbstractComponent {
     private final AllocationDeciders allocationDeciders;
     private final ClusterInfoService clusterInfoService;
     private final ShardsAllocators shardsAllocators;
+    private final ElectPrimaryService electPrimaryService;
 
     @Inject
-    public AllocationService(Settings settings, AllocationDeciders allocationDeciders, ShardsAllocators shardsAllocators, ClusterInfoService clusterInfoService) {
+    public AllocationService(Settings settings, AllocationDeciders allocationDeciders, ShardsAllocators shardsAllocators, ClusterInfoService clusterInfoService, ElectPrimaryService electPrimaryService) {
         super(settings);
         this.allocationDeciders = allocationDeciders;
         this.shardsAllocators = shardsAllocators;
         this.clusterInfoService = clusterInfoService;
+        this.electPrimaryService = electPrimaryService;
     }
 
     /**
@@ -76,7 +78,7 @@ public class AllocationService extends AbstractComponent {
         RoutingNodes routingNodes = clusterState.routingNodes();
         // shuffle the unassigned nodes, just so we won't have things like poison failed shards
         routingNodes.unassigned().shuffle();
-        StartedRerouteAllocation allocation = new StartedRerouteAllocation(allocationDeciders, routingNodes, clusterState.nodes(), startedShards, clusterInfoService.getClusterInfo());
+        StartedRerouteAllocation allocation = new StartedRerouteAllocation(allocationDeciders, routingNodes, clusterState, startedShards, clusterInfoService.getClusterInfo());
         boolean changed = applyStartedShards(routingNodes, startedShards);
         if (!changed) {
             return new RoutingAllocation.Result(false, clusterState.routingTable());
@@ -101,7 +103,7 @@ public class AllocationService extends AbstractComponent {
         RoutingNodes routingNodes = clusterState.routingNodes();
         // shuffle the unassigned nodes, just so we won't have things like poison failed shards
         routingNodes.unassigned().shuffle();
-        FailedRerouteAllocation allocation = new FailedRerouteAllocation(allocationDeciders, routingNodes, clusterState.nodes(), failedShards, clusterInfoService.getClusterInfo());
+        FailedRerouteAllocation allocation = new FailedRerouteAllocation(allocationDeciders, routingNodes, clusterState, failedShards, clusterInfoService.getClusterInfo());
         boolean changed = false;
         for (ShardRouting failedShard : failedShards) {
             changed |= applyFailedShard(allocation, failedShard, true);
@@ -123,7 +125,7 @@ public class AllocationService extends AbstractComponent {
         // we don't shuffle the unassigned shards here, to try and get as close as possible to
         // a consistent result of the effect the commands have on the routing
         // this allows systems to dry run the commands, see the resulting cluster state, and act on it
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, clusterState.nodes(), clusterInfoService.getClusterInfo());
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, clusterState, clusterInfoService.getClusterInfo());
         // don't short circuit deciders, we want a full explanation
         allocation.debugDecision(true);
         // we ignore disable allocation, because commands are explicit
@@ -155,7 +157,7 @@ public class AllocationService extends AbstractComponent {
         RoutingNodes routingNodes = clusterState.routingNodes();
         // shuffle the unassigned nodes, just so we won't have things like poison failed shards
         routingNodes.unassigned().shuffle();
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, clusterState.nodes(), clusterInfoService.getClusterInfo());
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, clusterState, clusterInfoService.getClusterInfo());
         allocation.debugDecision(debug);
         if (!reroute(allocation)) {
             return new RoutingAllocation.Result(false, clusterState.routingTable());
@@ -181,7 +183,7 @@ public class AllocationService extends AbstractComponent {
         RoutingNodes routingNodes = clusterState.routingNodes();
         // shuffle the unassigned nodes, just so we won't have things like poison failed shards
         routingNodes.unassigned().shuffle();
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, clusterState.nodes(), clusterInfoService.getClusterInfo());
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, clusterState, clusterInfoService.getClusterInfo());
         allocation.debugDecision(debug);
         boolean changed = false;
         // first, clear from the shards any node id they used to belong to that is now dead
@@ -289,6 +291,10 @@ public class AllocationService extends AbstractComponent {
         }
         for (ShardRouting shardToFail : shardsToFail) {
            changed |= applyFailedShard(allocation, shardToFail, false);
+        }
+
+        if (electPrimaryService != null) {
+            return electPrimaryService.electUnassignedPrimaryShards(allocation.state());
         }
 
         // now, go over and elect a new primary if possible, not, from this code block on, if one is elected,

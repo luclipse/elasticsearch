@@ -65,7 +65,7 @@ public class TransportShardActive extends AbstractComponent {
         transportService.registerHandler(ACTION_SHARD_EXISTS, new ShardActiveRequestHandler());
     }
 
-    public void shardActiveCount(ClusterState state, ShardId shardId, Iterable<ShardRouting> indexShardRoutingTable, ActionListener<Result> listener) {
+    public void shardActiveCount(ClusterState state, ShardId shardId, Iterable<? extends ShardRouting> indexShardRoutingTable, ActionListener<Result> listener) {
         List<Tuple<DiscoveryNode, ShardActiveRequest>> requests = new ArrayList<>(4);
         String indexUUID = state.getMetaData().index(shardId.getIndex()).getUUID();
         assert indexUUID != null;

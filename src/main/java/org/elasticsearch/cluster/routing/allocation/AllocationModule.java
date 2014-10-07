@@ -48,6 +48,7 @@ public class AllocationModule extends AbstractModule implements SpawnModules {
 
     @Override
     protected void configure() {
+        bind(ElectPrimaryService.class).asEagerSingleton();
         bind(AllocationService.class).asEagerSingleton();
     }
 }

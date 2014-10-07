@@ -88,7 +88,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
-                .build(), deciders, new ShardsAllocators(), cis);
+                .build(), deciders, new ShardsAllocators(), cis, null);
 
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test").numberOfShards(1).numberOfReplicas(1))
@@ -173,7 +173,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
-                .build(), deciders, new ShardsAllocators(), cis);
+                .build(), deciders, new ShardsAllocators(), cis, null);
 
         routingTable = strategy.reroute(clusterState).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
@@ -204,7 +204,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
-                .build(), deciders, new ShardsAllocators(), cis);
+                .build(), deciders, new ShardsAllocators(), cis, null);
 
         routingTable = strategy.reroute(clusterState).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
@@ -279,7 +279,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
-                .build(), deciders, new ShardsAllocators(), cis);
+                .build(), deciders, new ShardsAllocators(), cis, null);
 
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test").numberOfShards(1).numberOfReplicas(2))
@@ -329,7 +329,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
-                .build(), deciders, new ShardsAllocators(), cis);
+                .build(), deciders, new ShardsAllocators(), cis, null);
 
         routingTable = strategy.reroute(clusterState).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
@@ -396,7 +396,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
-                .build(), deciders, new ShardsAllocators(), cis);
+                .build(), deciders, new ShardsAllocators(), cis, null);
 
         routingTable = strategy.reroute(clusterState).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
@@ -427,7 +427,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
-                .build(), deciders, new ShardsAllocators(), cis);
+                .build(), deciders, new ShardsAllocators(), cis, null);
 
         routingTable = strategy.reroute(clusterState).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
@@ -530,7 +530,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
-                .build(), deciders, new ShardsAllocators(), cis);
+                .build(), deciders, new ShardsAllocators(), cis, null);
 
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test").numberOfShards(1).numberOfReplicas(0))
@@ -592,7 +592,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
-                .build(), deciders, new ShardsAllocators(), cis);
+                .build(), deciders, new ShardsAllocators(), cis, null);
 
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test").numberOfShards(1).numberOfReplicas(0))
@@ -691,7 +691,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
-                .build(), deciders, new ShardsAllocators(), cis);
+                .build(), deciders, new ShardsAllocators(), cis, null);
 
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test").numberOfShards(1).numberOfReplicas(1))
