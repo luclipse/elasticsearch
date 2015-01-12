@@ -604,6 +604,23 @@ public class InnerHitsTests extends ElasticsearchIntegrationTest {
         assertThat(innerHits.getAt(0).getNestedIdentity().getOffset(), equalTo(0));
         assertThat(innerHits.getAt(0).getNestedIdentity().getChild().getField().string(), equalTo("remarks"));
         assertThat(innerHits.getAt(0).getNestedIdentity().getChild().getOffset(), equalTo(0));
+
+        response = client().prepareSearch("articles")
+                .setQuery(nestedQuery("comments", nestedQuery("comments.remarks", matchQuery("comments.remarks.message", "bad"))))
+                .addInnerHit("comments.remarks", new InnerHitsBuilder.InnerHit().setPath("comments.remarks").setQuery(matchQuery("comments.remarks.message", "bad")))
+                .get();
+        assertNoFailures(response);
+        assertHitCount(response, 1);
+        assertSearchHit(response, 1, hasId("2"));
+        assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments.remarks").getTotalHits(), equalTo(1l));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments.remarks").getHits().length, equalTo(1));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments.remarks").getAt(0).getId(), equalTo("2"));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments.remarks").getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments.remarks").getAt(0).getNestedIdentity().getOffset(), equalTo(0));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments.remarks").getAt(0).getNestedIdentity().getChild().getField().string(), equalTo("remarks"));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments.remarks").getAt(0).getNestedIdentity().getChild().getOffset(), equalTo(0));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments.remarks").getAt(0).getNestedIdentity().getChild().getChild(), nullValue());
     }
 
 }

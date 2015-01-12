@@ -61,13 +61,13 @@ public class InnerHitsParseElement implements SearchParseElement {
 
     @Override
     public void parse(XContentParser parser, SearchContext context) throws Exception {
-        Map<String, InnerHitsContext.BaseInnerHits> innerHitsMap = parseInnerHits(parser, context);
+        Map<String, InnerHitsContext.BaseInnerHits> innerHitsMap = parseInnerHits(parser, context, null);
         if (innerHitsMap != null) {
             context.innerHits(new InnerHitsContext(innerHitsMap));
         }
     }
 
-    private Map<String, InnerHitsContext.BaseInnerHits> parseInnerHits(XContentParser parser, SearchContext context) throws Exception {
+    private Map<String, InnerHitsContext.BaseInnerHits> parseInnerHits(XContentParser parser, SearchContext context, String parentNested) throws Exception {
         XContentParser.Token token;
         Map<String, InnerHitsContext.BaseInnerHits> innerHitsMap = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -79,7 +79,7 @@ public class InnerHitsParseElement implements SearchParseElement {
             if (token != XContentParser.Token.START_OBJECT) {
                 throw new ElasticsearchIllegalArgumentException("Inner hit definition for [" + innerHitName + " starts with a [" + token + "], expected a [" + XContentParser.Token.START_OBJECT + "].");
             }
-            InnerHitsContext.BaseInnerHits innerHits = parseInnerHit(parser, context, innerHitName);
+            InnerHitsContext.BaseInnerHits innerHits = parseInnerHit(parser, context, innerHitName, parentNested);
             if (innerHitsMap == null) {
                 innerHitsMap = new HashMap<>();
             }
@@ -88,7 +88,7 @@ public class InnerHitsParseElement implements SearchParseElement {
         return innerHitsMap;
     }
 
-    private InnerHitsContext.BaseInnerHits parseInnerHit(XContentParser parser, SearchContext context, String innerHitName) throws Exception {
+    private InnerHitsContext.BaseInnerHits parseInnerHit(XContentParser parser, SearchContext context, String innerHitName, String parentNested) throws Exception {
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
             throw new ElasticsearchIllegalArgumentException("Unexpected token " + token + " inside inner hit definition. Either specify [path] or [type] object");
@@ -144,7 +144,7 @@ public class InnerHitsParseElement implements SearchParseElement {
                 if ("query".equals(fieldName)) {
                     query = context.queryParserService().parse(parser).query();
                 } else if ("inner_hits".equals(fieldName)) {
-                    childInnerHits = parseInnerHits(parser, context);
+                    childInnerHits = parseInnerHits(parser, context, nestedPath);
                 } else {
                     parseCommonInnerHitOptions(parser, token, fieldName, subSearchContext, sortParseElement, sourceParseElement, highlighterParseElement, scriptFieldsParseElement, fieldDataFieldsParseElement);
                 }
@@ -183,8 +183,12 @@ public class InnerHitsParseElement implements SearchParseElement {
                 currentFilter.filter = context.bitsetFilterCache().getBitDocIdSetFilter(childObjectMapper.nestedTypeFilter());
                 NestedQueryParser.parentFilterContext.set(parentFilter);
             }
-
-            ObjectMapper parentObjectMapper = childDocumentMapper.findParentObjectMapper(childObjectMapper);
+            final ObjectMapper parentObjectMapper;
+            if (parentNested == null) {
+                parentObjectMapper = null;
+            } else {
+                parentObjectMapper = context.smartNameObjectMapper(parentNested).mapper();
+            }
             return new InnerHitsContext.NestedInnerHits(subSearchContext, query, childInnerHits, parentObjectMapper, childObjectMapper);
         } else if (type != null) {
             DocumentMapper documentMapper = context.mapperService().documentMapper(type);
