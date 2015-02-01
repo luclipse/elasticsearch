@@ -50,6 +50,28 @@ matching parent document. The score type can be specified with the
 --------------------------------------------------
 
 [float]
+==== Strict parsing mode
+
+This boolean option controls how to deal with no or incorrectly configured `_parent` field mapping.
+This can be useful when querying across multiple indices where not all indices have a `_parent` field defined.
+Example with no strict parse mode:
+
+[source,js]
+--------------------------------------------------
+{
+    "has_parent" : {
+        "parent_type" : "blog",
+        "strict" : false,
+        "query" : {
+            "term" : {
+                "tag" : "something"
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+[float]
 ==== Memory Considerations
 
 In order to support parent-child joins, all of the (string) parent IDs 

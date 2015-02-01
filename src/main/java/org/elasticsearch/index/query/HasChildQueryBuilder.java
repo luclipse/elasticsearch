@@ -46,6 +46,8 @@ public class HasChildQueryBuilder extends BaseQueryBuilder implements BoostableQ
 
     private QueryInnerHitBuilder innerHit = null;
 
+    private Boolean strict;
+
     public HasChildQueryBuilder(String type, QueryBuilder queryBuilder) {
         this.childType = type;
         this.queryBuilder = queryBuilder;
@@ -109,6 +111,20 @@ public class HasChildQueryBuilder extends BaseQueryBuilder implements BoostableQ
         return this;
     }
 
+    /**
+     * Whether it is required that the child type exists, the type has a _parent field or the _parent field points to
+     * an parent type that exists.
+     *
+     * If set to <code>true</code> (which is the default) and if any of the specified mapping checks fail a parser error
+     * will be thrown.
+     *
+     * If set to <code>false</code> and if any of the specified mapping checks fail has_child query will yield no results.
+     */
+    public HasChildQueryBuilder strict(boolean strict) {
+        this.strict = strict;
+        return this;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(HasChildQueryParser.NAME);
@@ -137,6 +153,9 @@ public class HasChildQueryBuilder extends BaseQueryBuilder implements BoostableQ
             builder.startObject("inner_hits");
             builder.value(innerHit);
             builder.endObject();
+        }
+        if (strict != null) {
+            builder.field("strict", strict);
         }
         builder.endObject();
     }

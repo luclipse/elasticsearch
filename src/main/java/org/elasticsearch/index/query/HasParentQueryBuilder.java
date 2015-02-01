@@ -34,6 +34,7 @@ public class HasParentQueryBuilder extends BaseQueryBuilder implements Boostable
     private float boost = 1.0f;
     private String queryName;
     private QueryInnerHitBuilder innerHit = null;
+    private Boolean strict;
 
     /**
      * @param parentType  The parent type
@@ -73,6 +74,21 @@ public class HasParentQueryBuilder extends BaseQueryBuilder implements Boostable
         return this;
     }
 
+    /**
+     * Whether it is required that the parent type exists or any child type points to the
+     * specified parent type.
+     *
+     * If set to <code>true</code> (which is the default) parsing of the has_parent query
+     * will fail if the parent type doesn't exist or no child type points to the specified parent type.
+     *
+     * If set to <code>false</code> and the parent type doesn't exist or no child type
+     * points to the specified parent type then the has_parent query will yield no results.
+     */
+    public HasParentQueryBuilder strict(boolean strict) {
+        this.strict = strict;
+        return this;
+    }
+
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(HasParentQueryParser.NAME);
         builder.field("query");
@@ -91,6 +107,9 @@ public class HasParentQueryBuilder extends BaseQueryBuilder implements Boostable
             builder.startObject("inner_hits");
             builder.value(innerHit);
             builder.endObject();
+        }
+        if (strict != null) {
+            builder.field("strict", strict);
         }
         builder.endObject();
     }

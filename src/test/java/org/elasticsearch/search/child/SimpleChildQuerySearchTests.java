@@ -1028,11 +1028,11 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertNoFailures(response);
         assertThat(response.getHits().totalHits(), equalTo(0l));
 
-        response = client().prepareSearch("test").setQuery(QueryBuilders.hasParentQuery("child", matchQuery("text", "value"))).get();
+        response = client().prepareSearch("test").setQuery(QueryBuilders.hasParentQuery("child", matchQuery("text", "value")).strict(false)).get();
         assertNoFailures(response);
         assertThat(response.getHits().totalHits(), equalTo(0l));
 
-        response = client().prepareSearch("test").setQuery(QueryBuilders.hasParentQuery("child", matchQuery("text", "value")).scoreType("score"))
+        response = client().prepareSearch("test").setQuery(QueryBuilders.hasParentQuery("child", matchQuery("text", "value")).scoreType("score").strict(false))
                 .get();
         assertNoFailures(response);
         assertThat(response.getHits().totalHits(), equalTo(0l));
@@ -2056,7 +2056,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(statsResponse.getIndex("test").getTotal().getFilterCache().getMemorySizeInBytes(), equalTo(initialCacheSize));
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(QueryBuilders.filteredQuery(matchAllQuery(), FilterBuilders.hasParentFilter("parent", matchAllQuery()).cache(true)))
+                .setQuery(QueryBuilders.filteredQuery(matchAllQuery(), hasParentFilter("parent", matchAllQuery()).cache(true)))
                 .get();
         assertHitCount(searchResponse, 1l);
 
@@ -2079,7 +2079,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                         matchAllQuery(),
                         FilterBuilders.boolFilter().cache(true)
                                 .must(FilterBuilders.matchAllFilter())
-                                .must(FilterBuilders.hasParentFilter("parent", matchAllQuery()).cache(true))
+                                .must(hasParentFilter("parent", matchAllQuery()).cache(true))
                 ))
                 .get();
         assertHitCount(searchResponse, 1l);
@@ -2103,7 +2103,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                         matchAllQuery(),
                         FilterBuilders.boolFilter().cache(true)
                                 .must(FilterBuilders.termFilter("field", "value").cache(true))
-                                .must(FilterBuilders.hasParentFilter("parent", matchAllQuery()).cache(true))
+                                .must(hasParentFilter("parent", matchAllQuery()).cache(true))
                 ))
                 .get();
         assertHitCount(searchResponse, 1l);
@@ -2673,18 +2673,24 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "child", "1").setParent("1").setSource("{}").get();
         refresh();
 
+        // Strict parent field resolution:
         try {
             client().prepareSearch("test")
                     .setQuery(QueryBuilders.hasChildQuery("child", matchAllQuery()))
                     .get();
             fail();
         } catch (SearchPhaseExecutionException e) {
+            assertThat(e.getMessage(), containsString("type [child] points to a non existent parent type [parent2]"));
         }
 
-        SearchResponse response = client().prepareSearch("test")
-                .setQuery(QueryBuilders.hasParentQuery("parent", matchAllQuery()))
-                .get();
-        assertHitCount(response, 0);
+        try {
+            client().prepareSearch("test")
+                    .setQuery(QueryBuilders.hasParentQuery("parent", matchAllQuery()))
+                    .get();
+            fail();
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(e.getMessage(), containsString("no child types point to parent type [parent]"));
+        }
 
         try {
             client().prepareSearch("test")
@@ -2692,11 +2698,34 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                     .get();
             fail();
         } catch (SearchPhaseExecutionException e) {
+            assertThat(e.getMessage(), containsString("type [child] points to a non existent parent type [parent2]"));
         }
 
-        response = client().prepareSearch("test")
-                .setQuery(QueryBuilders.constantScoreQuery(FilterBuilders.hasParentFilter("parent", matchAllQuery())))
+        // not strict _parent field mapping resolution
+        SearchResponse response = client().prepareSearch("test")
+                .setQuery(QueryBuilders.constantScoreQuery(hasParentFilter("parent", matchAllQuery()).strict(false)))
                 .get();
+        assertNoFailures(response);
+        assertHitCount(response, 0);
+        response = client().prepareSearch("test")
+                .setQuery(QueryBuilders.hasChildQuery("child", matchAllQuery()).strict(false))
+                .get();
+        assertNoFailures(response);
+        assertHitCount(response, 0);
+        response = client().prepareSearch("test")
+                .setQuery(QueryBuilders.hasParentQuery("parent", matchAllQuery()).strict(false))
+                .get();
+        assertNoFailures(response);
+        assertHitCount(response, 0);
+        response = client().prepareSearch("test")
+                .setQuery(QueryBuilders.constantScoreQuery(FilterBuilders.hasChildFilter("child", matchAllQuery()).strict(false)))
+                .get();
+        assertNoFailures(response);
+        assertHitCount(response, 0);
+        response = client().prepareSearch("test")
+                .setQuery(QueryBuilders.constantScoreQuery(hasParentFilter("parent", matchAllQuery()).strict(false)))
+                .get();
+        assertNoFailures(response);
         assertHitCount(response, 0);
     }
 

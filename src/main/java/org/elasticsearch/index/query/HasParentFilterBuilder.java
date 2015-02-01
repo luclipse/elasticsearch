@@ -33,6 +33,7 @@ public class HasParentFilterBuilder extends BaseFilterBuilder {
     private final String parentType;
     private String filterName;
     private QueryInnerHitBuilder innerHit = null;
+    private Boolean strict;
 
     /**
      * @param parentType  The parent type
@@ -84,6 +85,21 @@ public class HasParentFilterBuilder extends BaseFilterBuilder {
         return this;
     }
 
+    /**
+     * Whether it is required that the parent type exists or any child type points to the
+     * specified parent type.
+     *
+     * If set to <code>true</code> (which is the default) parsing of the has_parent query
+     * will fail if the parent type doesn't exist or no child type points to the specified parent type.
+     *
+     * If set to <code>false</code> and the parent type doesn't exist or no child type
+     * points to the specified parent type then the has_parent query will yield no results.
+     */
+    public HasParentFilterBuilder strict(boolean strict) {
+        this.strict = strict;
+        return this;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(HasParentFilterParser.NAME);
@@ -102,6 +118,9 @@ public class HasParentFilterBuilder extends BaseFilterBuilder {
             builder.startObject("inner_hits");
             builder.value(innerHit);
             builder.endObject();
+        }
+        if (strict != null) {
+            builder.field("strict", strict);
         }
         builder.endObject();
     }

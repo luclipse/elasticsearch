@@ -26,6 +26,7 @@ import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -68,6 +69,7 @@ public class HasChildQueryParser implements QueryParser {
         ensureNotDeleteByQuery(NAME, parseContext);
         XContentParser parser = parseContext.parser();
 
+        boolean strict = true;
         boolean queryFound = false;
         float boost = 1.0f;
         String childType = null;
@@ -114,6 +116,8 @@ public class HasChildQueryParser implements QueryParser {
                     shortCircuitParentDocSet = parser.intValue();
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
+                } else if ("strict".equals(currentFieldName)) {
+                    strict = parser.booleanValue();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[has_child] query does not support [" + currentFieldName + "]");
                 }
@@ -133,12 +137,34 @@ public class HasChildQueryParser implements QueryParser {
         }
         innerQuery.setBoost(boost);
 
+        Query query = createChildrenQuery(parseContext, childType, scoreType, minChildren, maxChildren, shortCircuitParentDocSet, innerHits, innerQuery, strict);
+        if (query == null) {
+            return null;
+        }
+        query.setBoost(boost);
+        if (queryName != null) {
+            parseContext.addNamedFilter(queryName, new CustomQueryWrappingFilter(query));
+        }
+        return query;
+    }
+
+    static Query createChildrenQuery(QueryParseContext parseContext, String childType, ScoreType scoreType, int minChildren, int maxChildren, int shortCircuitParentDocSet, Tuple<String, SubSearchContext> innerHits, Query innerQuery, boolean strict) {
         DocumentMapper childDocMapper = parseContext.mapperService().documentMapper(childType);
         if (childDocMapper == null) {
-            throw new QueryParsingException(parseContext.index(), "[has_child] No mapping for for type [" + childType + "]");
+            if (strict) {
+                throw new QueryParsingException(parseContext.index(), "[has_child] no mapping for for type [" + childType + "]");
+            } else {
+                return Queries.newMatchNoDocsQuery();
+            }
         }
-        if (!childDocMapper.parentFieldMapper().active()) {
-            throw new QueryParsingException(parseContext.index(), "[has_child]  Type [" + childType + "] does not have parent mapping");
+
+        ParentFieldMapper parentFieldMapper = childDocMapper.parentFieldMapper();
+        if (!parentFieldMapper.active()) {
+            if (strict) {
+                throw new QueryParsingException(parseContext.index(), "[has_child] type [" + childType + "] does not have parent mapping");
+            } else {
+                return Queries.newMatchNoDocsQuery();
+            }
         }
 
         if (innerHits != null) {
@@ -147,16 +173,14 @@ public class HasChildQueryParser implements QueryParser {
             parseContext.addInnerHits(name, parentChildInnerHits);
         }
 
-        ParentFieldMapper parentFieldMapper = childDocMapper.parentFieldMapper();
-        if (!parentFieldMapper.active()) {
-            throw new QueryParsingException(parseContext.index(), "[has_child] _parent field not configured");
-        }
-
         String parentType = parentFieldMapper.type();
         DocumentMapper parentDocMapper = parseContext.mapperService().documentMapper(parentType);
         if (parentDocMapper == null) {
-            throw new QueryParsingException(parseContext.index(), "[has_child]  Type [" + childType
-                    + "] points to a non existent parent type [" + parentType + "]");
+            if (strict) {
+                throw new QueryParsingException(parseContext.index(), "[has_child] type [" + childType + "] points to a non existent parent type [" + parentType + "]");
+            } else {
+                return Queries.newMatchNoDocsQuery();
+            }
         }
 
         if (maxChildren > 0 && maxChildren < minChildren) {
@@ -181,10 +205,6 @@ public class HasChildQueryParser implements QueryParser {
             query = new ChildrenConstantScoreQuery(parentChildIndexFieldData, innerQuery, parentType, childType, parentFilter,
                     shortCircuitParentDocSet, nonNestedDocsFilter);
         }
-        if (queryName != null) {
-            parseContext.addNamedFilter(queryName, new CustomQueryWrappingFilter(query));
-        }
-        query.setBoost(boost);
         return query;
     }
 }

@@ -66,6 +66,7 @@ public class HasParentQueryParser implements QueryParser {
         ensureNotDeleteByQuery(NAME, parseContext);
         XContentParser parser = parseContext.parser();
 
+        boolean strict = true;
         boolean queryFound = false;
         float boost = 1.0f;
         String parentType = null;
@@ -113,6 +114,8 @@ public class HasParentQueryParser implements QueryParser {
                     boost = parser.floatValue();
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
+                } else if ("strict".equals(currentFieldName)) {
+                    strict = parser.booleanValue();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[has_parent] query does not support [" + currentFieldName + "]");
                 }
@@ -132,7 +135,7 @@ public class HasParentQueryParser implements QueryParser {
         }
 
         innerQuery.setBoost(boost);
-        Query query = createParentQuery(innerQuery, parentType, score, parseContext, innerHits);
+        Query query = createParentQuery(innerQuery, parentType, score, parseContext, innerHits, strict);
         if (query == null) {
             return null;
         }
@@ -144,10 +147,14 @@ public class HasParentQueryParser implements QueryParser {
         return query;
     }
 
-    static Query createParentQuery(Query innerQuery, String parentType, boolean score, QueryParseContext parseContext, Tuple<String, SubSearchContext> innerHits) {
+    static Query createParentQuery(Query innerQuery, String parentType, boolean score, QueryParseContext parseContext, Tuple<String, SubSearchContext> innerHits, boolean strict) {
         DocumentMapper parentDocMapper = parseContext.mapperService().documentMapper(parentType);
         if (parentDocMapper == null) {
-            throw new QueryParsingException(parseContext.index(), "[has_parent] query configured 'parent_type' [" + parentType + "] is not a valid type");
+            if (strict) {
+                throw new QueryParsingException(parseContext.index(), "[has_parent] query configured 'parent_type' [" + parentType + "] is not a valid type");
+            } else {
+                return null;
+            }
         }
 
         if (innerHits != null) {
@@ -156,22 +163,23 @@ public class HasParentQueryParser implements QueryParser {
             parseContext.addInnerHits(name, parentChildInnerHits);
         }
 
-        Set<String> parentTypes = new HashSet<>(5);
-        parentTypes.add(parentDocMapper.type());
         ParentChildIndexFieldData parentChildIndexFieldData = null;
+        Set<String> parentTypes = new HashSet<>(5);
         for (DocumentMapper documentMapper : parseContext.mapperService().docMappers(false)) {
             ParentFieldMapper parentFieldMapper = documentMapper.parentFieldMapper();
-            if (parentFieldMapper.active()) {
-                DocumentMapper parentTypeDocumentMapper = parseContext.mapperService().documentMapper(parentFieldMapper.type());
-                parentChildIndexFieldData = parseContext.getForField(parentFieldMapper);
-                if (parentTypeDocumentMapper == null) {
-                    // Only add this, if this parentFieldMapper (also a parent)  isn't a child of another parent.
-                    parentTypes.add(parentFieldMapper.type());
+            if (parentFieldMapper.active() && parentType.equals(parentFieldMapper.type())) {
+                parentTypes.add(parentFieldMapper.type());
+                if (parentChildIndexFieldData == null) {
+                    parentChildIndexFieldData = parseContext.getForField(parentFieldMapper);
                 }
             }
         }
         if (parentChildIndexFieldData == null) {
-            throw new QueryParsingException(parseContext.index(), "[has_parent] no _parent field configured");
+            if (strict) {
+                throw new QueryParsingException(parseContext.index(), "[has_parent] no child types point to parent type [" + parentType + "]");
+            } else {
+                return null;
+            }
         }
 
         Filter parentFilter = null;

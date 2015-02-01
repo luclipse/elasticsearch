@@ -58,6 +58,7 @@ public class HasParentFilterParser implements FilterParser {
         ensureNotDeleteByQuery(NAME, parseContext);
         XContentParser parser = parseContext.parser();
 
+        boolean strict = true;
         boolean queryFound = false;
         boolean filterFound = false;
         String parentType = null;
@@ -92,6 +93,8 @@ public class HasParentFilterParser implements FilterParser {
                     parentType = parser.text();
                 } else if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
+                } else if ("strict".equals(currentFieldName)) {
+                    strict = parser.booleanValue();
                 } else if ("_cache".equals(currentFieldName)) {
                     // noop to be backwards compatible
                 } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
@@ -119,7 +122,7 @@ public class HasParentFilterParser implements FilterParser {
             return null;
         }
 
-        Query parentQuery = createParentQuery(innerQuery, parentType, false, parseContext, innerHits);
+        Query parentQuery = createParentQuery(innerQuery, parentType, false, parseContext, innerHits, strict);
         if (parentQuery == null) {
             return null;
         }
